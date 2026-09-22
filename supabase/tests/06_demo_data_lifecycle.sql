@@ -7,7 +7,7 @@
 -- the rollback: a bug here would show up as tenant A's *committed* demo
 -- data changing mid-test, not as something the rollback happens to hide.
 
-select plan(10);
+select plan(12);
 
 set local role authenticated;
 
@@ -19,6 +19,25 @@ select t(throws_ok(
   $$ select public.install_demo_workspace('11111111-1111-4111-8111-111111111111') $$,
   '42501', null,
   'a developer cannot install demo data, even for their own tenant'));
+
+-- Regression for the role_rank NULL-bypass fixed in
+-- 20260924000002_fix_role_rank_null_bypass.sql: a caller with *zero*
+-- membership in the target tenant — not merely an insufficient role in
+-- it — must be rejected too. Before that fix, authz.can_manage_tenant()
+-- returned NULL rather than false for a non-member, and PL/pgSQL's
+-- `if not <NULL> then raise` silently never raised.
+set local request.jwt.claims = '{"sub":"b0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+-- owner.b holds no membership in tenant A at all.
+
+select t(throws_ok(
+  $$ select public.install_demo_workspace('11111111-1111-4111-8111-111111111111') $$,
+  '42501', null,
+  'a user with no membership in the target tenant cannot install demo data there'));
+
+select t(throws_ok(
+  $$ select public.reset_demo_workspace('11111111-1111-4111-8111-111111111111') $$,
+  '42501', null,
+  'a user with no membership in the target tenant cannot reset demo data there'));
 
 -- Switch to tenant B's owner and confirm the starting state.
 set local request.jwt.claims = '{"sub":"b0000000-0000-4000-8000-000000000001","role":"authenticated"}';
