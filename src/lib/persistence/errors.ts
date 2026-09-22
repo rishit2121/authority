@@ -42,10 +42,7 @@ interface ProviderErrorLike {
  * runs entirely on the server, so a log line naming which operation failed on
  * which table is an operational detail, not user-facing text.
  */
-export function throwDatabaseError(
-  operation: string,
-  error: ProviderErrorLike | null | undefined,
-): never {
+export function throwDatabaseError(operation: string, error: ProviderErrorLike | null | undefined): never {
   console.error(`repository: ${operation} failed (code=${error?.code ?? "unknown"})`);
   throw new RepositoryError("database_error", `Could not complete: ${operation}.`, { cause: error });
 }

@@ -75,7 +75,10 @@ describe("planNodeRowToDomain", () => {
 
 describe("planRowsToDomain", () => {
   it("assembles nodes nested under the plan, sorted by sequence_no", () => {
-    const nodes = [nodeRow({ id: "n2", sequence_no: 1, tool: "github.read_repository" }), nodeRow({ id: "n1", sequence_no: 0 })];
+    const nodes = [
+      nodeRow({ id: "n2", sequence_no: 1, tool: "github.read_repository" }),
+      nodeRow({ id: "n1", sequence_no: 0 }),
+    ];
 
     const domain = planRowsToDomain(PLAN_ROW, nodes);
 

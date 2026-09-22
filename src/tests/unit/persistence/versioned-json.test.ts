@@ -16,9 +16,7 @@ describe("readVersionedJson", () => {
 
   describe("rejects an unrecognized schema version", () => {
     it("rejects a version number not in the allowed set", () => {
-      expect(() => readVersionedJson({ schemaVersion: 2, values: {} }, [1], "test")).toThrow(
-        RepositoryError,
-      );
+      expect(() => readVersionedJson({ schemaVersion: 2, values: {} }, [1], "test")).toThrow(RepositoryError);
     });
 
     it("rejects a missing schemaVersion entirely", () => {

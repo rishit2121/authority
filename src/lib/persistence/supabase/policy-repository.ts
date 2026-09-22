@@ -8,11 +8,7 @@ import { policyRowToDomain } from "../mappers/policy";
 export function createSupabasePolicyRepository(context: RepositoryContext): PolicyRepository {
   return {
     async findById(id) {
-      const { data, error } = await context.supabase
-        .from("policies")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const { data, error } = await context.supabase.from("policies").select("*").eq("id", id).maybeSingle();
 
       if (error) throwDatabaseError("find policy", error);
       return data ? policyRowToDomain(data) : null;

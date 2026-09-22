@@ -8,11 +8,7 @@ import { agentRowToDomain } from "../mappers/agent";
 export function createSupabaseAgentRepository(context: RepositoryContext): AgentRepository {
   return {
     async findById(id) {
-      const { data, error } = await context.supabase
-        .from("agents")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const { data, error } = await context.supabase.from("agents").select("*").eq("id", id).maybeSingle();
 
       if (error) throwDatabaseError("find agent", error);
       return data ? agentRowToDomain(data) : null;

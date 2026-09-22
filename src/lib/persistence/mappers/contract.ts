@@ -62,9 +62,7 @@ export interface CreateContractInput {
   createdBy?: string;
 }
 
-export function contractInputToInsertRow(
-  input: CreateContractInput,
-): InsertRow<"task_authority_contracts"> {
+export function contractInputToInsertRow(input: CreateContractInput): InsertRow<"task_authority_contracts"> {
   return {
     tenant_id: input.tenantId,
     task_id: input.taskId,

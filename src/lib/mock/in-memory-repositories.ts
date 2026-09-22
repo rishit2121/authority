@@ -120,7 +120,10 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
       findById: async (id: Id) => dataset.tasks.find((t) => t.id === id) ?? null,
       listByTenant: async (tenantId: Id) => dataset.tasks.filter((t) => t.tenantId === tenantId),
       listByTenantPaged: async (tenantId: Id, options?: PageOptions) =>
-        paginateArray(dataset.tasks.filter((t) => t.tenantId === tenantId), options),
+        paginateArray(
+          dataset.tasks.filter((t) => t.tenantId === tenantId),
+          options,
+        ),
     },
     contracts: {
       findByTaskId: async (taskId: Id) => dataset.contracts.find((c) => c.taskId === taskId) ?? null,
@@ -131,13 +134,19 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
     toolRequests: {
       listByTaskId: async (taskId: Id) => dataset.toolRequests.filter((r) => r.taskId === taskId),
       listByTaskIdPaged: async (taskId: Id, options?: PageOptions) =>
-        paginateArray(dataset.toolRequests.filter((r) => r.taskId === taskId), options),
+        paginateArray(
+          dataset.toolRequests.filter((r) => r.taskId === taskId),
+          options,
+        ),
     },
     decisions: {
       findById: async (id: Id) => dataset.decisions.find((d) => d.id === id) ?? null,
       listByTaskId: async (taskId: Id) => dataset.decisions.filter((d) => d.taskId === taskId),
       listByTaskIdPaged: async (taskId: Id, options?: PageOptions) =>
-        paginateArray(dataset.decisions.filter((d) => d.taskId === taskId), options),
+        paginateArray(
+          dataset.decisions.filter((d) => d.taskId === taskId),
+          options,
+        ),
     },
     capabilities: {
       listByTaskId: async (taskId: Id) => dataset.capabilities.filter((c) => c.taskId === taskId),
@@ -154,7 +163,10 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
       listPendingByTenant: async (tenantId: Id) =>
         dataset.approvals.filter((a) => a.tenantId === tenantId && a.status === "pending"),
       listByTenantPaged: async (tenantId: Id, options?: PageOptions) =>
-        paginateArray(dataset.approvals.filter((a) => a.tenantId === tenantId), options),
+        paginateArray(
+          dataset.approvals.filter((a) => a.tenantId === tenantId),
+          options,
+        ),
     },
     events: {
       listByTaskId: async (taskId: Id) =>

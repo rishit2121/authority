@@ -13,11 +13,7 @@ import { tenantRowToDomain } from "../mappers/tenant";
 export function createSupabaseTenantRepository(context: RepositoryContext): TenantRepository {
   return {
     async findById(id) {
-      const { data, error } = await context.supabase
-        .from("tenants")
-        .select("*")
-        .eq("id", id)
-        .maybeSingle();
+      const { data, error } = await context.supabase.from("tenants").select("*").eq("id", id).maybeSingle();
 
       if (error) throwDatabaseError("find tenant", error);
       return data ? tenantRowToDomain(data) : null;

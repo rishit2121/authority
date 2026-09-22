@@ -50,7 +50,10 @@ export function createSupabaseDecisionRepository(context: RepositoryContext): De
         ? await fetchSemanticRowsByIds(context, [data.semantic_decision_id])
         : new Map<string, SemanticRow>();
 
-      return decisionRowToDomain(data, data.semantic_decision_id ? semanticRows.get(data.semantic_decision_id) : null);
+      return decisionRowToDomain(
+        data,
+        data.semantic_decision_id ? semanticRows.get(data.semantic_decision_id) : null,
+      );
     },
 
     async listByTaskId(taskId) {
@@ -69,7 +72,10 @@ export function createSupabaseDecisionRepository(context: RepositoryContext): De
       const semanticRows = await fetchSemanticRowsByIds(context, semanticIds);
 
       return rows.map((row) =>
-        decisionRowToDomain(row, row.semantic_decision_id ? semanticRows.get(row.semantic_decision_id) : null),
+        decisionRowToDomain(
+          row,
+          row.semantic_decision_id ? semanticRows.get(row.semantic_decision_id) : null,
+        ),
       );
     },
 

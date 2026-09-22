@@ -1,4 +1,11 @@
-import { planNodeSchema, planSchema, type Plan, type PlanNode, type PlanNodeStatus, type ToolArguments } from "@/lib/domain";
+import {
+  planNodeSchema,
+  planSchema,
+  type Plan,
+  type PlanNode,
+  type PlanNodeStatus,
+  type ToolArguments,
+} from "@/lib/domain";
 
 import { throwInvalidRow } from "../errors";
 import type { InsertRow, Tables } from "../db-types";
