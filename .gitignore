@@ -1,0 +1,22 @@
+node_modules/
+.next/
+out/
+build/
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
+
+# Credentials. Never commit these.
+.env
+.env.local
+.env.*.local
+.env*.local
+.supabase-cli.env
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Supabase CLI local state
+supabase/.temp/
+supabase/.branches/

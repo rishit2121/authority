@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    overscroll-behavior: none;
+  }
+
+  main > :first-child {
+    margin-top: 0 !important;
+  }
+
+  main > :last-child {
+    margin-bottom: 0 !important;
+  }
+
+  /* The Stitch export hid scrollbars; keep the chrome-free look but leave the
+     element scrollable for keyboard and trackpad users. */
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+  html {
+    scrollbar-width: none;
+    scroll-behavior: smooth;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme("colors.primary-container");
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* Sequenced authority-graph edges. Every animated path declares
+     `pathLength="1"`, so a single dash length works regardless of the path's
+     real geometry: offset 1 = undrawn, 0 = fully drawn. */
+  .edge-path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+
+  .edge-path-drawn {
+    stroke-dashoffset: 0;
+  }
+
+  .edge-animated {
+    transition:
+      stroke-dashoffset 900ms cubic-bezier(0.65, 0, 0.35, 1),
+      opacity 400ms ease;
+  }
+
+  /* Capability retraction pulls the stroke back toward the agent core. */
+  .edge-retracting {
+    stroke-dashoffset: -1;
+    transition:
+      stroke-dashoffset 700ms cubic-bezier(0.55, 0, 0.55, 1),
+      opacity 500ms ease;
+  }
+
+  .edge-glow {
+    filter: drop-shadow(0 0 6px rgba(85, 216, 255, 0.9));
+  }
+
+  /* Brief completion flash before capabilities retract. */
+  .edge-glow-success {
+    filter: drop-shadow(0 0 6px rgba(66, 231, 165, 0.85));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  /* Decorative motion is removed outright; the graph additionally renders its
+     resolved end state via the useReducedMotion hook rather than a sequence. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
