@@ -16,6 +16,7 @@ const ROW: Tables<"tasks"> = {
   completed_at: null,
   terminated_at: null,
   demo_key: "demo:task:991",
+  idempotency_key: null,
   created_at: "2026-01-01T00:00:00.000Z",
   updated_at: "2026-01-01T00:05:00.000Z",
 };
