@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+import { signIn } from "./support/auth";
+import { OWNER_A } from "./support/users";
+
 /**
  * The end-to-end marketing flow: headline, the authority graph existing on
  * the page, the walkthrough, and the denied-secret assertion on the full
@@ -43,6 +46,12 @@ test.describe("marketing flow", () => {
   });
 
   test("opens the full task investigation and confirms secret access was denied", async ({ page }) => {
+    // The walkthrough hands off into /app, which is protected server-side as
+    // of Part 2A. Signing in first keeps this test covering the whole journey
+    // from the public demo through to the investigation view, rather than
+    // stopping at the login redirect.
+    await signIn(page, OWNER_A);
+
     await page.goto("/demo");
     await page.getByRole("link", { name: "Open the full task investigation" }).click();
     await expect(page).toHaveURL(/\/app\/tasks\/demo-task$/);

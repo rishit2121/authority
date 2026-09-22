@@ -9,10 +9,11 @@ import { Icon } from "@/components/ui/Icon";
 import { StatusDot } from "@/components/ui/StatusDot";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useSidebarCollapsed } from "@/hooks/useSidebarCollapsed";
+import type { TenantMembership } from "@/lib/auth/tenant-context";
 import type { NavBadgeCounts } from "@/lib/dashboard-nav";
 
 import { SidebarNav } from "./SidebarNav";
-import { UserMenu } from "./UserMenu";
+import { UserMenu, type UserMenuIdentity } from "./UserMenu";
 import { WorkspaceSelector } from "./WorkspaceSelector";
 
 /** Product identity + collapse toggle, shared by the desktop rail. */
@@ -53,7 +54,7 @@ function SidebarHeader({
 }
 
 /** Gateway status + account control, pinned to the bottom of the rail. */
-function SidebarFooter({ collapsed }: { collapsed: boolean }) {
+function SidebarFooter({ collapsed, identity }: { collapsed: boolean; identity: UserMenuIdentity }) {
   if (collapsed) {
     return (
       <div className="flex flex-col items-center gap-space-md border-t border-outline-variant/20 pt-space-md">
@@ -64,7 +65,7 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
         >
           <StatusDot className="bg-allow" ping={false} />
         </span>
-        <UserMenu collapsed />
+        <UserMenu identity={identity} collapsed />
       </div>
     );
   }
@@ -76,7 +77,7 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
         Gateway
         <strong className="ml-auto font-semibold text-allow">Enforcing</strong>
       </span>
-      <UserMenu />
+      <UserMenu identity={identity} />
     </div>
   );
 }
@@ -84,6 +85,12 @@ function SidebarFooter({ collapsed }: { collapsed: boolean }) {
 interface DashboardShellProps {
   children: ReactNode;
   badges: NavBadgeCounts;
+  /** Resolved server-side by requireIdentity(); never derived in the browser. */
+  identity: UserMenuIdentity;
+  memberships: TenantMembership[];
+  currentTenantId: string;
+  /** Label for the active workspace's environment, e.g. "Development". */
+  environmentLabel: string;
 }
 
 /**
@@ -91,7 +98,14 @@ interface DashboardShellProps {
  * drawer on small screens. Quieter than the marketing surface — hierarchy
  * over glow.
  */
-export function DashboardShell({ children, badges }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  badges,
+  identity,
+  memberships,
+  currentTenantId,
+  environmentLabel,
+}: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useSidebarCollapsed();
   const pathname = usePathname();
@@ -151,19 +165,19 @@ export function DashboardShell({ children, badges }: DashboardShellProps) {
                 <Icon name="chevron_right" size={16} />
               </button>
             ) : (
-              <WorkspaceSelector />
+              <WorkspaceSelector memberships={memberships} currentTenantId={currentTenantId} />
             )}
 
             {!collapsed ? (
               <span className="-mt-space-sm inline-flex w-fit items-center gap-1 rounded-full border border-outline-variant/30 px-2 py-0.5 font-mono-token text-[10px] uppercase tracking-wider text-outline">
-                Demo environment
+                {environmentLabel}
               </span>
             ) : null}
 
             <SidebarNav badges={badges} collapsed={collapsed} />
           </div>
 
-          <SidebarFooter collapsed={collapsed} />
+          <SidebarFooter collapsed={collapsed} identity={identity} />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -231,11 +245,11 @@ export function DashboardShell({ children, badges }: DashboardShellProps) {
               </button>
             </div>
 
-            <WorkspaceSelector />
+            <WorkspaceSelector memberships={memberships} currentTenantId={currentTenantId} />
             <SidebarNav badges={badges} onNavigate={() => setMenuOpen(false)} />
 
             <div className="mt-auto">
-              <SidebarFooter collapsed={false} />
+              <SidebarFooter collapsed={false} identity={identity} />
             </div>
           </div>
         </div>

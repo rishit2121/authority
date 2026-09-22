@@ -1,3 +1,4 @@
+import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
 import { TaskTraceTable } from "@/components/dashboard/TaskTraceTable";
 import { loadDashboardOverview } from "@/lib/data/dashboard";
 
@@ -15,6 +16,8 @@ export default async function TasksPage() {
           investigation view in this build.
         </p>
       </header>
+
+      <DemoDataNotice />
       <TaskTraceTable traces={traces} />
     </div>
   );

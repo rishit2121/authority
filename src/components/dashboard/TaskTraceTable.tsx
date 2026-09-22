@@ -73,7 +73,7 @@ export function TaskTraceTable({ traces }: { traces: TaskTrace[] }) {
   return (
     <div className="max-h-[560px] overflow-auto rounded-xl border border-outline-variant/30 bg-surface-container">
       <table className="w-full min-w-[760px] border-collapse text-left">
-        <caption className="sr-only">Recent task traces for Northwind Labs, each row opens its task</caption>
+        <caption className="sr-only">Recent task traces, each row opens its task</caption>
         <thead className="sticky top-0 z-10 bg-surface-container">
           <tr className="border-b border-outline-variant/30">
             {["Task", "Agent", "Principal", "Status", "Decisions", "Blocked", ""].map((heading) => (

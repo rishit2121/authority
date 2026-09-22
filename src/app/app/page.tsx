@@ -1,11 +1,17 @@
 import Link from "next/link";
 
+import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TaskTraceTable } from "@/components/dashboard/TaskTraceTable";
 import { Icon } from "@/components/ui/Icon";
+import { requireIdentity } from "@/lib/auth/identity";
+import { TENANT_ENVIRONMENT_LABELS } from "@/lib/auth/tenant-context";
 import { loadDashboardOverview } from "@/lib/data/dashboard";
 
 export default async function OverviewPage() {
+  // Real: the workspace name and environment come from the signed-in user's
+  // membership. Still mocked: the metrics and traces below.
+  const identity = await requireIdentity("/app");
   const { metrics, traces } = await loadDashboardOverview();
 
   return (
@@ -13,10 +19,10 @@ export default async function OverviewPage() {
       <header>
         <div className="flex flex-wrap items-center gap-space-sm">
           <span className="font-label-caps text-label-caps uppercase tracking-widest text-primary">
-            Northwind Labs
+            {identity.tenant.name}
           </span>
           <span className="inline-flex items-center rounded-full border border-outline-variant/30 px-2 py-0.5 font-mono-token text-[10px] uppercase tracking-wider text-outline">
-            Demo environment
+            {TENANT_ENVIRONMENT_LABELS[identity.tenant.environment]}
           </span>
         </div>
         <h1 className="mt-space-xs font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
@@ -26,6 +32,8 @@ export default async function OverviewPage() {
           Runtime authorization activity across every registered agent.
         </p>
       </header>
+
+      <DemoDataNotice />
 
       <section
         aria-label="Key metrics"

@@ -110,8 +110,7 @@ async function runSuite({ file, sql, endpoint, token }) {
   const body = await response.json();
 
   if (!response.ok || !Array.isArray(body)) {
-    const message =
-      typeof body?.message === "string" ? body.message : JSON.stringify(body).slice(0, 600);
+    const message = typeof body?.message === "string" ? body.message : JSON.stringify(body).slice(0, 600);
     return { file, error: message, results: [] };
   }
 

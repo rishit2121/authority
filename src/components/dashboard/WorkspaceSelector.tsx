@@ -1,17 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Icon } from "@/components/ui/Icon";
-import { CURRENT_WORKSPACE, DEMO_WORKSPACES } from "@/lib/mock";
+import { switchWorkspaceAction } from "@/lib/auth/actions";
+import {
+  TENANT_ENVIRONMENT_LABELS,
+  TENANT_ROLE_LABELS,
+  type TenantMembership,
+} from "@/lib/auth/tenant-context";
 
 /**
- * Mocked workspace switcher. Selecting an entry only updates which row shows
- * as current — there is nothing to actually switch to in Part 1.
+ * Workspace switcher over the user's real tenant memberships.
+ *
+ * Selecting an entry calls a server action, which re-verifies membership
+ * against the database before persisting anything. This component only
+ * displays what the server already resolved — it holds no authority of its
+ * own, and hiding an entry here is presentation, not enforcement.
  */
-export function WorkspaceSelector({ collapsed = false }: { collapsed?: boolean }) {
+export function WorkspaceSelector({
+  memberships,
+  currentTenantId,
+  collapsed = false,
+}: {
+  memberships: TenantMembership[];
+  currentTenantId: string;
+  collapsed?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const [current, setCurrent] = useState(CURRENT_WORKSPACE.id);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,7 +48,19 @@ export function WorkspaceSelector({ collapsed = false }: { collapsed?: boolean }
     };
   }, [open]);
 
-  const active = DEMO_WORKSPACES.find((workspace) => workspace.id === current) ?? CURRENT_WORKSPACE;
+  const active = memberships.find((m) => m.tenantId === currentTenantId) ?? memberships[0];
+
+  if (!active) return null;
+
+  const select = (tenantId: string) => {
+    setOpen(false);
+    if (tenantId === currentTenantId) return;
+
+    startTransition(async () => {
+      const result = await switchWorkspaceAction(tenantId);
+      setError(result.ok ? null : (result.error ?? "Could not switch workspace."));
+    });
+  };
 
   if (collapsed) {
     return (
@@ -39,7 +69,7 @@ export function WorkspaceSelector({ collapsed = false }: { collapsed?: boolean }
         title={active.name}
         aria-label={`Workspace: ${active.name}`}
       >
-        {active.name.charAt(0)}
+        {active.name.charAt(0).toUpperCase()}
       </div>
     );
   }
@@ -51,14 +81,15 @@ export function WorkspaceSelector({ collapsed = false }: { collapsed?: boolean }
         onClick={() => setOpen((value) => !value)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-space-md py-2 text-left transition-colors hover:border-outline-variant/60"
+        disabled={pending}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-space-md py-2 text-left transition-colors hover:border-outline-variant/60 disabled:opacity-60"
       >
         <span className="min-w-0">
           <span className="block truncate font-body-md text-body-md font-medium text-on-surface">
             {active.name}
           </span>
           <span className="block truncate font-body-sm text-[11px] text-on-surface-variant">
-            {active.environment} workspace
+            {TENANT_ENVIRONMENT_LABELS[active.environment]} · {TENANT_ROLE_LABELS[active.role]}
           </span>
         </span>
         <Icon
@@ -74,28 +105,43 @@ export function WorkspaceSelector({ collapsed = false }: { collapsed?: boolean }
           aria-label="Switch workspace"
           className="absolute inset-x-0 top-full z-30 mt-1.5 overflow-hidden rounded-lg border border-outline-variant/40 bg-surface-container-highest shadow-xl"
         >
-          {DEMO_WORKSPACES.map((workspace) => (
+          {memberships.map((membership) => (
             <button
-              key={workspace.id}
+              key={membership.tenantId}
               type="button"
               role="menuitemradio"
-              aria-checked={workspace.id === current}
-              onClick={() => {
-                setCurrent(workspace.id);
-                setOpen(false);
-              }}
-              className={`flex w-full items-center justify-between px-space-md py-2.5 text-left font-body-sm text-[13px] transition-colors hover:bg-surface-container-high ${
-                workspace.id === current ? "text-primary" : "text-on-surface"
+              aria-checked={membership.tenantId === currentTenantId}
+              onClick={() => select(membership.tenantId)}
+              className={`flex w-full items-center justify-between gap-2 px-space-md py-2.5 text-left font-body-sm text-[13px] transition-colors hover:bg-surface-container-high ${
+                membership.tenantId === currentTenantId ? "text-primary" : "text-on-surface"
               }`}
             >
-              {workspace.name}
-              {workspace.id === current ? <Icon name="check_circle" size={14} /> : null}
+              <span className="min-w-0">
+                <span className="block truncate">{membership.name}</span>
+                <span className="block truncate font-mono-token text-[10px] uppercase tracking-wider text-outline">
+                  {TENANT_ROLE_LABELS[membership.role]}
+                </span>
+              </span>
+              {membership.tenantId === currentTenantId ? <Icon name="check_circle" size={14} /> : null}
             </button>
           ))}
-          <div className="border-t border-outline-variant/30 px-space-md py-2.5 font-body-sm text-[12px] text-outline">
-            Manage workspaces — not available in this demo
-          </div>
+
+          {memberships.length === 1 ? (
+            <div className="border-t border-outline-variant/30 px-space-md py-2.5 font-body-sm text-[12px] text-outline">
+              You belong to one workspace. Team invitations arrive in a later release.
+            </div>
+          ) : null}
         </div>
+      ) : null}
+
+      <p aria-live="polite" className="sr-only">
+        {pending ? "Switching workspace" : ""}
+      </p>
+
+      {error ? (
+        <p role="alert" className="mt-space-xs font-body-sm text-[11px] text-deny">
+          {error}
+        </p>
       ) : null}
     </div>
   );

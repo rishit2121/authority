@@ -1,21 +1,35 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
-import { DEMO_USER } from "@/lib/mock";
+import { TENANT_ROLE_LABELS, type TenantRole } from "@/lib/auth/tenant-context";
+
+export interface UserMenuIdentity {
+  displayName: string;
+  email: string;
+  initials: string;
+  role: TenantRole;
+}
 
 /**
  * Bottom-of-sidebar account control.
  *
- * "Sign out" is intentionally inert beyond showing a notice: there is no real
- * session to end yet. Functional auth arrives with Supabase in Part 2.
+ * Receives the authenticated identity as props — it no longer imports a
+ * fixture. Sign-out posts to a route handler rather than calling Supabase from
+ * the browser, so the session cookies are cleared server-side by the same code
+ * path regardless of client state.
  */
-export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
+export function UserMenu({
+  identity,
+  collapsed = false,
+}: {
+  identity: UserMenuIdentity;
+  collapsed?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const [notice, setNotice] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const noticeTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     if (!open) return;
@@ -33,18 +47,11 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
     };
   }, [open]);
 
-  useEffect(() => () => clearTimeout(noticeTimeout.current), []);
-
-  const handleDemoSignOut = () => {
-    setOpen(false);
-    setNotice(true);
-    clearTimeout(noticeTimeout.current);
-    noticeTimeout.current = setTimeout(() => setNotice(false), 4000);
-  };
+  const roleLabel = TENANT_ROLE_LABELS[identity.role];
 
   const avatar = (
     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary font-mono-code text-[11px] font-semibold text-on-primary">
-      {DEMO_USER.initials}
+      {identity.initials}
     </span>
   );
 
@@ -53,14 +60,14 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
       <div
         ref={rootRef}
         className="relative flex justify-center"
-        title={`${DEMO_USER.name} · ${DEMO_USER.team}`}
+        title={`${identity.displayName} · ${roleLabel}`}
       >
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label={`Account menu for ${DEMO_USER.name}`}
+          aria-label={`Account menu for ${identity.displayName}`}
         >
           {avatar}
         </button>
@@ -68,9 +75,9 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
           <div
             role="menu"
             aria-label="Account"
-            className="absolute bottom-0 left-full z-30 ml-2 w-52 overflow-hidden rounded-lg border border-outline-variant/40 bg-surface-container-highest shadow-xl"
+            className="absolute bottom-0 left-full z-30 ml-2 w-60 overflow-hidden rounded-lg border border-outline-variant/40 bg-surface-container-highest shadow-xl"
           >
-            <MenuItems onSignOut={handleDemoSignOut} />
+            <MenuItems identity={identity} roleLabel={roleLabel} />
           </div>
         ) : null}
       </div>
@@ -89,11 +96,9 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
         {avatar}
         <span className="min-w-0 flex-1">
           <span className="block truncate font-body-md text-body-md font-medium text-on-surface">
-            {DEMO_USER.name}
+            {identity.displayName}
           </span>
-          <span className="block truncate font-body-sm text-[11px] text-on-surface-variant">
-            {DEMO_USER.team}
-          </span>
+          <span className="block truncate font-body-sm text-[11px] text-on-surface-variant">{roleLabel}</span>
         </span>
         <Icon
           name="expand_more"
@@ -108,51 +113,47 @@ export function UserMenu({ collapsed = false }: { collapsed?: boolean }) {
           aria-label="Account"
           className="absolute inset-x-0 bottom-full z-30 mb-1.5 overflow-hidden rounded-lg border border-outline-variant/40 bg-surface-container-highest shadow-xl"
         >
-          <MenuItems onSignOut={handleDemoSignOut} />
-        </div>
-      ) : null}
-
-      <p aria-live="polite" className="sr-only">
-        {notice ? "This is a demo account. Sign out is not wired to real authentication yet." : ""}
-      </p>
-      {notice ? (
-        <div className="absolute inset-x-0 bottom-full z-30 mb-1.5 rounded-lg border border-outline-variant/40 bg-surface-container-highest px-space-md py-2.5 font-body-sm text-[12px] text-on-surface-variant shadow-xl">
-          Demo account — sign-out isn&apos;t wired to real authentication yet. That arrives with Supabase in
-          Part 2.
+          <MenuItems identity={identity} roleLabel={roleLabel} />
         </div>
       ) : null}
     </div>
   );
 }
 
-function MenuItems({ onSignOut }: { onSignOut: () => void }) {
+function MenuItems({ identity, roleLabel }: { identity: UserMenuIdentity; roleLabel: string }) {
   return (
     <>
-      <button
-        type="button"
+      <div className="border-b border-outline-variant/30 px-space-md py-2.5">
+        <p className="truncate font-body-md text-[13px] font-medium text-on-surface">
+          {identity.displayName}
+        </p>
+        <p className="truncate font-mono-code text-[11px] text-on-surface-variant">{identity.email}</p>
+        <p className="mt-1 font-label-caps text-[10px] uppercase tracking-wider text-outline">{roleLabel}</p>
+      </div>
+
+      <Link
+        href="/app/settings"
         role="menuitem"
         className="flex w-full items-center gap-2.5 px-space-md py-2.5 text-left font-body-sm text-[13px] text-on-surface transition-colors hover:bg-surface-container-high"
       >
         <Icon name="person" size={15} />
-        Profile
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        className="flex w-full items-center gap-2.5 px-space-md py-2.5 text-left font-body-sm text-[13px] text-on-surface transition-colors hover:bg-surface-container-high"
-      >
-        <Icon name="lock" size={15} />
-        Organization settings
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        onClick={onSignOut}
-        className="flex w-full items-center gap-2.5 border-t border-outline-variant/30 px-space-md py-2.5 text-left font-body-sm text-[13px] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
-      >
-        <Icon name="logout" size={15} />
-        Sign out (demo)
-      </button>
+        Profile and settings
+      </Link>
+
+      {/*
+        POST, not a link: a GET sign-out can be fired by any third-party page
+        embedding it, which would let another site end the user's session.
+      */}
+      <form action="/auth/sign-out" method="post">
+        <button
+          type="submit"
+          role="menuitem"
+          className="flex w-full items-center gap-2.5 border-t border-outline-variant/30 px-space-md py-2.5 text-left font-body-sm text-[13px] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+        >
+          <Icon name="logout" size={15} />
+          Sign out
+        </button>
+      </form>
     </>
   );
 }
