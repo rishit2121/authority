@@ -3,7 +3,6 @@ import { headers } from "next/headers";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { initialsFor, requireIdentity } from "@/lib/auth/identity";
-import { TENANT_ENVIRONMENT_LABELS } from "@/lib/auth/tenant-context";
 import { loadNavBadges } from "@/lib/data/nav";
 
 export const metadata: Metadata = {
@@ -48,7 +47,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }}
       memberships={identity.memberships}
       currentTenantId={identity.tenant.tenantId}
-      environmentLabel={TENANT_ENVIRONMENT_LABELS[identity.tenant.environment]}
     >
       {children}
     </DashboardShell>

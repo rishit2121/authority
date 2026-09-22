@@ -36,6 +36,12 @@ test.describe("marketing flow", () => {
     await expect(walkthrough.getByRole("heading", { name: "Trusted task received" })).toBeVisible();
 
     await walkthrough.getByRole("button", { name: "Next" }).click();
+
+    // The walkthrough uses AnimatePresence mode="wait", so the outgoing step
+    // unmounts fully before the incoming one mounts. Asserting the old
+    // heading is gone first pins the test to that sequence instead of racing
+    // the ~220ms window in which neither heading is in the DOM.
+    await expect(walkthrough.getByRole("heading", { name: "Trusted task received" })).toHaveCount(0);
     await expect(walkthrough.getByRole("heading", { name: "Task Authority Contract created" })).toBeVisible();
 
     // Step indicator lets you jump directly to a later step. Each button's

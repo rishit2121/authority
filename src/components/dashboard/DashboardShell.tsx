@@ -89,8 +89,6 @@ interface DashboardShellProps {
   identity: UserMenuIdentity;
   memberships: TenantMembership[];
   currentTenantId: string;
-  /** Label for the active workspace's environment, e.g. "Development". */
-  environmentLabel: string;
 }
 
 /**
@@ -104,7 +102,6 @@ export function DashboardShell({
   identity,
   memberships,
   currentTenantId,
-  environmentLabel,
 }: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useSidebarCollapsed();
@@ -167,12 +164,6 @@ export function DashboardShell({
             ) : (
               <WorkspaceSelector memberships={memberships} currentTenantId={currentTenantId} />
             )}
-
-            {!collapsed ? (
-              <span className="-mt-space-sm inline-flex w-fit items-center gap-1 rounded-full border border-outline-variant/30 px-2 py-0.5 font-mono-token text-[10px] uppercase tracking-wider text-outline">
-                {environmentLabel}
-              </span>
-            ) : null}
 
             <SidebarNav badges={badges} collapsed={collapsed} />
           </div>

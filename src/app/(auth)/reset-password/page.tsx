@@ -44,7 +44,7 @@ export default async function ResetPasswordPage() {
           </Link>
         </p>
       }
-      aside="Setting a new password signs out other sessions on your next sign-in."
+      aside="Choose something unique to Authority. Password managers are encouraged."
     >
       {hasRecoverySession ? (
         <ResetPasswordForm />
