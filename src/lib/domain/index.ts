@@ -12,4 +12,7 @@ export * from "./authorization-decision";
 export * from "./capability";
 export * from "./approval";
 export * from "./execution-event";
+export * from "./policy";
+export * from "./integration";
+export * from "./pagination";
 export * from "./repositories";
