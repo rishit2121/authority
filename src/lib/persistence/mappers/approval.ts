@@ -60,14 +60,22 @@ export function approvalInputToInsertRow(input: CreateApprovalInput): InsertRow<
 export interface ResolveApprovalInput {
   status: "approved" | "rejected";
   responseNote?: string;
-  respondedByPrincipalId: string;
+  /**
+   * Optional: an authenticated app user has no guaranteed corresponding
+   * `principals` row in this phase (see the Part 2A note that a Principal
+   * "may later reference an authenticated user" — that link isn't
+   * established everywhere yet). Callers that can resolve one should pass
+   * it; the decision is still recorded, with a null responder, when they
+   * can't.
+   */
+  respondedByPrincipalId?: string;
 }
 
 export function resolveApprovalToUpdateRow(input: ResolveApprovalInput): UpdateRow<"approvals"> {
   return {
     status: input.status,
     decision_reason: input.responseNote ?? null,
-    responded_by_principal_id: input.respondedByPrincipalId,
+    responded_by_principal_id: input.respondedByPrincipalId ?? null,
     decided_at: new Date().toISOString(),
   };
 }
