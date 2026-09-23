@@ -1,18 +1,22 @@
 import Link from "next/link";
 
 import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
+import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TaskTraceTable } from "@/components/dashboard/TaskTraceTable";
 import { Icon } from "@/components/ui/Icon";
-import { requireIdentity } from "@/lib/auth/identity";
-import { TENANT_ENVIRONMENT_LABELS } from "@/lib/auth/tenant-context";
+import { TENANT_ENVIRONMENT_LABELS, TENANT_ROLE_LABELS } from "@/lib/auth/tenant-context";
 import { loadDashboardOverview } from "@/lib/data/dashboard";
+import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 export default async function OverviewPage() {
-  // Real: the workspace name and environment come from the signed-in user's
-  // membership. Still mocked: the metrics and traces below.
-  const identity = await requireIdentity("/app");
-  const { metrics, traces } = await loadDashboardOverview();
+  const { identity, repositories } = await createRepositoriesForCurrentTenant("/app");
+  const { metrics, traces, hasAnyProductData } = await loadDashboardOverview(
+    repositories,
+    identity.tenant.tenantId,
+  );
+
+  const canManageDemoData = TENANT_ROLE_LABELS[identity.role] !== undefined && identity.role !== "viewer";
 
   return (
     <div className="flex flex-col gap-space-xl">
@@ -33,44 +37,62 @@ export default async function OverviewPage() {
         </p>
       </header>
 
-      <DemoDataNotice />
+      {!hasAnyProductData ? (
+        <EmptyWorkspace />
+      ) : (
+        <>
+          <DemoDataNotice showReset={canManageDemoData} />
 
-      <section
-        aria-label="Key metrics"
-        className="grid grid-cols-1 gap-space-md sm:grid-cols-2 xl:grid-cols-3"
-      >
-        {metrics.map((metric) => (
-          <MetricCard key={metric.id} metric={metric} />
-        ))}
-      </section>
-
-      <section className="rounded-xl border border-primary/30 bg-primary/5 p-space-lg">
-        <div className="flex flex-col justify-between gap-space-md md:flex-row md:items-center">
-          <div>
-            <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-              Worked example: GitHub issue #991
-            </h2>
-            <p className="mt-1 max-w-xl font-body-md text-body-md text-on-surface-variant">
-              A coding agent resolved an issue and opened a pull request. One request for repository secrets
-              was denied. Inspect the full contract, plan and decision trace.
-            </p>
-          </div>
-          <Link
-            href="/app/tasks/demo-task"
-            className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-space-lg py-2.5 font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+          <section
+            aria-label="Key metrics"
+            className="grid grid-cols-1 gap-space-md sm:grid-cols-2 xl:grid-cols-3"
           >
-            Open task investigation
-            <Icon name="arrow_forward" size={16} />
-          </Link>
-        </div>
-      </section>
+            {metrics.map((metric) => (
+              <MetricCard key={metric.id} metric={metric} />
+            ))}
+          </section>
 
-      <section aria-labelledby="recent-traces" className="flex flex-col gap-space-md">
-        <h2 id="recent-traces" className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-          Recent task traces
-        </h2>
-        <TaskTraceTable traces={traces} />
-      </section>
+          <section className="rounded-xl border border-primary/30 bg-primary/5 p-space-lg">
+            <div className="flex flex-col justify-between gap-space-md md:flex-row md:items-center">
+              <div>
+                <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
+                  Worked example: GitHub issue #991
+                </h2>
+                <p className="mt-1 max-w-xl font-body-md text-body-md text-on-surface-variant">
+                  A coding agent resolved an issue and opened a pull request. One request for repository
+                  secrets was denied. Inspect the full contract, plan and decision trace.
+                </p>
+              </div>
+              <Link
+                href="/app/tasks/demo-task"
+                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-space-lg py-2.5 font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+              >
+                Open task investigation
+                <Icon name="arrow_forward" size={16} />
+              </Link>
+            </div>
+          </section>
+
+          <section aria-labelledby="recent-traces" className="flex flex-col gap-space-md">
+            <div className="flex items-center justify-between gap-space-md">
+              <h2
+                id="recent-traces"
+                className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+              >
+                Recent task traces
+              </h2>
+              <Link
+                href="/app/tasks/new"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/40 px-space-md py-1.5 font-body-sm text-body-sm text-on-surface transition-colors hover:bg-surface-container-high"
+              >
+                <Icon name="account_tree" size={14} />
+                New task
+              </Link>
+            </div>
+            <TaskTraceTable traces={traces} />
+          </section>
+        </>
+      )}
     </div>
   );
 }

@@ -1,4 +1,10 @@
-import type { CapabilityRepository, DecisionRepository } from "@/lib/domain";
+import {
+  isPermitted,
+  type CapabilityRepository,
+  type DecisionCounts,
+  type DecisionRepository,
+  type Id,
+} from "@/lib/domain";
 import type { Database } from "@/lib/supabase/database.types";
 
 import type { RepositoryContext } from "../context";
@@ -36,6 +42,30 @@ async function fetchSemanticRowsByIds(
 
 export function createSupabaseDecisionRepository(context: RepositoryContext): DecisionRepository {
   return {
+    async countByTaskIds(taskIds) {
+      if (taskIds.length === 0) return new Map();
+
+      // One query regardless of how many task ids are supplied — the
+      // dashboard's per-row decision counts, batched. Only `task_id` and
+      // `outcome` are selected; the full decision payload is not needed
+      // just to count and classify.
+      const { data, error } = await context.supabase
+        .from("authorization_decisions")
+        .select("task_id, outcome")
+        .in("task_id", taskIds as string[]);
+
+      if (error) throwDatabaseError("count decisions by task", error);
+
+      const counts = new Map<Id, DecisionCounts>();
+      for (const row of data ?? []) {
+        const current = counts.get(row.task_id) ?? { total: 0, blocked: 0 };
+        current.total += 1;
+        if (!isPermitted(row.outcome)) current.blocked += 1;
+        counts.set(row.task_id, current);
+      }
+      return counts;
+    },
+
     async findById(id) {
       const { data, error } = await context.supabase
         .from("authorization_decisions")

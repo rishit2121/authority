@@ -67,10 +67,22 @@ export interface ToolRequestRepository {
   listByTaskIdPaged(taskId: Id, options?: PageOptions): Promise<PageResult<ToolRequest>>;
 }
 
+export interface DecisionCounts {
+  total: number;
+  blocked: number;
+}
+
 export interface DecisionRepository {
   findById(id: Id): Promise<AuthorizationDecision | null>;
   listByTaskId(taskId: Id): Promise<AuthorizationDecision[]>;
   listByTaskIdPaged(taskId: Id, options?: PageOptions): Promise<PageResult<AuthorizationDecision>>;
+  /**
+   * Decision/blocked counts for several tasks in one call, keyed by task id.
+   * Exists specifically so a dashboard listing N tasks costs one query, not
+   * N — see loadDashboardOverview in lib/data/dashboard.ts, which used to
+   * call listByTaskId once per task before this method existed.
+   */
+  countByTaskIds(taskIds: readonly Id[]): Promise<Map<Id, DecisionCounts>>;
 }
 
 export interface CapabilityRepository {

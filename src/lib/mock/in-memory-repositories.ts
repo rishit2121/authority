@@ -1,8 +1,4 @@
 import type {
-  Agent,
-  Approval,
-  AuthorityRepositories,
-  AuthorizationDecision,
   Capability,
   ExecutionEvent,
   Id,
@@ -16,6 +12,13 @@ import type {
   TaskAuthorityContract,
   Tenant,
   ToolRequest,
+} from "@/lib/domain";
+import {
+  isPermitted,
+  type Agent,
+  type Approval,
+  type AuthorityRepositories,
+  type AuthorizationDecision,
 } from "@/lib/domain";
 
 import {
@@ -147,6 +150,18 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
           dataset.decisions.filter((d) => d.taskId === taskId),
           options,
         ),
+      countByTaskIds: async (taskIds: readonly Id[]) => {
+        const idSet = new Set(taskIds);
+        const counts = new Map<Id, { total: number; blocked: number }>();
+        for (const decision of dataset.decisions) {
+          if (!idSet.has(decision.taskId)) continue;
+          const current = counts.get(decision.taskId) ?? { total: 0, blocked: 0 };
+          current.total += 1;
+          if (!isPermitted(decision.status)) current.blocked += 1;
+          counts.set(decision.taskId, current);
+        }
+        return counts;
+      },
     },
     capabilities: {
       listByTaskId: async (taskId: Id) => dataset.capabilities.filter((c) => c.taskId === taskId),
