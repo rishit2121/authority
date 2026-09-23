@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
-import { initialsFor, requireIdentity } from "@/lib/auth/identity";
+import { initialsFor } from "@/lib/auth/identity";
 import { loadNavBadges } from "@/lib/data/nav";
+import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 export const metadata: Metadata = {
   title: "Control plane",
@@ -28,13 +29,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const headerList = await headers();
   const requestedPath = headerList.get("x-authority-path") ?? "/app";
 
-  const identity = await requireIdentity(requestedPath);
+  // Also re-verifies the caller and resolves their real tenant — the same
+  // check requireIdentity() does, cached per request, so this costs nothing
+  // extra. The badge counts below must come from this tenant's own Supabase
+  // rows: passing no repositories here would silently fall back to
+  // loadNavBadges()'s mock defaults on every authenticated request, which is
+  // exactly the "silent mock fallback under /app/*" this project forbids.
+  const { identity, repositories } = await createRepositoriesForCurrentTenant(requestedPath);
 
-  // Task, agent, policy, integration and approval data is still mocked in this
-  // part and is loaded against the demo fixture tenant, not the signed-in
-  // user's real tenant. Part 2B replaces this with Supabase-backed
-  // AuthorityRepositories.
-  const badges = await loadNavBadges();
+  const badges = await loadNavBadges(repositories, identity.tenant.tenantId);
 
   return (
     <DashboardShell

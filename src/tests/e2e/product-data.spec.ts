@@ -26,6 +26,17 @@ test.describe("empty workspace and demo installation", () => {
     // Never Northwind's fixtures leaking into an empty tenant.
     await expect(page.getByText("coding-agent-17")).toHaveCount(0);
     await expect(page.getByText(OWNER_A.tenantName)).toHaveCount(0);
+
+    // The sidebar's own nav badges are a separate loader (loadNavBadges in
+    // the protected layout) from the page content above — this tenant has
+    // zero tasks and zero pending approvals, so neither nav item should
+    // carry a nonzero badge. A regression here previously called
+    // loadNavBadges() with no arguments, silently defaulting to
+    // mockRepositories and a hardcoded mock tenant id, which always reports
+    // a nonzero count regardless of which real tenant is signed in.
+    const nav = page.getByRole("navigation", { name: "Control plane" });
+    await expect(nav.getByRole("link", { name: "Tasks" })).toHaveText("Tasks");
+    await expect(nav.getByRole("link", { name: "Approvals" })).toHaveText("Approvals");
   });
 
   test("installing demo data populates the dashboard, then resetting empties it again", async ({ page }) => {
