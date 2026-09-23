@@ -96,6 +96,8 @@ export interface ApprovalRepository {
   listByTenant(tenantId: Id): Promise<Approval[]>;
   listPendingByTenant(tenantId: Id): Promise<Approval[]>;
   listByTenantPaged(tenantId: Id, options?: PageOptions): Promise<PageResult<Approval>>;
+  /** Bounded by one task's own approvals, not the tenant's — for the task investigation view. */
+  listByTaskId(taskId: Id): Promise<Approval[]>;
 }
 
 export interface ExecutionEventRepository {

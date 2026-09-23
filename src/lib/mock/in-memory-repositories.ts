@@ -175,6 +175,7 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
     },
     approvals: {
       listByTenant: async (tenantId: Id) => dataset.approvals.filter((a) => a.tenantId === tenantId),
+      listByTaskId: async (taskId: Id) => dataset.approvals.filter((a) => a.taskId === taskId),
       listPendingByTenant: async (tenantId: Id) =>
         dataset.approvals.filter((a) => a.tenantId === tenantId && a.status === "pending"),
       listByTenantPaged: async (tenantId: Id, options?: PageOptions) =>

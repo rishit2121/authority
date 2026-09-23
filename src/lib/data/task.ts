@@ -61,7 +61,7 @@ export async function loadTaskInvestigation(
       repositories.decisions.listByTaskId(task.id),
       repositories.capabilities.listByTaskId(task.id),
       repositories.events.listByTaskId(task.id),
-      repositories.approvals.listByTenant(task.tenantId),
+      repositories.approvals.listByTaskId(task.id),
     ]);
 
   // Agent and principal are structural requirements of the domain Task
@@ -80,6 +80,6 @@ export async function loadTaskInvestigation(
     decisions,
     capabilities,
     events,
-    approvals: approvals.filter((a) => a.taskId === task.id),
+    approvals,
   };
 }

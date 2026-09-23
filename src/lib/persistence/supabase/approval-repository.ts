@@ -21,6 +21,17 @@ export function createSupabaseApprovalRepository(context: RepositoryContext): Ap
       return (data ?? []).map(approvalRowToDomain);
     },
 
+    async listByTaskId(taskId) {
+      const { data, error } = await context.supabase
+        .from("approvals")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("requested_at", { ascending: false });
+
+      if (error) throwDatabaseError("list approvals by task", error);
+      return (data ?? []).map(approvalRowToDomain);
+    },
+
     async listPendingByTenant(tenantId) {
       assertTenantMatch(context, tenantId);
 
