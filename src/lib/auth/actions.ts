@@ -71,7 +71,13 @@ export async function switchWorkspaceAction(tenantId: string): Promise<SwitchWor
     secure: process.env.NODE_ENV === "production",
   });
 
-  revalidatePath("/app");
+  // `"layout"` invalidates the whole /app/* subtree, not just the /app
+  // segment itself. Every product page under it reads the current tenant
+  // from this same cookie via createRepositoriesForCurrentTenant(), so a
+  // switch has to invalidate all of it — a task list or task detail page
+  // cached from the previous tenant would otherwise keep rendering stale
+  // (or, worse, cross-tenant) data until its own path was separately hit.
+  revalidatePath("/app", "layout");
 
   return { ok: true };
 }

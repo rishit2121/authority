@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Icon } from "@/components/ui/Icon";
@@ -31,6 +32,7 @@ export function WorkspaceSelector({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const rootRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (!open) return;
@@ -58,7 +60,19 @@ export function WorkspaceSelector({
 
     startTransition(async () => {
       const result = await switchWorkspaceAction(tenantId);
-      setError(result.ok ? null : (result.error ?? "Could not switch workspace."));
+      if (!result.ok) {
+        setError(result.error ?? "Could not switch workspace.");
+        return;
+      }
+
+      setError(null);
+      // Always land on the destination tenant's dashboard root rather than
+      // re-rendering whatever page was open. A task URL is tenant-specific
+      // (it becomes inaccessible under the new tenant's RLS scope anyway,
+      // but redirecting is the honest behaviour rather than letting the
+      // current page flash a 404 for a task that still exists — just not
+      // here).
+      router.push("/app");
     });
   };
 

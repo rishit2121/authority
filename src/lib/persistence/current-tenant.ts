@@ -1,6 +1,7 @@
 import { requireIdentity, type AuthorityIdentity } from "@/lib/auth/identity";
 import { createClient } from "@/lib/supabase/server";
 
+import type { RepositoryContext } from "./context";
 import { createSupabaseRepositories } from "./supabase";
 
 /**
@@ -33,18 +34,22 @@ import { createSupabaseRepositories } from "./supabase";
 export interface CurrentTenantContext {
   identity: AuthorityIdentity;
   repositories: ReturnType<typeof createSupabaseRepositories>;
+  /**
+   * The raw `{ supabase, tenantId }` pair, for the handful of callers that
+   * need to invoke an RPC directly (see `lib/persistence/rpc.ts`) rather
+   * than go through a repository method. Repositories are built from this
+   * same context, so `repositories` and `context` are always consistent
+   * with each other.
+   */
+  context: RepositoryContext;
 }
 
-export async function createRepositoriesForCurrentTenant(
-  returnPath: string,
-): Promise<CurrentTenantContext> {
+export async function createRepositoriesForCurrentTenant(returnPath: string): Promise<CurrentTenantContext> {
   const identity = await requireIdentity(returnPath);
   const supabase = await createClient();
 
-  const repositories = createSupabaseRepositories({
-    supabase,
-    tenantId: identity.tenant.tenantId,
-  });
+  const context: RepositoryContext = { supabase, tenantId: identity.tenant.tenantId };
+  const repositories = createSupabaseRepositories(context);
 
-  return { identity, repositories };
+  return { identity, repositories, context };
 }
