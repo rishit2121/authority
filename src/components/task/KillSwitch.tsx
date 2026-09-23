@@ -1,25 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 
 interface KillSwitchProps {
+  taskId: string;
   /** Number of capabilities that would be revoked. */
   activeCapabilities: number;
   terminated: boolean;
-  onConfirm: () => void;
+  /** Persists the termination via terminate_task(); resolves once revalidated. */
+  onConfirm: () => Promise<{ ok: boolean; error?: string }>;
 }
 
 /**
  * Terminates the task and revokes every live capability.
  *
- * Two-step by design: a destructive control that reaches production systems
- * should never fire on a single click. In this build the action is local
- * state only.
+ * Two-step by design: a destructive control should never fire on a single
+ * click. The mutation itself is real — `onConfirm` calls the
+ * `terminate_task()` RPC and the resulting task/capability/event state is
+ * genuinely persisted — but no external system is ever contacted; the RPC
+ * only ever touches this application's own database.
  */
-export function KillSwitch({ activeCapabilities, terminated, onConfirm }: KillSwitchProps) {
+export function KillSwitch({ taskId, activeCapabilities, terminated, onConfirm }: KillSwitchProps) {
   const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   if (terminated) {
     return (
@@ -32,11 +38,23 @@ export function KillSwitch({ activeCapabilities, terminated, onConfirm }: KillSw
           to the execution timeline and the agent holds no remaining authority.
         </p>
         <p className="mt-space-md font-mono-code text-[11px] text-outline">
-          Mocked control. No external system is contacted and no real repository is affected.
+          Persisted in Authority&apos;s own database. No external system or agent was contacted.
         </p>
       </div>
     );
   }
+
+  const confirm = () => {
+    startTransition(async () => {
+      const result = await onConfirm();
+      if (result.ok) {
+        setConfirming(false);
+        setError(null);
+      } else {
+        setError(result.error ?? "Could not terminate the task.");
+      }
+    });
+  };
 
   return (
     <div className="rounded-xl border border-deny/35 bg-surface-container p-space-lg">
@@ -56,7 +74,7 @@ export function KillSwitch({ activeCapabilities, terminated, onConfirm }: KillSw
           className="mt-space-lg rounded-lg border border-deny/40 bg-deny/10 p-space-md"
         >
           <h3 id="kill-confirm-heading" className="font-headline-sm text-body-md font-semibold text-deny">
-            Revoke all authority for task #1842?
+            Revoke all authority for task {taskId}?
           </h3>
           <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
             This cannot be undone from this screen. Any in-flight tool call loses its credential at the
@@ -65,22 +83,27 @@ export function KillSwitch({ activeCapabilities, terminated, onConfirm }: KillSw
           <div className="mt-space-md flex flex-wrap gap-space-sm">
             <button
               type="button"
-              onClick={() => {
-                onConfirm();
-                setConfirming(false);
-              }}
-              className="rounded-lg bg-deny px-space-lg py-2 font-headline-sm text-body-md font-medium text-[#2b0007] transition-opacity hover:opacity-90"
+              onClick={confirm}
+              disabled={pending}
+              aria-busy={pending}
+              className="rounded-lg bg-deny px-space-lg py-2 font-headline-sm text-body-md font-medium text-[#2b0007] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Confirm revocation
+              {pending ? "Revoking…" : "Confirm revocation"}
             </button>
             <button
               type="button"
               onClick={() => setConfirming(false)}
-              className="rounded-lg border border-outline-variant/40 bg-surface-container px-space-lg py-2 font-body-md text-body-md text-on-surface transition-colors hover:bg-surface-container-high"
+              disabled={pending}
+              className="rounded-lg border border-outline-variant/40 bg-surface-container px-space-lg py-2 font-body-md text-body-md text-on-surface transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-60"
             >
               Cancel
             </button>
           </div>
+          {error ? (
+            <p role="alert" className="mt-space-sm font-body-sm text-body-sm text-deny">
+              {error}
+            </p>
+          ) : null}
         </div>
       ) : (
         <button
@@ -94,7 +117,7 @@ export function KillSwitch({ activeCapabilities, terminated, onConfirm }: KillSw
       )}
 
       <p className="mt-space-md font-mono-code text-[11px] text-outline">
-        Mocked control. No external system is contacted and no real repository is affected.
+        Persisted in Authority&apos;s own database. No external system or agent is contacted.
       </p>
     </div>
   );
