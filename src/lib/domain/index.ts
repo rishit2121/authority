@@ -6,6 +6,7 @@ export * from "./agent";
 export * from "./task";
 export * from "./task-authority-contract";
 export * from "./plan";
+export * from "./candidate-plan";
 export * from "./tool-request";
 export * from "./semantic-decision";
 export * from "./authorization-decision";
