@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
 
+import { terminateTaskAction } from "@/app/app/actions";
 import { Icon } from "@/components/ui/Icon";
 import type { TaskInvestigation } from "@/lib/data/task";
-import type { Capability, ExecutionEvent } from "@/lib/domain";
 
 import { BoundarySummary } from "./BoundarySummary";
 import { CapabilityTable } from "./CapabilityTable";
+import { ContractLifecycleActions } from "./ContractLifecycleActions";
 import { ContractPanel } from "./ContractPanel";
 import { DecisionEvidence } from "./DecisionEvidence";
 import { ExecutionTimeline } from "./ExecutionTimeline";
@@ -16,48 +18,69 @@ import { KillSwitch } from "./KillSwitch";
 import { PlanTable } from "./PlanTable";
 import { Field, Panel } from "./panels";
 
+/** Shown in place of a panel whose underlying record doesn't exist yet. */
+function PendingPanel({
+  id,
+  title,
+  message,
+  action,
+}: {
+  id: string;
+  title: string;
+  message: string;
+  action?: { href: string; label: string };
+}) {
+  return (
+    <section
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      className="rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low p-space-lg"
+    >
+      <h2 id={`${id}-heading`} className="font-headline-sm text-headline-sm font-semibold text-on-surface">
+        {title}
+      </h2>
+      <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">{message}</p>
+      {action ? (
+        <Link
+          href={action.href}
+          className="mt-space-md inline-flex items-center gap-1.5 rounded-lg bg-primary px-space-md py-2 font-headline-sm text-body-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+        >
+          {action.label}
+        </Link>
+      ) : null}
+    </section>
+  );
+}
+
 /**
  * The task investigation view.
  *
- * Client-side because the kill switch mutates what is displayed: the task
- * status, every live capability, and the execution timeline. In this build
- * that mutation is local state — nothing is persisted or sent anywhere.
+ * Client-side because the kill switch triggers a real mutation and needs to
+ * show a pending/error state around it. The mutation itself — and every
+ * other field on the page — comes entirely from the server-rendered props
+ * this component receives; nothing here holds synthetic state standing in
+ * for what the database actually contains. After a successful termination
+ * `router.refresh()` re-runs the parent Server Component, so what renders
+ * next is the real post-termination row, not a client-side guess at it.
  */
 export function TaskInvestigationView({ investigation }: { investigation: TaskInvestigation }) {
   const { task, agent, principal, contract, plan, toolRequests, decisions, events, capabilities } =
     investigation;
 
-  const [terminated, setTerminated] = useState(false);
+  const router = useRouter();
 
   const activeCount = useMemo(() => capabilities.filter((c) => c.status === "active").length, [capabilities]);
 
-  const shownCapabilities: Capability[] = useMemo(() => {
-    if (!terminated) return capabilities;
-    const revokedAt = new Date().toISOString();
-    return capabilities.map((capability) =>
-      capability.status === "active"
-        ? { ...capability, status: "revoked", revokedAt, revocationReason: "Kill switch" }
-        : capability,
-    );
-  }, [capabilities, terminated]);
+  const terminated = task.status === "terminated";
 
-  const shownEvents: ExecutionEvent[] = useMemo(() => {
-    if (!terminated) return events;
-    const killEvent: ExecutionEvent = {
-      id: "evt_kill_switch",
-      tenantId: task.tenantId,
-      taskId: task.id,
-      type: "task_terminated",
-      outcome: "blocked",
-      summary: `Kill switch engaged — ${activeCount} capabilities revoked, 0 standing permissions remain.`,
-      detail:
-        "Operator terminated the task from the control plane. Mocked action; no external call was made.",
-      occurredAt: new Date().toISOString(),
-    };
-    return [...events, killEvent];
-  }, [events, terminated, task.tenantId, task.id, activeCount]);
-
-  const status = terminated ? "terminated" : task.status;
+  const handleTerminate = async () => {
+    const result = await terminateTaskAction(task.id);
+    if (result.ok) {
+      router.refresh();
+      return { ok: true };
+    }
+    return { ok: false, error: result.error };
+  };
 
   return (
     <div className="flex flex-col gap-space-xl">
@@ -79,7 +102,7 @@ export function TaskInvestigationView({ investigation }: { investigation: TaskIn
               terminated ? "border-deny/40 bg-deny/10 text-deny" : "border-allow/30 bg-allow/10 text-allow"
             }`}
           >
-            {status.replace(/_/g, " ")}
+            {task.status.replace(/_/g, " ")}
           </span>
         </div>
 
@@ -112,16 +135,48 @@ export function TaskInvestigationView({ investigation }: { investigation: TaskIn
       </div>
 
       <BoundarySummary />
-      <ContractPanel contract={contract} />
-      <PlanTable plan={plan} decisions={decisions} toolRequests={toolRequests} />
+
+      {contract ? (
+        <>
+          <ContractPanel contract={contract} />
+          <ContractLifecycleActions taskId={task.id} contractId={contract.id} status={contract.status} />
+          {contract.status === "rejected" ? (
+            <PendingPanel
+              id="contract-reproposal"
+              title="Propose a new contract"
+              message="This contract was rejected. Editing the candidate plan and proposing again creates a new version — the rejected one stays exactly as it was."
+              action={{ href: `/app/tasks/${task.id}/contract/new`, label: "Create authority contract" }}
+            />
+          ) : null}
+        </>
+      ) : (
+        <PendingPanel
+          id="contract"
+          title="Task Authority Contract"
+          message="No contract has been proposed for this task yet. Enter a structured candidate plan to compile the minimum authority it needs — proposing one creates no runtime authority by itself."
+          action={{ href: `/app/tasks/${task.id}/contract/new`, label: "Create authority contract" }}
+        />
+      )}
+
+      {plan ? (
+        <PlanTable plan={plan} decisions={decisions} toolRequests={toolRequests} />
+      ) : (
+        <PendingPanel
+          id="plan"
+          title="Execution plan"
+          message="No plan has been proposed for this task yet."
+        />
+      )}
+
       <DecisionEvidence decisions={decisions} />
-      <CapabilityTable capabilities={shownCapabilities} />
-      <ExecutionTimeline events={shownEvents} />
+      <CapabilityTable capabilities={capabilities} />
+      <ExecutionTimeline events={events} />
 
       <KillSwitch
+        taskId={task.id}
         activeCapabilities={activeCount}
         terminated={terminated}
-        onConfirm={() => setTerminated(true)}
+        onConfirm={handleTerminate}
       />
     </div>
   );

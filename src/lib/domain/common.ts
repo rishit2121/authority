@@ -8,8 +8,20 @@ import { z } from "zod";
 /** Opaque identifier. Prefixed strings (`task_1842`) rather than raw UUIDs. */
 export const idSchema = z.string().min(1).max(128);
 
-/** ISO-8601 instant, always serialized as a string so payloads stay portable. */
-export const timestampSchema = z.iso.datetime();
+/**
+ * ISO-8601 instant, always serialized as a string so payloads stay portable.
+ *
+ * `offset: true` is required, not cosmetic: PostgREST — what every Supabase
+ * repository in `lib/persistence/` actually reads from — serializes a
+ * `timestamptz` as `2026-09-22T19:04:24.514823+00:00`, a numeric offset, not
+ * a literal `Z`. Zod's default `z.iso.datetime()` accepts only `Z` and
+ * rejects every real timestamp this domain will ever receive from the
+ * database; this was caught by the integration suite in
+ * `src/tests/integration/`, which runs mappers against the real linked
+ * project rather than only hand-written `Z`-suffixed fixtures. `Z` remains
+ * accepted too, so existing fixtures and mock data are unaffected.
+ */
+export const timestampSchema = z.iso.datetime({ offset: true });
 
 /** Dotted `provider.action` tool name, e.g. `github.create_branch`. */
 export const toolNameSchema = z

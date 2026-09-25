@@ -101,6 +101,9 @@ export const demoContract: TaskAuthorityContract = {
   id: "tac_1842",
   tenantId: DEMO_TENANT_ID,
   taskId: DEMO_TASK_ID,
+  version: 1,
+  status: "active",
+  forbiddenOperations: [],
   specVersion: "1.4",
   allowedActions: [
     {

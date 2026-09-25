@@ -1,6 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const ROUTES = ["/", "/demo", "/app", "/app/tasks/demo-task"];
+const ROUTES = [
+  "/",
+  "/demo",
+  "/app",
+  "/app/tasks",
+  "/app/tasks/new",
+  "/app/tasks/demo-task",
+  "/app/agents",
+  "/app/policies",
+  "/app/integrations",
+  "/app/approvals",
+];
 
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },

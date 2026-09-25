@@ -18,7 +18,7 @@ const STATUS_CLASSES: Record<TaskStatus, string> = {
 };
 
 function taskHref(taskId: string): string {
-  return taskId === "task_1842" ? "/app/tasks/demo-task" : "/app/tasks";
+  return `/app/tasks/${taskId}`;
 }
 
 function TaskRow({ trace }: { trace: TaskTrace }) {
@@ -53,6 +53,14 @@ function TaskRow({ trace }: { trace: TaskTrace }) {
           {task.status.replace(/_/g, " ")}
         </span>
       </td>
+      <td className="whitespace-nowrap px-space-lg py-space-md font-mono-code text-[11px] text-on-surface-variant">
+        {new Date(task.createdAt).toLocaleString(undefined, {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })}
+      </td>
       <td className="px-space-lg py-space-md font-mono-code text-[12px] text-on-surface">{decisionCount}</td>
       <td
         className={`px-space-lg py-space-md font-mono-code text-[12px] ${
@@ -73,18 +81,20 @@ export function TaskTraceTable({ traces }: { traces: TaskTrace[] }) {
   return (
     <div className="max-h-[560px] overflow-auto rounded-xl border border-outline-variant/30 bg-surface-container">
       <table className="w-full min-w-[760px] border-collapse text-left">
-        <caption className="sr-only">Recent task traces for Northwind Labs, each row opens its task</caption>
+        <caption className="sr-only">Recent task traces, each row opens its task</caption>
         <thead className="sticky top-0 z-10 bg-surface-container">
           <tr className="border-b border-outline-variant/30">
-            {["Task", "Agent", "Principal", "Status", "Decisions", "Blocked", ""].map((heading) => (
-              <th
-                key={heading || "affordance"}
-                scope="col"
-                className="whitespace-nowrap px-space-lg py-space-md font-label-caps text-label-caps uppercase tracking-widest text-outline"
-              >
-                {heading}
-              </th>
-            ))}
+            {["Task", "Agent", "Principal", "Status", "Created", "Decisions", "Blocked", ""].map(
+              (heading) => (
+                <th
+                  key={heading || "affordance"}
+                  scope="col"
+                  className="whitespace-nowrap px-space-lg py-space-md font-label-caps text-label-caps uppercase tracking-widest text-outline"
+                >
+                  {heading}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody>

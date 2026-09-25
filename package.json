@@ -12,14 +12,26 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.mts",
     "test:e2e": "playwright test",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
+    "db:link": "supabase link --project-ref \"$SUPABASE_PROJECT_REF\"",
+    "db:push": "supabase db push --linked",
+    "db:diff": "supabase db diff --linked",
+    "db:types": "supabase gen types typescript --linked --schema public > src/lib/supabase/database.types.ts",
+    "db:test": "node scripts/db-test.mjs",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
     "framer-motion": "^13.4.0",
     "next": "15.5.25",
     "react": "19.1.1",
     "react-dom": "19.1.1",
+    "server-only": "^0.0.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
@@ -40,8 +52,12 @@
     "jsdom": "^29.1.1",
     "postcss": "^8.5.6",
     "prettier": "^3.9.8",
+    "supabase": "^2.117.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.2",
     "vitest": "^5.0.1"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-darwin-arm64": "1.2.9"
   }
 }

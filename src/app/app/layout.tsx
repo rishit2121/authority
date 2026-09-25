@@ -1,14 +1,57 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { initialsFor } from "@/lib/auth/identity";
 import { loadNavBadges } from "@/lib/data/nav";
+import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 export const metadata: Metadata = {
   title: "Control plane",
 };
 
+/**
+ * The protected boundary.
+ *
+ * `requireIdentity()` verifies the user against the Auth server, completes
+ * onboarding if needed, and resolves the active tenant from the user's real
+ * memberships. It redirects to `/login` when there is no session, so nothing
+ * below this layout renders for an unauthenticated request.
+ *
+ * The middleware also gates `/app`, but this check is not redundant: a matcher
+ * is a pattern, and the authorization decision belongs next to the data it
+ * protects rather than at the edge.
+ */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const badges = await loadNavBadges();
+  // The path being requested, so a redirect to /login can return the user here
+  // afterwards. `x-invoke-path` is not available in layouts, so this falls
+  // back to the referer-independent default inside requireIdentity.
+  const headerList = await headers();
+  const requestedPath = headerList.get("x-authority-path") ?? "/app";
 
-  return <DashboardShell badges={badges}>{children}</DashboardShell>;
+  // Also re-verifies the caller and resolves their real tenant — the same
+  // check requireIdentity() does, cached per request, so this costs nothing
+  // extra. The badge counts below must come from this tenant's own Supabase
+  // rows: passing no repositories here would silently fall back to
+  // loadNavBadges()'s mock defaults on every authenticated request, which is
+  // exactly the "silent mock fallback under /app/*" this project forbids.
+  const { identity, repositories } = await createRepositoriesForCurrentTenant(requestedPath);
+
+  const badges = await loadNavBadges(repositories, identity.tenant.tenantId);
+
+  return (
+    <DashboardShell
+      badges={badges}
+      identity={{
+        displayName: identity.displayName,
+        email: identity.email,
+        initials: initialsFor(identity.displayName, identity.email),
+        role: identity.role,
+      }}
+      memberships={identity.memberships}
+      currentTenantId={identity.tenant.tenantId}
+    >
+      {children}
+    </DashboardShell>
+  );
 }

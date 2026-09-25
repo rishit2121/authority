@@ -4,7 +4,10 @@ import type { AuthorizationDecision } from "./authorization-decision";
 import type { Capability } from "./capability";
 import type { Id } from "./common";
 import type { ExecutionEvent } from "./execution-event";
+import type { Integration } from "./integration";
+import type { PageOptions, PageResult } from "./pagination";
 import type { Plan } from "./plan";
+import type { Policy } from "./policy";
 import type { Principal } from "./principal";
 import type { Task } from "./task";
 import type { TaskAuthorityContract } from "./task-authority-contract";
@@ -18,6 +21,15 @@ import type { ToolRequest } from "./tool-request";
  * them to in-memory fixtures; a later part can bind the same interfaces to
  * Supabase without touching any consumer. Everything is async so a real
  * implementation is a drop-in.
+ *
+ * Part 2B.1 adds pagination as new, additional methods rather than by
+ * changing any existing signature: every `listX(id): Promise<X[]>` below is
+ * untouched, so every Part 1/2A caller, test and mock implementation
+ * continues to compile and pass without modification. Where the underlying
+ * table can grow without bound with tenant activity, a `listXPaged` sibling
+ * is added returning `PageResult<X>`. Tables that stay small (memberships,
+ * policies, integrations) get no such sibling — pagination there would be
+ * ceremony without a growth problem to solve.
  */
 
 export interface TenantRepository {
@@ -38,10 +50,22 @@ export interface AgentRepository {
 export interface TaskRepository {
   findById(id: Id): Promise<Task | null>;
   listByTenant(tenantId: Id): Promise<Task[]>;
+  /** Tasks accumulate per tenant indefinitely; the dashboard needs this bounded. */
+  listByTenantPaged(tenantId: Id, options?: PageOptions): Promise<PageResult<Task>>;
 }
 
 export interface ContractRepository {
+  /** The task's latest contract version, in whatever lifecycle status it's in — for display only. */
   findByTaskId(taskId: Id): Promise<TaskAuthorityContract | null>;
+  /**
+   * The task's `active` contract, or null if none is active — the *only*
+   * sanctioned lookup for any future authority-consuming code path (e.g.
+   * capability issuance). Deliberately separate from `findByTaskId`: that
+   * method's result is a display concern, this one is a security boundary.
+   * A `proposed`/`awaiting_approval`/`rejected` contract must never be
+   * mistaken for authoritative merely because it's the latest version.
+   */
+  findActiveByTaskId(taskId: Id): Promise<TaskAuthorityContract | null>;
 }
 
 export interface PlanRepository {
@@ -50,28 +74,61 @@ export interface PlanRepository {
 
 export interface ToolRequestRepository {
   listByTaskId(taskId: Id): Promise<ToolRequest[]>;
+  listByTaskIdPaged(taskId: Id, options?: PageOptions): Promise<PageResult<ToolRequest>>;
+}
+
+export interface DecisionCounts {
+  total: number;
+  blocked: number;
 }
 
 export interface DecisionRepository {
   findById(id: Id): Promise<AuthorizationDecision | null>;
   listByTaskId(taskId: Id): Promise<AuthorizationDecision[]>;
+  listByTaskIdPaged(taskId: Id, options?: PageOptions): Promise<PageResult<AuthorizationDecision>>;
+  /**
+   * Decision/blocked counts for several tasks in one call, keyed by task id.
+   * Exists specifically so a dashboard listing N tasks costs one query, not
+   * N — see loadDashboardOverview in lib/data/dashboard.ts, which used to
+   * call listByTaskId once per task before this method existed.
+   */
+  countByTaskIds(taskIds: readonly Id[]): Promise<Map<Id, DecisionCounts>>;
 }
 
 export interface CapabilityRepository {
   listByTaskId(taskId: Id): Promise<Capability[]>;
   listActiveByTenant(tenantId: Id): Promise<Capability[]>;
+  /** Active capabilities are a live, tenant-wide list — also worth bounding. */
+  listActiveByTenantPaged(tenantId: Id, options?: PageOptions): Promise<PageResult<Capability>>;
 }
 
 export interface ApprovalRepository {
   listByTenant(tenantId: Id): Promise<Approval[]>;
   listPendingByTenant(tenantId: Id): Promise<Approval[]>;
+  listByTenantPaged(tenantId: Id, options?: PageOptions): Promise<PageResult<Approval>>;
+  /** Bounded by one task's own approvals, not the tenant's — for the task investigation view. */
+  listByTaskId(taskId: Id): Promise<Approval[]>;
 }
 
 export interface ExecutionEventRepository {
   listByTaskId(taskId: Id): Promise<ExecutionEvent[]>;
+  /** The one most likely to run long in a real workspace — a task's full audit trail. */
+  listByTaskIdPaged(taskId: Id, options?: PageOptions): Promise<PageResult<ExecutionEvent>>;
 }
 
-/** Aggregate handed to the UI so pages depend on one seam, not eleven. */
+/** Organization policy, evaluated deterministically alongside the contract. */
+export interface PolicyRepository {
+  findById(id: Id): Promise<Policy | null>;
+  listByTenant(tenantId: Id): Promise<Policy[]>;
+}
+
+/** Connected tool provider metadata — never a credential. */
+export interface IntegrationRepository {
+  findById(id: Id): Promise<Integration | null>;
+  listByTenant(tenantId: Id): Promise<Integration[]>;
+}
+
+/** Aggregate handed to the UI so pages depend on one seam, not thirteen. */
 export interface AuthorityRepositories {
   tenants: TenantRepository;
   principals: PrincipalRepository;
@@ -84,4 +141,6 @@ export interface AuthorityRepositories {
   capabilities: CapabilityRepository;
   approvals: ApprovalRepository;
   events: ExecutionEventRepository;
+  policies: PolicyRepository;
+  integrations: IntegrationRepository;
 }

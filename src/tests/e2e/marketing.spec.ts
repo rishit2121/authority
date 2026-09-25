@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+import { signIn } from "./support/auth";
+import { OWNER_A } from "./support/users";
+
 /**
  * The end-to-end marketing flow: headline, the authority graph existing on
  * the page, the walkthrough, and the denied-secret assertion on the full
@@ -33,6 +36,12 @@ test.describe("marketing flow", () => {
     await expect(walkthrough.getByRole("heading", { name: "Trusted task received" })).toBeVisible();
 
     await walkthrough.getByRole("button", { name: "Next" }).click();
+
+    // The walkthrough uses AnimatePresence mode="wait", so the outgoing step
+    // unmounts fully before the incoming one mounts. Asserting the old
+    // heading is gone first pins the test to that sequence instead of racing
+    // the ~220ms window in which neither heading is in the DOM.
+    await expect(walkthrough.getByRole("heading", { name: "Trusted task received" })).toHaveCount(0);
     await expect(walkthrough.getByRole("heading", { name: "Task Authority Contract created" })).toBeVisible();
 
     // Step indicator lets you jump directly to a later step. Each button's
@@ -43,6 +52,12 @@ test.describe("marketing flow", () => {
   });
 
   test("opens the full task investigation and confirms secret access was denied", async ({ page }) => {
+    // The walkthrough hands off into /app, which is protected server-side as
+    // of Part 2A. Signing in first keeps this test covering the whole journey
+    // from the public demo through to the investigation view, rather than
+    // stopping at the login redirect.
+    await signIn(page, OWNER_A);
+
     await page.goto("/demo");
     await page.getByRole("link", { name: "Open the full task investigation" }).click();
     await expect(page).toHaveURL(/\/app\/tasks\/demo-task$/);

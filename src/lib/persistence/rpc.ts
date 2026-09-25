@@ -1,0 +1,227 @@
+import type { Json } from "@/lib/supabase/database.types";
+
+import type { RepositoryContext } from "./context";
+import { throwDatabaseError } from "./errors";
+
+/**
+ * Typed wrappers over the SECURITY DEFINER RPCs — the only write paths that
+ * exist for tasks, capabilities, decisions and demo data in this phase. Each
+ * one runs the caller's own real session through `context.supabase.rpc()`,
+ * so the RPC's own membership/role checks apply exactly as they do for any
+ * other client — nothing here elevates privilege or bypasses them.
+ *
+ * These live outside `AuthorityRepositories`: they are commands, not reads,
+ * and the domain's repository interfaces are deliberately read-only in this
+ * phase (see repositories.ts). Server Actions call these directly.
+ */
+
+export interface CreateTaskInput {
+  agentId: string;
+  principalId: string;
+  trustedObjective: string;
+  provenance: string;
+  idempotencyKey?: string;
+}
+
+export interface CreateTaskResult {
+  taskId: string;
+  wasCreated: boolean;
+}
+
+export async function callCreateTask(
+  context: RepositoryContext,
+  input: CreateTaskInput,
+): Promise<CreateTaskResult> {
+  const { data, error } = await context.supabase.rpc("create_task", {
+    p_tenant_id: context.tenantId,
+    p_agent_id: input.agentId,
+    p_principal_id: input.principalId,
+    p_trusted_objective: input.trustedObjective,
+    p_provenance: input.provenance,
+    p_idempotency_key: input.idempotencyKey,
+  });
+
+  if (error) throwDatabaseError("create task", error);
+
+  const row = data?.[0];
+  if (!row) throwDatabaseError("create task", { code: "no_rows_returned" });
+
+  return { taskId: row.task_id, wasCreated: row.was_created };
+}
+
+/**
+ * Terminates a task via `terminate_task()`. The RPC itself derives the
+ * task's tenant from the row and re-verifies the caller's role against it —
+ * `context.tenantId` is not passed, because the RPC's own signature takes
+ * only a task id and is not supposed to trust a tenant claim about a task it
+ * can look up directly.
+ */
+export async function callTerminateTask(context: RepositoryContext, taskId: string): Promise<void> {
+  const { error } = await context.supabase.rpc("terminate_task", { p_task_id: taskId });
+  if (error) throwDatabaseError("terminate task", error);
+}
+
+export interface InstallDemoWorkspaceResult {
+  wasInstalled: boolean;
+}
+
+export async function callInstallDemoWorkspace(
+  context: RepositoryContext,
+): Promise<InstallDemoWorkspaceResult> {
+  const { data, error } = await context.supabase.rpc("install_demo_workspace", {
+    p_tenant_id: context.tenantId,
+  });
+
+  if (error) throwDatabaseError("install demo workspace", error);
+
+  const row = data?.[0];
+  return { wasInstalled: row?.was_installed ?? false };
+}
+
+export async function callResetDemoWorkspace(context: RepositoryContext): Promise<void> {
+  const { error } = await context.supabase.rpc("reset_demo_workspace", {
+    p_tenant_id: context.tenantId,
+  });
+
+  if (error) throwDatabaseError("reset demo workspace", error);
+}
+
+/**
+ * Part 3A: the candidate-plan and contract-lifecycle RPCs. Each one runs
+ * server-side TypeScript validation/solving/compilation first (see
+ * lib/authorization/) and passes only the *result* here — the database
+ * independently re-verifies tenancy, role and structural integrity, never
+ * the TypeScript pipeline's own claims about correctness. See the module
+ * doc on lib/authorization/contract-verifier.ts for what that split does
+ * and does not prove.
+ */
+
+export interface CreateCandidatePlanNodeInput {
+  id: string;
+  sequence: number;
+  tool: string;
+  arguments: Record<string, string | number | boolean | string[]>;
+  resourceBinding?: string;
+  dependencies: string[];
+  declaredOutputs: string[];
+  dataFlowRefs: { argumentKey: string; fromNodeId: string; output: string }[];
+  maxInvocations: number;
+  validationStatus: "pending" | "accepted" | "requires_review" | "clarify" | "replan" | "denied";
+}
+
+export interface CreateCandidatePlanInput {
+  taskId: string;
+  nodes: CreateCandidatePlanNodeInput[];
+  inputHash: string;
+  idempotencyKey?: string;
+}
+
+export interface CreateCandidatePlanResult {
+  planId: string;
+  version: number;
+  wasCreated: boolean;
+}
+
+export async function callCreateCandidatePlan(
+  context: RepositoryContext,
+  input: CreateCandidatePlanInput,
+): Promise<CreateCandidatePlanResult> {
+  const nodes = input.nodes.map((n) => ({
+    id: n.id,
+    sequence: n.sequence,
+    tool: n.tool,
+    arguments: n.arguments,
+    resource_binding: n.resourceBinding ?? null,
+    dependencies: n.dependencies,
+    declared_outputs: n.declaredOutputs,
+    data_flow_refs: n.dataFlowRefs,
+    max_invocations: n.maxInvocations,
+    validation_status: n.validationStatus,
+  }));
+
+  const { data, error } = await context.supabase.rpc("create_candidate_plan", {
+    p_task_id: input.taskId,
+    p_nodes: nodes,
+    p_input_hash: input.inputHash,
+    p_idempotency_key: input.idempotencyKey,
+  });
+
+  if (error) throwDatabaseError("create candidate plan", error);
+
+  const row = data?.[0];
+  if (!row) throwDatabaseError("create candidate plan", { code: "no_rows_returned" });
+
+  return { planId: row.plan_id, version: row.version, wasCreated: row.was_created };
+}
+
+export interface ProposeTaskContractInput {
+  taskId: string;
+  planId: string;
+  allowedActions: Json;
+  forbiddenResources: string[];
+  forbiddenOperations: string[];
+  ephemeralLimits: Json;
+  dataFlowBindings: Json;
+  requiredApprovals: Json;
+  registryVersion: string;
+  compilerVersion: string;
+  inputHash: string;
+  outputHash: string;
+  verifierResult: Json;
+  objectiveTrace: Json;
+}
+
+export interface ProposeTaskContractResult {
+  contractId: string;
+  version: number;
+  wasCreated: boolean;
+}
+
+export async function callProposeTaskContract(
+  context: RepositoryContext,
+  input: ProposeTaskContractInput,
+): Promise<ProposeTaskContractResult> {
+  const { data, error } = await context.supabase.rpc("propose_task_contract", {
+    p_task_id: input.taskId,
+    p_plan_id: input.planId,
+    p_allowed_actions: input.allowedActions,
+    p_forbidden_resources: input.forbiddenResources,
+    p_forbidden_operations: input.forbiddenOperations,
+    p_ephemeral_limits: input.ephemeralLimits,
+    p_data_flow_bindings: input.dataFlowBindings,
+    p_required_approvals: input.requiredApprovals,
+    p_registry_version: input.registryVersion,
+    p_compiler_version: input.compilerVersion,
+    p_input_hash: input.inputHash,
+    p_output_hash: input.outputHash,
+    p_verifier_result: input.verifierResult,
+    p_objective_trace: input.objectiveTrace,
+  });
+
+  if (error) throwDatabaseError("propose task contract", error);
+
+  const row = data?.[0];
+  if (!row) throwDatabaseError("propose task contract", { code: "no_rows_returned" });
+
+  return { contractId: row.contract_id, version: row.version, wasCreated: row.was_created };
+}
+
+export async function callSubmitContractForApproval(
+  context: RepositoryContext,
+  contractId: string,
+): Promise<void> {
+  const { error } = await context.supabase.rpc("submit_contract_for_approval", { p_contract_id: contractId });
+  if (error) throwDatabaseError("submit contract for approval", error);
+}
+
+export async function callRejectContract(
+  context: RepositoryContext,
+  contractId: string,
+  reason: string,
+): Promise<void> {
+  const { error } = await context.supabase.rpc("reject_contract", {
+    p_contract_id: contractId,
+    p_reason: reason,
+  });
+  if (error) throwDatabaseError("reject contract", error);
+}

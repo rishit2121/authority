@@ -2,8 +2,9 @@ import type { SVGProps } from "react";
 
 /**
  * The Stitch export pulled in the whole Material Symbols webfont from Google
- * just to draw fifteen glyphs. These are the same fifteen as inline 24x24
- * paths, so the page ships no third-party font request.
+ * just to draw a handful of glyphs. These are the same glyphs as inline 24x24
+ * paths, so the page ships no third-party font request. Add to this map rather
+ * than reaching for the webfont.
  */
 const ICON_PATHS = {
   person:
@@ -38,6 +39,12 @@ const ICON_PATHS = {
     "M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.59L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z",
   warning: "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z",
   menu: "M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z",
+  visibility:
+    "M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
+  visibility_off:
+    "M12 7a5 5 0 0 1 5 5c0 .65-.13 1.26-.36 1.83l2.92 2.92A11.8 11.8 0 0 0 23 12c-1.73-4.39-6-7.5-11-7.5-1.37 0-2.7.24-3.93.67l2.16 2.16c.55-.21 1.15-.33 1.77-.33zM2.81 2.81 1.39 4.22l2.27 2.27A11.7 11.7 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5 1.5 0 2.93-.28 4.24-.79l2.54 2.54 1.41-1.41L2.81 2.81zM12 17a5 5 0 0 1-4.42-7.36l1.53 1.53A3 3 0 0 0 12 15c.28 0 .55-.04.81-.11l1.53 1.53c-.72.37-1.5.58-2.34.58z",
+  mail: "M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4-8 5-8-5V6l8 5 8-5v2z",
+  error: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z",
 } as const;
 
 export type IconName = keyof typeof ICON_PATHS;

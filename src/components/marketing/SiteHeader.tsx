@@ -39,7 +39,7 @@ export function SiteHeader() {
 
         <div className="flex items-center gap-space-md">
           <Link
-            href="/app"
+            href="/login"
             className="hidden px-space-md py-space-sm font-body-md text-body-md text-on-surface-variant transition-colors hover:text-on-surface sm:inline-block"
           >
             Sign in
