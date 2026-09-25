@@ -4,6 +4,7 @@ import type { CandidatePlan, Policy } from "@/lib/domain";
 import { githubDemoRegistry, loadRegistry } from "@/lib/registry";
 
 import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
+import { canonicalHash } from "@/lib/authorization/canonicalize";
 import { validateCandidatePlan } from "@/lib/authorization/plan-validator";
 import { solveMinimumAuthority } from "@/lib/authorization/solver";
 
@@ -259,5 +260,27 @@ describe("deriveRequiredApprovals", () => {
     ]);
     const requirements = derive(plan);
     expect(requirements[0].kind).toBe("task_owner");
+  });
+
+  it("regression: a task_owner requirement never carries a `role` key at all, not even role: undefined", () => {
+    // activateContractAction() runs the derived spec through canonicalHash()
+    // to compare it against the persisted one — canonicalHash() rejects an
+    // object property whose value is literally `undefined` (even though a
+    // JSON round-trip would silently drop it), so this must be a genuinely
+    // absent key, not a present key holding `undefined`.
+    const plan = planWith([
+      node({
+        id: "a",
+        sequence: 0,
+        tool: "github.create_branch",
+        arguments: { repository: "r", branch: "b" },
+        expectedSideEffect: "write_create",
+      }),
+    ]);
+    const requirements = derive(plan);
+    const taskOwnerReq = requirements.find((r) => r.kind === "task_owner")!;
+    expect(taskOwnerReq).toBeDefined();
+    expect(Object.hasOwn(taskOwnerReq, "role")).toBe(false);
+    expect(() => canonicalHash({ schemaVersion: 1, items: requirements })).not.toThrow();
   });
 });

@@ -78,7 +78,14 @@ function mergeDrafts(drafts: readonly DraftRequirement[]): ApprovalRequirement[]
     if (!existing) {
       byKey.set(key, {
         kind: draft.kind,
-        role: draft.role,
+        // Omitted entirely, not set to `undefined`, when there is no role
+        // (the "task_owner" kind): canonicalHash() — used to compare a
+        // recomputed requirements spec against the persisted one during
+        // activation re-verification — rejects `undefined` as an
+        // unrecognized JSON-unsafe value. A key that is genuinely absent
+        // canonicalizes fine; a key present with value `undefined` does not,
+        // even though both look identical after a JSON round-trip.
+        ...(draft.role ? { role: draft.role } : {}),
         count: draft.count,
         selfApprovalAllowed: draft.selfApprovalAllowed,
         reasons: [draft.reason],
