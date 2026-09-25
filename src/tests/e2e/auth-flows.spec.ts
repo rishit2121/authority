@@ -11,8 +11,27 @@ import { ADMIN_A, OWNER_A, TEST_PASSWORD } from "./support/users";
  *
  * Email confirmation is enabled on the development project, so sign-up cannot
  * complete to a session in an automated test. What is asserted instead is the
- * behaviour that matters and is testable: validation, the neutral
- * non-enumerating responses, and that a real credential signs in.
+ * behaviour that matters and is testable: client-side validation (all of
+ * which runs before any Supabase call is ever made, so it is fully
+ * deterministic) and that a real credential signs in.
+ *
+ * Enumeration resistance — a new address and an already-registered one must
+ * be indistinguishable — is *not* re-verified here against the live
+ * project. It used to be, by performing two real sign-up submissions, and
+ * that test was flaky in exactly the way live external dependencies are:
+ * Supabase's own project-level rate limiting and address-validation
+ * heuristics vary with recent traffic this application does not control,
+ * occasionally returning a validation error instead of either of the two
+ * expected outcomes. The security property itself is unconditional and
+ * belongs in required, always-green coverage, so it is now verified
+ * deterministically instead, at the layer that actually decides it:
+ * `resolveSignUpOutcome()` (src/lib/auth/errors.ts), unit-tested directly in
+ * src/tests/unit/auth-errors.test.ts against every one of Supabase's
+ * documented response shapes for this endpoint, with no network involved.
+ * A live, end-to-end version of the original two-submission comparison
+ * still exists for optional, manual, or scheduled verification against the
+ * real project — see src/tests/e2e/external/signup-enumeration-live.spec.ts,
+ * excluded from this required suite by default.
  *
  * The one step that cannot be automated without an inbox is clicking the
  * emailed confirmation and recovery links. See README for the manual check.
@@ -202,30 +221,6 @@ test.describe("signup form", () => {
     await page.getByRole("button", { name: "Create account" }).click();
 
     await expect(page.locator("main").getByRole("alert")).toBeVisible();
-  });
-
-  // Sign-up sends a confirmation email, so asserting a specific banner depends
-  // on the project's SMTP send quota. The security property does not: a brand
-  // new address and one that definitely exists must be indistinguishable, or
-  // this form becomes an account-existence oracle.
-  test("a new and an existing address produce identical responses", async ({ page }) => {
-    const responses: string[] = [];
-
-    for (const address of [`fresh-${Date.now()}@authority.test`, OWNER_A.email]) {
-      await page.goto("/signup");
-      await page.getByLabel("Full name").fill("Enumeration Probe");
-      await page.getByLabel("Work email").fill(address);
-      await page.getByLabel("Password", { exact: true }).fill("a-perfectly-fine-password");
-      await page.getByLabel("Confirm password").fill("a-perfectly-fine-password");
-      await page.getByRole("button", { name: "Create account" }).click();
-
-      const banner = page.locator("main").getByRole("status").or(page.locator("main").getByRole("alert"));
-      await expect(banner.first()).toBeVisible();
-      responses.push(((await banner.first().textContent()) ?? "").trim());
-    }
-
-    expect(responses[0]).toBe(responses[1]);
-    expect(responses[0]).not.toMatch(/already registered|already exists|already taken/i);
   });
 });
 

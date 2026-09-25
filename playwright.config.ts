@@ -39,6 +39,25 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 /** Storage state written by auth.setup.ts and reused by the authenticated project. */
 const AUTH_STATE = path.join(process.cwd(), "test-results", ".auth", "owner-a.json");
 
+/**
+ * Optional external-integration project, included only when explicitly
+ * requested (`RUN_EXTERNAL_TESTS=1`). Its tests depend on the live linked
+ * Supabase project's real email delivery and rate-limit state, which this
+ * application does not control — they must never be part of a required,
+ * always-green CI run. Omitted from `projects` entirely by default, rather
+ * than included-but-skipped: a skipped test still reports a result for a
+ * check that never actually ran, which is the outcome this is avoiding.
+ */
+const externalProjects = process.env.RUN_EXTERNAL_TESTS
+  ? [
+      {
+        name: "external-optional",
+        testMatch: /e2e\/external\/.*\.spec\.ts/,
+        use: { ...devices["Desktop Chrome"], storageState: undefined },
+      },
+    ]
+  : [];
+
 export default defineConfig({
   testDir: "./src/tests/e2e",
   fullyParallel: true,
@@ -79,6 +98,8 @@ export default defineConfig({
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
+
+    ...externalProjects,
   ],
   // Runs against a production build so the e2e suite exercises what ships.
   webServer: {

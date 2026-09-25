@@ -104,3 +104,52 @@ export function describeAuthErrorForLog(error: AuthErrorLike | null | undefined)
   if (typeof error.status === "number") parts.push(`status=${error.status}`);
   return parts.join(" ");
 }
+
+export type SignUpOutcome =
+  { kind: "authenticated" } | { kind: "response"; success?: string; error?: string };
+
+/**
+ * The full sign-up enumeration-resistance decision, extracted from
+ * `signUpAction` so the security property it exists to guarantee — a brand
+ * new address and one that already exists are indistinguishable — can be
+ * unit-tested deterministically, without a live Supabase project's email
+ * delivery or rate-limit behavior in the loop. `signUpAction` itself calls
+ * this with whatever `supabase.auth.signUp()` actually returned; nothing
+ * about the decision changes, only where it can be exercised from.
+ *
+ * `hasSession` corresponds to `Boolean(data?.session)`: with email
+ * confirmation enabled, a genuinely new signup and an already-registered
+ * address both return a user with no session, which is exactly what makes
+ * the neutral message both safe and accurate for either case.
+ */
+export function resolveSignUpOutcome(
+  error: AuthErrorLike | null | undefined,
+  hasSession: boolean,
+): SignUpOutcome {
+  if (error) {
+    // An "already registered" response must not be distinguishable from
+    // success, or this form becomes an account-existence oracle.
+    if (error.code === "user_already_exists" || /already registered/i.test(error.message ?? "")) {
+      return { kind: "response", success: SIGNUP_NEUTRAL_MESSAGE };
+    }
+
+    // Email send throttling is also answered neutrally. It is not an
+    // account-dependent condition, but letting the response vary at all on
+    // this endpoint creates a channel where there should be none — and the
+    // neutral message already tells the user to check their inbox and retry.
+    // Everything else (weak password, invalid address, signup disabled)
+    // describes the submitted input rather than the account, and is surfaced.
+    if (error.code === "over_email_send_rate_limit" || error.code === "over_request_rate_limit") {
+      return { kind: "response", success: SIGNUP_NEUTRAL_MESSAGE };
+    }
+
+    return { kind: "response", error: presentAuthError(error) };
+  }
+
+  // With email confirmation enabled, signUp returns a user but no session.
+  if (!hasSession) {
+    return { kind: "response", success: SIGNUP_NEUTRAL_MESSAGE };
+  }
+
+  return { kind: "authenticated" };
+}
