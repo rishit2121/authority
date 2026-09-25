@@ -4,8 +4,20 @@ import "server-only";
 
 import { revalidatePath } from "next/cache";
 
+import {
+  buildTrustedTaskInput,
+  getOpenAiEnv,
+  MockPlanProposalProvider,
+  OpenAiPlanProposalProvider,
+  PlanProposalOutputTooLargeError,
+  PlanProposalProviderError,
+  PlanProposalTimeoutError,
+  type PlanProposalMetadata,
+  type PlanProposalProvider,
+} from "@/lib/ai";
+import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
-import { compileContract } from "@/lib/authorization/contract-compiler";
+import { COMPILER_VERSION, compileContract } from "@/lib/authorization/contract-compiler";
 import { verifyCompiledContract } from "@/lib/authorization/contract-verifier";
 import {
   PlanStructureError,
@@ -13,17 +25,21 @@ import {
   type PlanValidationResult,
 } from "@/lib/authorization/plan-validator";
 import { solveMinimumAuthority } from "@/lib/authorization/solver";
-import { candidatePlanSchema, type CandidatePlan } from "@/lib/domain";
+import { candidatePlanSchema, type ApprovalRequirement, type CandidatePlan } from "@/lib/domain";
 import {
+  callActivateTaskContract,
   callCreateCandidatePlan,
+  callDecideContractApproval,
   callProposeTaskContract,
   callRejectContract,
+  callRevokeTaskContract,
   callSubmitContractForApproval,
   type CreateCandidatePlanNodeInput,
 } from "@/lib/persistence/rpc";
 import type { Json } from "@/lib/supabase/database.types";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { RepositoryError } from "@/lib/persistence/errors";
+import { loadCandidatePlanForActivation } from "@/lib/persistence/supabase/load-candidate-plan-for-activation";
 import { githubDemoRegistry, loadRegistry } from "@/lib/registry";
 
 /**
@@ -80,6 +96,8 @@ async function loadActivePolicies(taskId: string) {
 export interface ValidatePlanResult {
   findings: PlanValidationResult["findings"];
   acceptedNodeIds: string[];
+  /** Accepted or requires_review — everything eligible to reach the solver. See plan-validator.ts. */
+  includedNodeIds: string[];
   requiredOperations: string[];
 }
 
@@ -112,6 +130,7 @@ export async function validateCandidatePlanAction(
       data: {
         findings: validation.findings,
         acceptedNodeIds: validation.acceptedNodeIds,
+        includedNodeIds: validation.includedNodeIds,
         requiredOperations: validation.requiredOperations,
       },
     };
@@ -126,6 +145,7 @@ export interface ProposeContractPreview {
   wasCreated: boolean;
   selectedPermissionIds: string[];
   excessOperations: string[];
+  requiredApprovals: ApprovalRequirement[];
 }
 
 /**
@@ -162,8 +182,11 @@ export async function proposeContractAction(
     }
 
     const validation = validateCandidatePlan(plan, { registry, activePolicies });
-    if (validation.acceptedNodeIds.length === 0) {
-      return { ok: false, error: "No plan node was accepted — there is nothing to compile a contract from." };
+    if (validation.includedNodeIds.length === 0) {
+      return {
+        ok: false,
+        error: "No plan node was accepted or review-pending — there is nothing to compile a contract from.",
+      };
     }
 
     const solverOutcome = solveMinimumAuthority({
@@ -179,6 +202,14 @@ export async function proposeContractAction(
     }
 
     const compiled = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
+
+    const requiredApprovalsSpec = deriveRequiredApprovals({
+      candidatePlan: plan,
+      validation,
+      solverOutcome,
+      registry,
+      activePolicies,
+    });
 
     const verification = verifyCompiledContract({
       candidatePlan: plan,
@@ -213,6 +244,7 @@ export async function proposeContractAction(
         dataFlowRefs: n.dataFlowRefs,
         maxInvocations: n.maxInvocations,
         validationStatus,
+        expectedSideEffect: n.expectedSideEffect,
       };
     });
 
@@ -220,8 +252,8 @@ export async function proposeContractAction(
       schemaVersion: plan.schemaVersion,
       taskId: plan.taskId,
       registryVersion: registry.registryVersion,
-      acceptedNodes: plan.nodes
-        .filter((n) => validation.acceptedNodeIds.includes(n.id))
+      includedNodes: plan.nodes
+        .filter((n) => validation.includedNodeIds.includes(n.id))
         .sort((a, b) => a.sequence - b.sequence),
     });
 
@@ -260,6 +292,10 @@ export async function proposeContractAction(
         schemaVersion: 1,
         items: compiled.requiredApprovals,
       } as unknown as Json,
+      requiredApprovalsSpec: {
+        schemaVersion: 1,
+        items: requiredApprovalsSpec,
+      } as unknown as Json,
       registryVersion: compiled.registryVersion,
       compilerVersion: compiled.compilerVersion,
       inputHash: compiled.inputHash,
@@ -293,6 +329,7 @@ export async function proposeContractAction(
         wasCreated: contractResult.wasCreated,
         selectedPermissionIds: solverOutcome.solution.selectedPermissionIds,
         excessOperations: solverOutcome.solution.excessOperations,
+        requiredApprovals: requiredApprovalsSpec,
       },
     };
   } catch (error) {
@@ -322,6 +359,264 @@ export async function rejectContractAction(
   try {
     const { context } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
     await callRejectContract(context, contractId, reason);
+    revalidatePath(`/app/tasks/${taskId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+export interface GeneratedPlanPreview {
+  /** Raw, unvalidated JSON straight from the provider — the UI must label this untrusted regardless of whether it happens to already be well-formed. */
+  plan: unknown;
+  metadata: PlanProposalMetadata;
+  /** Present only when the provider's output failed candidatePlanSchema — the UI shows this instead of silently discarding a malformed proposal. */
+  validationError?: string;
+}
+
+/**
+ * Generates an untrusted candidate plan via the configured AI provider
+ * (OpenAI if `OPENAI_API_KEY` is set, the deterministic mock otherwise —
+ * either way, this action never activates anything, never selects a
+ * permission, and never touches the deterministic pipeline itself). The
+ * result is always labeled untrusted in the UI
+ * (`UNTRUSTED_AI_PLAN_LABEL`) and must still pass through
+ * `validateCandidatePlanAction`/`proposeContractAction` exactly like a
+ * hand-authored plan — this action does not call either of those itself,
+ * so a human always reviews the raw output first.
+ */
+export async function generatePlanWithAiAction(taskId: string): Promise<ActionResult<GeneratedPlanPreview>> {
+  try {
+    const { repositories, identity } = await createRepositoriesForCurrentTenant(
+      `/app/tasks/${taskId}/contract/new`,
+    );
+    const task = await repositories.tasks.findById(taskId);
+    if (!task || task.tenantId !== identity.tenant.tenantId) {
+      return { ok: false, error: "That task could not be found." };
+    }
+
+    const allPolicies = await repositories.policies.listByTenant(identity.tenant.tenantId);
+    const activePolicies = allPolicies.filter((p) => p.status === "active");
+
+    const trustedInput = buildTrustedTaskInput({
+      taskId,
+      taskIntent: task.intent,
+      registry,
+      activePolicies,
+      resourceReferences: [],
+    });
+
+    const provider: PlanProposalProvider = getOpenAiEnv()
+      ? new OpenAiPlanProposalProvider()
+      : new MockPlanProposalProvider();
+
+    const result = await provider.proposePlan(trustedInput);
+    const parsed = candidatePlanSchema.safeParse(result.plan);
+
+    return {
+      ok: true,
+      data: {
+        plan: result.plan,
+        metadata: result.metadata,
+        validationError: parsed.success
+          ? undefined
+          : `The AI provider's output did not match the required plan structure: ${parsed.error.issues[0]?.message ?? "invalid shape"}`,
+      },
+    };
+  } catch (error) {
+    if (
+      error instanceof PlanProposalTimeoutError ||
+      error instanceof PlanProposalOutputTooLargeError ||
+      error instanceof PlanProposalProviderError
+    ) {
+      return { ok: false, error: `AI plan generation failed: ${error.message}` };
+    }
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+export interface ContractApprovalView {
+  id: string;
+  requiredKind: "task_owner" | "role";
+  requiredRole?: string;
+  status: "pending" | "approved" | "rejected" | "expired";
+  summary: string;
+  respondedByPrincipalId?: string;
+  responseNote?: string;
+}
+
+/**
+ * The pending/decided approval slots for one contract version — for the
+ * required-approval and activation-readiness panels. Every row here is
+ * bound to this exact contract id; a later recompilation starts over at
+ * zero regardless of how this version's requirements were resolved.
+ */
+export async function listContractApprovalsAction(
+  taskId: string,
+  contractId: string,
+): Promise<ActionResult<ContractApprovalView[]>> {
+  try {
+    const { repositories } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
+    const approvals = await repositories.approvals.listByTaskId(taskId);
+    const rows = approvals
+      .filter((a) => a.contractId === contractId)
+      .map((a) => ({
+        id: a.id,
+        requiredKind: a.requiredKind!,
+        requiredRole: a.requiredRole,
+        status: a.status,
+        summary: a.summary,
+        respondedByPrincipalId: a.respondedByPrincipalId,
+        responseNote: a.responseNote,
+      }));
+    return { ok: true, data: rows };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+export async function decideContractApprovalAction(
+  taskId: string,
+  approvalId: string,
+  decision: "approved" | "rejected",
+  reason?: string,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
+    await callDecideContractApproval(context, approvalId, decision, reason);
+    revalidatePath(`/app/tasks/${taskId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+/**
+ * The one path that can grant real runtime authority. Before ever calling
+ * `activate_task_contract()`, this re-runs the *entire* deterministic
+ * pipeline (validate -> solve -> compile -> verify -> derive approvals)
+ * against the *currently* supported registry version and the tenant's
+ * *current* active policies, using the plan reconstructed from what was
+ * actually persisted — never the contract row's own stored content, which
+ * this only uses for comparison. Activation is refused, before the RPC is
+ * ever called, unless every one of these matches exactly:
+ *
+ *   - the recompiled inputHash/outputHash equal the persisted contract's
+ *   - the recompiled required-approvals spec equals the persisted one
+ *   - the registry/compiler versions are still ones this server currently
+ *     supports (fails closed on anything else, including a version this
+ *     server no longer recognizes at all)
+ *
+ * This is the enforcement half of the trust boundary described in
+ * `20260926000006_contract_activation_rpcs.sql`'s module doc: the database
+ * cannot prove this function ran, so this function is what makes activating
+ * a stale or forged proposal fail *before* the one RPC that could ever
+ * grant authority is ever invoked. Passing this check does not itself grant
+ * anything — `activate_task_contract()` still independently re-checks role,
+ * approval satisfaction and the single-active-contract invariant.
+ */
+export async function activateContractAction(taskId: string, contractId: string): Promise<ActionResult> {
+  try {
+    const { repositories, identity, context } = await createRepositoriesForCurrentTenant(
+      `/app/tasks/${taskId}`,
+    );
+
+    const contract = await repositories.contracts.findById(contractId);
+    if (!contract || contract.tenantId !== identity.tenant.tenantId || contract.taskId !== taskId) {
+      return { ok: false, error: "That contract could not be found." };
+    }
+    if (!contract.planId || !contract.registryVersion || !contract.compilerVersion) {
+      return { ok: false, error: "This contract predates activation support and cannot be activated." };
+    }
+
+    const supportedRegistryVersions = [registry.registryVersion];
+    const supportedCompilerVersions = [COMPILER_VERSION];
+    if (!supportedRegistryVersions.includes(contract.registryVersion)) {
+      return { ok: false, error: `Registry version "${contract.registryVersion}" is no longer supported.` };
+    }
+    if (!supportedCompilerVersions.includes(contract.compilerVersion)) {
+      return { ok: false, error: `Compiler version "${contract.compilerVersion}" is no longer supported.` };
+    }
+
+    const plan = await loadCandidatePlanForActivation(context, taskId, contract.planId);
+
+    const allPolicies = await repositories.policies.listByTenant(identity.tenant.tenantId);
+    const activePolicies = allPolicies.filter((p) => p.status === "active");
+
+    const validation = validateCandidatePlan(plan, { registry, activePolicies });
+    if (validation.includedNodeIds.length === 0) {
+      return { ok: false, error: "Re-validation found nothing left to authorize; this proposal is stale." };
+    }
+
+    const solverOutcome = solveMinimumAuthority({
+      requiredOperations: validation.requiredOperations,
+      registry,
+      forbiddenPermissionIds: new Set(),
+    });
+    if (solverOutcome.status !== "solved") {
+      return { ok: false, error: "Re-solving minimum authority failed; this proposal is stale." };
+    }
+
+    const recompiled = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
+    if (recompiled.inputHash !== contract.inputHash || recompiled.outputHash !== contract.outputHash) {
+      return {
+        ok: false,
+        error:
+          "The current registry or policies would compile this task's plan differently than when it was proposed. Propose a new contract version instead of activating this one.",
+      };
+    }
+
+    const recomputedApprovals = deriveRequiredApprovals({
+      candidatePlan: plan,
+      validation,
+      solverOutcome,
+      registry,
+      activePolicies,
+    });
+    const recomputedApprovalsHash = canonicalHash({ schemaVersion: 1, items: recomputedApprovals });
+    const persistedApprovalsHash = canonicalHash({ schemaVersion: 1, items: contract.requiredApprovalsSpec });
+    if (recomputedApprovalsHash !== persistedApprovalsHash) {
+      return {
+        ok: false,
+        error:
+          "Current policy would require different approvals than this contract has on file. Propose a new contract version instead of activating this one.",
+      };
+    }
+
+    const verification = verifyCompiledContract({
+      candidatePlan: plan,
+      registry,
+      activePolicies,
+      compiled: recompiled,
+      tenantId: identity.tenant.tenantId,
+      taskId,
+      maxAllowedExpirySeconds: 24 * 3600,
+      supportedRegistryVersions,
+      supportedCompilerVersions,
+    });
+    if (!verification.ok) {
+      const firstFailure = verification.checks.find((c) => !c.passed);
+      return { ok: false, error: `Re-verification failed: ${firstFailure?.detail ?? "unknown check"}` };
+    }
+
+    await callActivateTaskContract(context, contractId);
+
+    revalidatePath(`/app/tasks/${taskId}`);
+    revalidatePath("/app");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+export async function revokeContractAction(
+  taskId: string,
+  contractId: string,
+  reason: string,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
+    await callRevokeTaskContract(context, contractId, reason);
     revalidatePath(`/app/tasks/${taskId}`);
     return { ok: true };
   } catch (error) {

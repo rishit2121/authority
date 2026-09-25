@@ -49,9 +49,27 @@ export interface PlanNodeFinding {
 
 export interface PlanValidationResult {
   findings: PlanNodeFinding[];
-  /** Node IDs with status "accepted", in ascending sequence order — exactly what may reach the solver. */
+  /** Node IDs with status "accepted", in ascending sequence order. */
   acceptedNodeIds: string[];
-  /** Distinct operation IDs required by accepted nodes only, deterministically sorted. */
+  /**
+   * Node IDs with status "accepted" or "requires_review", in ascending
+   * sequence order — exactly what may reach the solver and compiler.
+   *
+   * A `requires_review` node (unconditionally, today, only external
+   * communication) is mechanically well-formed and not policy-forbidden; it
+   * is not the same failure class as `denied` (forbidden outright, never
+   * reconsidered), `clarify` (missing information, not yet a real request)
+   * or `replan` (malformed, cannot be evaluated as written). Part 3B's
+   * approval workflow is exactly what "review" is deferred to: the finding
+   * is preserved and surfaced (see `findings`, and
+   * `deriveRequiredApprovals()` in `approval-rules.ts`, which turns every
+   * `requires_review` node into a mandatory approval gate on activation),
+   * never silently dropped and never silently overridden into "accepted".
+   * A `denied` operation still can never appear here under any
+   * circumstance — only the two statuses named above ever do.
+   */
+  includedNodeIds: string[];
+  /** Distinct operation IDs required by included nodes, deterministically sorted. */
   requiredOperations: string[];
 }
 
@@ -265,8 +283,11 @@ export function validateCandidatePlan(
   const findings = ordered.map((node) => evaluateNode(node, options));
 
   const acceptedNodeIds = findings.filter((f) => f.status === "accepted").map((f) => f.nodeId);
-  const acceptedNodes = ordered.filter((n) => acceptedNodeIds.includes(n.id));
-  const requiredOperations = [...new Set(acceptedNodes.map((n) => n.tool))].sort();
+  const includedNodeIds = findings
+    .filter((f) => f.status === "accepted" || f.status === "requires_review")
+    .map((f) => f.nodeId);
+  const includedNodes = ordered.filter((n) => includedNodeIds.includes(n.id));
+  const requiredOperations = [...new Set(includedNodes.map((n) => n.tool))].sort();
 
-  return { findings, acceptedNodeIds, requiredOperations };
+  return { findings, acceptedNodeIds, includedNodeIds, requiredOperations };
 }

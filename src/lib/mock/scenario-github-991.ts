@@ -104,6 +104,7 @@ export const demoContract: TaskAuthorityContract = {
   version: 1,
   status: "active",
   forbiddenOperations: [],
+  requiredApprovalsSpec: [],
   specVersion: "1.4",
   allowedActions: [
     {

@@ -11,8 +11,8 @@ describe("loadRegistry", () => {
   it("loads the audited demo registry without error", () => {
     const loaded = loadRegistry(githubDemoRegistry);
     expect(loaded.registryVersion).toBe("github-demo-2026-09-23");
-    expect(loaded.operations.size).toBe(7);
-    expect(loaded.permissions.size).toBe(11);
+    expect(loaded.operations.size).toBe(9);
+    expect(loaded.permissions.size).toBe(13);
   });
 
   it("computes deterministic, sorted coverage per operation", () => {
@@ -73,6 +73,7 @@ describe("loadRegistry", () => {
           dataSensitivity: "internal" as const,
           externalCommunication: false,
           requiresApproval: false,
+          financialImpact: false,
           argumentFields: [],
         },
       ],

@@ -107,6 +107,7 @@ export interface CreateCandidatePlanNodeInput {
   dataFlowRefs: { argumentKey: string; fromNodeId: string; output: string }[];
   maxInvocations: number;
   validationStatus: "pending" | "accepted" | "requires_review" | "clarify" | "replan" | "denied";
+  expectedSideEffect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
 }
 
 export interface CreateCandidatePlanInput {
@@ -137,6 +138,7 @@ export async function callCreateCandidatePlan(
     data_flow_refs: n.dataFlowRefs,
     max_invocations: n.maxInvocations,
     validation_status: n.validationStatus,
+    expected_effect: n.expectedSideEffect,
   }));
 
   const { data, error } = await context.supabase.rpc("create_candidate_plan", {
@@ -163,6 +165,7 @@ export interface ProposeTaskContractInput {
   ephemeralLimits: Json;
   dataFlowBindings: Json;
   requiredApprovals: Json;
+  requiredApprovalsSpec: Json;
   registryVersion: string;
   compilerVersion: string;
   inputHash: string;
@@ -190,6 +193,7 @@ export async function callProposeTaskContract(
     p_ephemeral_limits: input.ephemeralLimits,
     p_data_flow_bindings: input.dataFlowBindings,
     p_required_approvals: input.requiredApprovals,
+    p_required_approvals_spec: input.requiredApprovalsSpec,
     p_registry_version: input.registryVersion,
     p_compiler_version: input.compilerVersion,
     p_input_hash: input.inputHash,
@@ -224,4 +228,66 @@ export async function callRejectContract(
     p_reason: reason,
   });
   if (error) throwDatabaseError("reject contract", error);
+}
+
+/**
+ * Approves or rejects one pending contract-bound approval slot. The RPC
+ * independently re-derives eligibility (role/kind match, self-approval
+ * prevention, distinct-approver-per-tier) from the approval row and the
+ * contract itself — nothing here is trusted from the caller beyond which
+ * approval and which decision.
+ */
+export async function callDecideContractApproval(
+  context: RepositoryContext,
+  approvalId: string,
+  decision: "approved" | "rejected",
+  reason?: string,
+): Promise<void> {
+  const { error } = await context.supabase.rpc("decide_contract_approval", {
+    p_approval_id: approvalId,
+    p_decision: decision,
+    p_reason: reason,
+  });
+  if (error) throwDatabaseError("decide contract approval", error);
+}
+
+/**
+ * The one path into contract_status = 'active'. Callers must have already
+ * re-run the full validate/solve/compile/verify pipeline against the
+ * *current* registry and policies and confirmed a byte-identical output
+ * hash before ever calling this — see the activation server action's
+ * module doc. This RPC has no way to confirm that happened; it only
+ * enforces what a database can mechanically check (see contract-
+ * activation-rpcs.sql's own module doc for the exact trust boundary).
+ */
+export async function callActivateTaskContract(
+  context: RepositoryContext,
+  contractId: string,
+): Promise<void> {
+  const { error } = await context.supabase.rpc("activate_task_contract", { p_contract_id: contractId });
+  if (error) throwDatabaseError("activate task contract", error);
+}
+
+export async function callRevokeTaskContract(
+  context: RepositoryContext,
+  contractId: string,
+  reason: string,
+): Promise<void> {
+  const { error } = await context.supabase.rpc("revoke_task_contract", {
+    p_contract_id: contractId,
+    p_reason: reason,
+  });
+  if (error) throwDatabaseError("revoke task contract", error);
+}
+
+/**
+ * Belt, not suspenders — see authz.contract_is_currently_active() and
+ * lib/authorization/contract-runtime.ts's isContractCurrentlyActive(),
+ * which any real check must call instead of trusting contract_status alone.
+ * Returns how many contracts this call itself flipped to 'expired'.
+ */
+export async function callReconcileExpiredContracts(context: RepositoryContext): Promise<number> {
+  const { data, error } = await context.supabase.rpc("reconcile_expired_contracts");
+  if (error) throwDatabaseError("reconcile expired contracts", error);
+  return data ?? 0;
 }

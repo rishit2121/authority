@@ -57,8 +57,18 @@ export async function signInAs(
  *
  * `SUPABASE_ACCESS_TOKEN` is read from `.supabase-cli.env` (loaded by
  * setup.ts) and is never logged or included in any thrown error message.
+ *
+ * Retries a failing call a few times with a short backoff before giving up.
+ * This is test scaffolding, not part of any tested behavior: it exists
+ * because fixture teardown occasionally races a just-completed UI action's
+ * own write, reaching this call before that write's effect is visible to
+ * the Management API's own connection path, which produces a real but
+ * transient constraint violation — confirmed by running the exact same SQL
+ * again immediately afterward, by hand, which always succeeds. Retrying a
+ * genuine (non-transient) SQL defect costs a few hundred milliseconds and
+ * then still fails exactly as before; it is never silently swallowed.
  */
-export async function managementQuery(query: string): Promise<unknown> {
+export async function managementQuery(query: string, attempt = 1): Promise<unknown> {
   const token = process.env.SUPABASE_ACCESS_TOKEN;
   const projectRef = process.env.SUPABASE_PROJECT_REF;
 
@@ -80,9 +90,14 @@ export async function managementQuery(query: string): Promise<unknown> {
   const body = await response.json();
 
   if (!response.ok) {
+    const maxAttempts = 3;
+    if (attempt < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+      return managementQuery(query, attempt + 1);
+    }
     // Deliberately generic: the response body can echo back query text, and
     // this must never surface a token even indirectly.
-    throw new Error(`managementQuery failed with status ${response.status}`);
+    throw new Error(`managementQuery failed with status ${response.status} after ${maxAttempts} attempts`);
   }
 
   return body;

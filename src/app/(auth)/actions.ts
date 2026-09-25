@@ -9,7 +9,7 @@ import {
   INVALID_CREDENTIALS_MESSAGE,
   PASSWORD_RESET_NEUTRAL_MESSAGE,
   presentAuthError,
-  SIGNUP_NEUTRAL_MESSAGE,
+  resolveSignUpOutcome,
 } from "@/lib/auth/errors";
 import { DEFAULT_AUTHENTICATED_PATH, safeReturnPath } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
@@ -138,34 +138,13 @@ export async function signUpAction(_previous: AuthFormState, formData: FormData)
 
   if (error) {
     console.warn(`auth: sign-up failed ${describeAuthErrorForLog(error)}`);
-
-    // An "already registered" response must not be distinguishable from
-    // success, or this form becomes an account-existence oracle.
-    if (error.code === "user_already_exists" || /already registered/i.test(error.message ?? "")) {
-      return { success: SIGNUP_NEUTRAL_MESSAGE, email };
-    }
-
-    // Email send throttling is also answered neutrally. It is not an
-    // account-dependent condition, but letting the response vary at all on
-    // this endpoint creates a channel where there should be none — and the
-    // neutral message already tells the user to check their inbox and retry.
-    // Everything else (weak password, invalid address, signup disabled)
-    // describes the submitted input rather than the account, and is surfaced.
-    if (error.code === "over_email_send_rate_limit" || error.code === "over_request_rate_limit") {
-      return { success: SIGNUP_NEUTRAL_MESSAGE, email };
-    }
-
-    return { error: presentAuthError(error), email };
   }
 
-  // With email confirmation enabled, signUp returns a user but no session.
-  // Supabase also returns this shape for an address that already exists, which
-  // is what makes the neutral message safe as well as accurate.
-  if (!data.session) {
-    return { success: SIGNUP_NEUTRAL_MESSAGE, email };
+  const outcome = resolveSignUpOutcome(error, Boolean(data?.session));
+  if (outcome.kind === "authenticated") {
+    redirect(DEFAULT_AUTHENTICATED_PATH);
   }
-
-  redirect(DEFAULT_AUTHENTICATED_PATH);
+  return { success: outcome.success, error: outcome.error, email };
 }
 
 export async function requestPasswordResetAction(

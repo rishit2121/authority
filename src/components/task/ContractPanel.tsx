@@ -1,6 +1,12 @@
+import { isContractCurrentlyActive } from "@/lib/authorization/contract-runtime";
 import type { TaskAuthorityContract } from "@/lib/domain";
 
 import { Field, Panel } from "./panels";
+
+const REQUIREMENT_LABEL: Record<"task_owner" | "role", string> = {
+  task_owner: "Task owner",
+  role: "Role",
+};
 
 function describeConstraint(key: string, equals?: string, matches?: string): string {
   return equals !== undefined ? `${key} = ${equals}` : `${key} matches ${matches}`;
@@ -28,38 +34,85 @@ const STATUS_LABEL: Record<TaskAuthorityContract["status"], string> = {
  * active grant when it isn't one.
  */
 export function ContractPanel({ contract }: { contract: TaskAuthorityContract }) {
-  const isActive = contract.status === "active";
+  const currentlyActive = isContractCurrentlyActive(contract);
+  // A contract can say `status: "active"` in the database while its own
+  // expiresAt has already passed and nothing has reconciled it yet — see
+  // contract-runtime.ts's module doc. This panel must never claim runtime
+  // authority based on the stored status alone.
+  const staleActive = contract.status === "active" && !currentlyActive;
 
   return (
     <Panel
       id="contract"
       title="Task Authority Contract"
       subtitle={`${contract.id} · spec ${contract.specVersion} · v${contract.version} · derived from trusted user intent before the agent acted`}
-      accent={isActive ? "cyan" : "neutral"}
+      accent={currentlyActive ? "cyan" : "neutral"}
     >
       <div className="mb-space-md flex items-center gap-space-sm">
         <span
           className={`rounded border px-2 py-0.5 font-mono-code text-[11px] ${
-            isActive
+            currentlyActive
               ? "border-allow/30 bg-allow/10 text-allow"
-              : contract.status === "rejected"
+              : contract.status === "rejected" || contract.status === "revoked"
                 ? "border-deny/30 bg-deny/10 text-deny"
                 : "border-outline-variant/40 bg-surface-container-high text-on-surface-variant"
           }`}
         >
-          {STATUS_LABEL[contract.status]}
+          {staleActive ? "Expired — not active" : STATUS_LABEL[contract.status]}
         </span>
-        {!isActive ? (
+        {!currentlyActive ? (
           <span className="font-body-sm text-body-sm text-on-surface-variant">
             This contract grants no runtime authority while it is not active.
           </span>
-        ) : null}
+        ) : (
+          contract.expiresAt && (
+            <span className="font-body-sm text-body-sm text-on-surface-variant">
+              Expires {new Date(contract.expiresAt).toLocaleString()}
+            </span>
+          )
+        )}
       </div>
 
       {contract.status === "rejected" && contract.rejectionReason ? (
         <p className="mb-space-md rounded border border-deny/25 bg-deny/5 px-space-md py-space-sm font-body-sm text-body-sm text-deny">
           Rejected: {contract.rejectionReason}
         </p>
+      ) : null}
+
+      {contract.status === "revoked" && contract.revocationReason ? (
+        <p className="mb-space-md rounded border border-deny/25 bg-deny/5 px-space-md py-space-sm font-body-sm text-body-sm text-deny">
+          Revoked: {contract.revocationReason}
+        </p>
+      ) : null}
+
+      {contract.status === "superseded" && contract.supersededByContractId ? (
+        <p className="mb-space-md rounded border border-outline-variant/30 bg-surface-container-high px-space-md py-space-sm font-body-sm text-body-sm text-on-surface-variant">
+          Superseded by contract {contract.supersededByContractId}.
+        </p>
+      ) : null}
+
+      {contract.requiredApprovalsSpec.length > 0 ? (
+        <div className="mb-space-lg">
+          <h3 className="mb-space-sm font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
+            Required approvals
+          </h3>
+          <ul className="space-y-space-sm">
+            {contract.requiredApprovalsSpec.map((req, i) => (
+              <li
+                key={i}
+                className="rounded border border-outline-variant/30 bg-surface-container-high px-space-md py-space-sm font-body-sm text-[12px]"
+              >
+                <span className="font-mono-code text-on-surface">
+                  {REQUIREMENT_LABEL[req.kind]}
+                  {req.role ? ` (${req.role}+)` : ""} × {req.count}
+                </span>
+                <span className="mt-1 block text-[11px] text-on-surface-variant">
+                  {req.reasons.join(" · ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <dl className="mb-space-lg grid grid-cols-2 gap-space-md sm:grid-cols-4">

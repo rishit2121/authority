@@ -16,11 +16,22 @@ const STATUS_CLASSES: Record<ApprovalStatus, string> = {
 export default async function ApprovalsPage() {
   const { identity, repositories } = await createRepositoriesForCurrentTenant("/app/approvals");
 
-  const [approvals, principals, tasks] = await Promise.all([
+  const [allApprovals, principals, tasks] = await Promise.all([
     repositories.approvals.listByTenant(identity.tenant.tenantId),
     repositories.principals.listByTenant(identity.tenant.tenantId),
     repositories.tasks.listByTenant(identity.tenant.tenantId),
   ]);
+
+  // Decision-bound only: a runtime tool-call exception, resolved with
+  // ApprovalDecisionForm's plain approve/reject via resolveApprovalAction.
+  // Contract-bound approval slots (Part 3B) are a different concept entirely
+  // — required *before* a contract may ever activate, bound to an exact
+  // contract/plan/hash identity, decided via decideContractApprovalAction —
+  // and have their own dedicated panel on the task page. Showing them here
+  // too, through a decision form that doesn't know about slots, roles or
+  // self-approval, would be actively misleading: RLS silently refuses the
+  // direct-UPDATE path that form uses for any contract-bound row.
+  const approvals = allApprovals.filter((a) => !a.contractId);
 
   const principalName = (id: string) => principals.find((p) => p.id === id)?.displayName ?? "unknown";
   const taskIntent = (id: string) => tasks.find((t) => t.id === id)?.intent ?? "Unknown task";
@@ -74,7 +85,9 @@ export default async function ApprovalsPage() {
                       Requested from
                     </dt>
                     <dd className="mt-0.5 text-on-surface-variant">
-                      {principalName(approval.requestedFromPrincipalId)}
+                      {approval.requestedFromPrincipalId
+                        ? principalName(approval.requestedFromPrincipalId)
+                        : "—"}
                     </dd>
                   </div>
                   <div>

@@ -38,6 +38,26 @@ export const toolArgumentsSchema = z.record(
   z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]),
 );
 
+/**
+ * Tenant membership role. Mirrors the database's `tenant_role` enum exactly
+ * (see `authz.role_rank()`) — kept here, not derived from generated
+ * Supabase types, because domain modules must not import anything
+ * persistence-specific (see `lib/domain`'s module boundary). A mismatch
+ * between this and the database enum would surface immediately: every
+ * mapper round-trip test parses real rows through this schema.
+ */
+export const tenantRoleSchema = z.enum(["viewer", "developer", "security_admin", "admin", "owner"]);
+export type TenantRole = z.infer<typeof tenantRoleSchema>;
+
+/** Rank order matching `authz.role_rank()` — never used to *authorize* anything client-side, only to describe requirements and order UI. */
+export const TENANT_ROLE_RANK: Record<TenantRole, number> = {
+  viewer: 10,
+  developer: 20,
+  security_admin: 30,
+  admin: 40,
+  owner: 50,
+};
+
 export type Id = z.infer<typeof idSchema>;
 export type Timestamp = z.infer<typeof timestampSchema>;
 export type ToolName = z.infer<typeof toolNameSchema>;

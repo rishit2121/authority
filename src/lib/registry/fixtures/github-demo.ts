@@ -36,6 +36,14 @@ import type { RegistryData } from "../types";
  *  - `gmail.send_email` is the only operation with `externalCommunication:
  *    true` — included purely to exercise that rule, unrelated to the GitHub
  *    scenario otherwise.
+ *  - `stripe.issue_refund` is the only operation with `financialImpact:
+ *    true` — included purely to exercise Part 3B's approval-rule deriver,
+ *    unrelated to the GitHub scenario otherwise.
+ *  - `github.delete_branch` is the only operation with `sideEffect:
+ *    "write_delete"` — included purely to exercise the approval-rule
+ *    deriver's irreversible-operation rule, since deleting a branch is the
+ *    one destructive action a real issue-resolution task could plausibly
+ *    need.
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
@@ -49,6 +57,7 @@ export const githubDemoRegistry: RegistryData = {
       dataSensitivity: "internal",
       externalCommunication: false,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [{ key: "issue_number", type: "string", required: true, identifiesResource: true }],
     },
     {
@@ -59,6 +68,7 @@ export const githubDemoRegistry: RegistryData = {
       dataSensitivity: "internal",
       externalCommunication: false,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [{ key: "repository", type: "string", required: true, identifiesResource: true }],
     },
     {
@@ -69,6 +79,7 @@ export const githubDemoRegistry: RegistryData = {
       dataSensitivity: "internal",
       externalCommunication: false,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "branch", type: "string", required: true, identifiesResource: false },
@@ -82,6 +93,7 @@ export const githubDemoRegistry: RegistryData = {
       dataSensitivity: "internal",
       externalCommunication: false,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "branch", type: "string", required: true, identifiesResource: false },
@@ -95,9 +107,24 @@ export const githubDemoRegistry: RegistryData = {
       dataSensitivity: "internal",
       externalCommunication: false,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "target_branch", type: "string", required: true, identifiesResource: false },
+      ],
+    },
+    {
+      id: "github.delete_branch",
+      provider: "github",
+      sideEffect: "write_delete",
+      resourceType: "branch",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [
+        { key: "repository", type: "string", required: true, identifiesResource: true },
+        { key: "branch", type: "string", required: true, identifiesResource: false },
       ],
     },
     {
@@ -108,6 +135,7 @@ export const githubDemoRegistry: RegistryData = {
       dataSensitivity: "secret",
       externalCommunication: false,
       requiresApproval: true,
+      financialImpact: false,
       argumentFields: [{ key: "repository", type: "string", required: true, identifiesResource: true }],
     },
     {
@@ -118,9 +146,24 @@ export const githubDemoRegistry: RegistryData = {
       dataSensitivity: "confidential",
       externalCommunication: true,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [
         { key: "to", type: "string", required: true, identifiesResource: false },
         { key: "subject", type: "string", required: true, identifiesResource: false },
+      ],
+    },
+    {
+      id: "stripe.issue_refund",
+      provider: "stripe",
+      sideEffect: "write_create",
+      resourceType: "payment",
+      dataSensitivity: "confidential",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: true,
+      argumentFields: [
+        { key: "payment_id", type: "string", required: true, identifiesResource: true },
+        { key: "amount_cents", type: "number", required: true, identifiesResource: false },
       ],
     },
   ],
@@ -189,6 +232,15 @@ export const githubDemoRegistry: RegistryData = {
       allowsExternalCommunication: false,
     },
     {
+      id: "github.branches_delete",
+      provider: "github",
+      operations: ["github.delete_branch"],
+      classification: "write",
+      riskCost: 6,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
       id: "github.pull_requests_write",
       provider: "github",
       operations: ["github.create_pull_request"],
@@ -230,6 +282,15 @@ export const githubDemoRegistry: RegistryData = {
       riskCost: 3,
       resourceBreadth: 1,
       allowsExternalCommunication: true,
+    },
+    {
+      id: "stripe.refunds_write",
+      provider: "stripe",
+      operations: ["stripe.issue_refund"],
+      classification: "write",
+      riskCost: 4,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
     },
   ],
 };

@@ -2,7 +2,7 @@ import type { CandidatePlan, Policy } from "@/lib/domain";
 import type { LoadedRegistry } from "@/lib/registry";
 
 import { canonicalHash } from "./canonicalize";
-import { compileContract, type CompiledContract } from "./contract-compiler";
+import { compileContract, normalizedOutput, type CompiledContract } from "./contract-compiler";
 import { validateCandidatePlan } from "./plan-validator";
 import { solveMinimumAuthority } from "./solver";
 
@@ -192,19 +192,7 @@ export function verifyCompiledContract(input: VerifyContractInput): Verification
         "every operation the registry marks as requiring approval must remain listed",
       );
 
-      const recomputedOutputHash = canonicalHash({
-        specVersion: rebuilt.specVersion,
-        allowedActions: rebuilt.allowedActions,
-        forbiddenResources: [...rebuilt.forbiddenResources].sort(),
-        forbiddenOperations: [...rebuilt.forbiddenOperations].sort(),
-        ephemeralLimits: rebuilt.ephemeralLimits,
-        dataFlowBindings: rebuilt.dataFlowBindings,
-        requiredApprovals: [...rebuilt.requiredApprovals].sort(),
-        registryVersion: rebuilt.registryVersion,
-        compilerVersion: rebuilt.compilerVersion,
-        selectedPermissionIds: rebuilt.selectedPermissionIds,
-        excessOperations: rebuilt.excessOperations,
-      });
+      const recomputedOutputHash = canonicalHash(normalizedOutput(rebuilt));
       add(
         "output_hash_matches_recomputation",
         recomputedOutputHash === compiled.outputHash,

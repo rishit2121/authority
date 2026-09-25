@@ -24,6 +24,17 @@ const ROW: Tables<"approvals"> = {
   responded_by_principal_id: null,
   demo_key: "demo:approval:991:workflow",
   created_at: "2026-01-01T00:00:00.000Z",
+  contract_id: null,
+  contract_version: null,
+  plan_id: null,
+  input_hash: null,
+  output_hash: null,
+  registry_version: null,
+  compiler_version: null,
+  required_kind: null,
+  required_role: null,
+  slot_index: null,
+  self_approval_allowed: false,
 };
 
 describe("approvalRowToDomain", () => {
@@ -65,8 +76,8 @@ describe("approvalInputToInsertRow", () => {
     const row = approvalInputToInsertRow({
       tenantId: ROW.tenant_id,
       taskId: ROW.task_id,
-      decisionId: ROW.authorization_decision_id,
-      requestedFromPrincipalId: ROW.requested_from_principal_id,
+      decisionId: ROW.authorization_decision_id!,
+      requestedFromPrincipalId: ROW.requested_from_principal_id!,
       summary: ROW.summary,
     });
     expect(row.authorization_decision_id).toBe(ROW.authorization_decision_id);

@@ -132,6 +132,9 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
       findByTaskId: async (taskId: Id) => dataset.contracts.find((c) => c.taskId === taskId) ?? null,
       findActiveByTaskId: async (taskId: Id) =>
         dataset.contracts.find((c) => c.taskId === taskId && c.status === "active") ?? null,
+      findById: async (contractId: Id) => dataset.contracts.find((c) => c.id === contractId) ?? null,
+      listByTaskId: async (taskId: Id) =>
+        dataset.contracts.filter((c) => c.taskId === taskId).sort((a, b) => b.version - a.version),
     },
     plans: {
       findByTaskId: async (taskId: Id) => dataset.plans.find((p) => p.taskId === taskId) ?? null,
