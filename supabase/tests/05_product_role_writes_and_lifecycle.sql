@@ -20,12 +20,19 @@ insert into public.tasks (id, tenant_id, agent_id, principal_id, intent, status)
   ('c3000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
     'c2000000-0000-4000-8000-000000000001', 'c1000000-0000-4000-8000-000000000001', 'Fixture task C', 'executing');
 
+insert into public.plans (id, tenant_id, task_id, input_hash) values
+  ('c6000000-0000-4000-8000-000000000099', '11111111-1111-4111-8111-111111111111',
+    'c3000000-0000-4000-8000-000000000001', repeat('9', 64));
+
 insert into public.task_authority_contracts (
-  id, tenant_id, task_id, spec_version, allowed_actions, ephemeral_limits, contract_status
+  id, tenant_id, task_id, plan_id, spec_version, allowed_actions, ephemeral_limits, contract_status,
+  registry_version, compiler_version, input_hash, output_hash, data_flow_bindings, required_approvals
 ) values (
   'c4000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
-  'c3000000-0000-4000-8000-000000000001', 'v1', '{"schemaVersion":1,"items":[]}',
-  '{"schemaVersion":1,"maxToolInvocations":5,"expiresInSeconds":60}', 'active'
+  'c3000000-0000-4000-8000-000000000001', 'c6000000-0000-4000-8000-000000000099', 'v1', '{"schemaVersion":1,"items":[]}',
+  '{"schemaVersion":1,"maxToolInvocations":5,"expiresInSeconds":60}', 'active',
+  'fixture-registry', 'fixture-compiler', repeat('a', 64), repeat('b', 64),
+  '{"schemaVersion":1,"refs":[]}', '{"schemaVersion":1,"items":[]}'
 );
 
 insert into public.tool_requests (
@@ -189,7 +196,7 @@ select t(throws_ok(
 select t(throws_ok(
   $$ update public.task_authority_contracts set spec_version = 'v2'
      where id = 'c4000000-0000-4000-8000-000000000001' $$,
-  '23514', 'an active task authority contract is immutable; create a new version instead',
+  '23514', 'a task authority contract is immutable; create a new version instead',
   'an active contract is immutable, even to a superuser'));
 
 select t(throws_ok(

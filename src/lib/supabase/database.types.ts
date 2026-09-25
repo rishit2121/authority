@@ -350,6 +350,80 @@ export type Database = {
           },
         ];
       };
+      contract_compilations: {
+        Row: {
+          compiler_version: string;
+          contract_id: string;
+          created_at: string;
+          id: string;
+          input_hash: string;
+          objective_trace: Json;
+          output_hash: string;
+          plan_id: string;
+          registry_version: string;
+          task_id: string;
+          tenant_id: string;
+          verifier_result: Json;
+        };
+        Insert: {
+          compiler_version: string;
+          contract_id: string;
+          created_at?: string;
+          id?: string;
+          input_hash: string;
+          objective_trace: Json;
+          output_hash: string;
+          plan_id: string;
+          registry_version: string;
+          task_id: string;
+          tenant_id: string;
+          verifier_result: Json;
+        };
+        Update: {
+          compiler_version?: string;
+          contract_id?: string;
+          created_at?: string;
+          id?: string;
+          input_hash?: string;
+          objective_trace?: Json;
+          output_hash?: string;
+          plan_id?: string;
+          registry_version?: string;
+          task_id?: string;
+          tenant_id?: string;
+          verifier_result?: Json;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "contract_compilations_contract_id_tenant_id_fkey";
+            columns: ["contract_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "task_authority_contracts";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "contract_compilations_plan_id_tenant_id_fkey";
+            columns: ["plan_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "contract_compilations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "contract_compilations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       execution_events: {
         Row: {
           capability_id: string | null;
@@ -490,11 +564,14 @@ export type Database = {
       plan_nodes: {
         Row: {
           created_at: string;
+          data_flow_refs: Json | null;
+          declared_outputs: Json | null;
           demo_key: string | null;
           dependencies: string[];
           execution_order: number | null;
           expected_effect: string | null;
           id: string;
+          max_invocations: number | null;
           node_key: string;
           normalized_arguments: Json;
           operation: string;
@@ -505,14 +582,18 @@ export type Database = {
           status: Database["public"]["Enums"]["plan_node_status"];
           tenant_id: string;
           tool: string;
+          validation_status: Database["public"]["Enums"]["plan_node_validation_status"] | null;
         };
         Insert: {
           created_at?: string;
+          data_flow_refs?: Json | null;
+          declared_outputs?: Json | null;
           demo_key?: string | null;
           dependencies?: string[];
           execution_order?: number | null;
           expected_effect?: string | null;
           id?: string;
+          max_invocations?: number | null;
           node_key: string;
           normalized_arguments?: Json;
           operation: string;
@@ -523,14 +604,18 @@ export type Database = {
           status?: Database["public"]["Enums"]["plan_node_status"];
           tenant_id: string;
           tool: string;
+          validation_status?: Database["public"]["Enums"]["plan_node_validation_status"] | null;
         };
         Update: {
           created_at?: string;
+          data_flow_refs?: Json | null;
+          declared_outputs?: Json | null;
           demo_key?: string | null;
           dependencies?: string[];
           execution_order?: number | null;
           expected_effect?: string | null;
           id?: string;
+          max_invocations?: number | null;
           node_key?: string;
           normalized_arguments?: Json;
           operation?: string;
@@ -541,6 +626,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["plan_node_status"];
           tenant_id?: string;
           tool?: string;
+          validation_status?: Database["public"]["Enums"]["plan_node_validation_status"] | null;
         };
         Relationships: [
           {
@@ -564,6 +650,8 @@ export type Database = {
           created_at: string;
           demo_key: string | null;
           id: string;
+          idempotency_key: string | null;
+          input_hash: string | null;
           model_metadata: Json | null;
           proposed_at: string;
           status: Database["public"]["Enums"]["plan_status"];
@@ -576,6 +664,8 @@ export type Database = {
           created_at?: string;
           demo_key?: string | null;
           id?: string;
+          idempotency_key?: string | null;
+          input_hash?: string | null;
           model_metadata?: Json | null;
           proposed_at?: string;
           status?: Database["public"]["Enums"]["plan_status"];
@@ -588,6 +678,8 @@ export type Database = {
           created_at?: string;
           demo_key?: string | null;
           id?: string;
+          idempotency_key?: string | null;
+          input_hash?: string | null;
           model_metadata?: Json | null;
           proposed_at?: string;
           status?: Database["public"]["Enums"]["plan_status"];
@@ -810,50 +902,110 @@ export type Database = {
       task_authority_contracts: {
         Row: {
           allowed_actions: Json;
+          compiler_version: string | null;
           contract_status: Database["public"]["Enums"]["contract_status"];
           created_at: string;
           created_by: string | null;
+          data_flow_bindings: Json | null;
           demo_key: string | null;
           ephemeral_limits: Json;
+          forbidden_operations: string[];
           forbidden_resources: string[];
           id: string;
+          input_hash: string | null;
+          output_hash: string | null;
+          plan_id: string | null;
+          registry_version: string | null;
+          rejected_at: string | null;
+          rejected_by_principal_id: string | null;
+          rejection_reason: string | null;
+          required_approvals: Json | null;
           source_evidence_metadata: Json;
           spec_version: string;
+          submitted_at: string | null;
+          submitted_by_principal_id: string | null;
           task_id: string;
           tenant_id: string;
           version: number;
         };
         Insert: {
           allowed_actions: Json;
+          compiler_version?: string | null;
           contract_status?: Database["public"]["Enums"]["contract_status"];
           created_at?: string;
           created_by?: string | null;
+          data_flow_bindings?: Json | null;
           demo_key?: string | null;
           ephemeral_limits: Json;
+          forbidden_operations?: string[];
           forbidden_resources?: string[];
           id?: string;
+          input_hash?: string | null;
+          output_hash?: string | null;
+          plan_id?: string | null;
+          registry_version?: string | null;
+          rejected_at?: string | null;
+          rejected_by_principal_id?: string | null;
+          rejection_reason?: string | null;
+          required_approvals?: Json | null;
           source_evidence_metadata?: Json;
           spec_version: string;
+          submitted_at?: string | null;
+          submitted_by_principal_id?: string | null;
           task_id: string;
           tenant_id: string;
           version?: number;
         };
         Update: {
           allowed_actions?: Json;
+          compiler_version?: string | null;
           contract_status?: Database["public"]["Enums"]["contract_status"];
           created_at?: string;
           created_by?: string | null;
+          data_flow_bindings?: Json | null;
           demo_key?: string | null;
           ephemeral_limits?: Json;
+          forbidden_operations?: string[];
           forbidden_resources?: string[];
           id?: string;
+          input_hash?: string | null;
+          output_hash?: string | null;
+          plan_id?: string | null;
+          registry_version?: string | null;
+          rejected_at?: string | null;
+          rejected_by_principal_id?: string | null;
+          rejection_reason?: string | null;
+          required_approvals?: Json | null;
           source_evidence_metadata?: Json;
           spec_version?: string;
+          submitted_at?: string | null;
+          submitted_by_principal_id?: string | null;
           task_id?: string;
           tenant_id?: string;
           version?: number;
         };
         Relationships: [
+          {
+            foreignKeyName: "tac_plan_fk";
+            columns: ["plan_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "tac_rejected_by_principal_fk";
+            columns: ["rejected_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "tac_submitted_by_principal_fk";
+            columns: ["submitted_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
           {
             foreignKeyName: "task_authority_contracts_task_id_tenant_id_fkey";
             columns: ["task_id", "tenant_id"];
@@ -1106,6 +1258,19 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      create_candidate_plan: {
+        Args: {
+          p_idempotency_key?: string;
+          p_input_hash: string;
+          p_nodes: Json;
+          p_task_id: string;
+        };
+        Returns: {
+          plan_id: string;
+          version: number;
+          was_created: boolean;
+        }[];
+      };
       create_task: {
         Args: {
           p_agent_id: string;
@@ -1133,8 +1298,39 @@ export type Database = {
           was_installed: boolean;
         }[];
       };
+      propose_task_contract: {
+        Args: {
+          p_allowed_actions: Json;
+          p_compiler_version: string;
+          p_data_flow_bindings: Json;
+          p_ephemeral_limits: Json;
+          p_forbidden_operations: string[];
+          p_forbidden_resources: string[];
+          p_input_hash: string;
+          p_objective_trace: Json;
+          p_output_hash: string;
+          p_plan_id: string;
+          p_registry_version: string;
+          p_required_approvals: Json;
+          p_task_id: string;
+          p_verifier_result: Json;
+        };
+        Returns: {
+          contract_id: string;
+          version: number;
+          was_created: boolean;
+        }[];
+      };
+      reject_contract: {
+        Args: { p_contract_id: string; p_reason: string };
+        Returns: undefined;
+      };
       reset_demo_workspace: {
         Args: { p_tenant_id: string };
+        Returns: undefined;
+      };
+      submit_contract_for_approval: {
+        Args: { p_contract_id: string };
         Returns: undefined;
       };
       terminate_task: { Args: { p_task_id: string }; Returns: undefined };
@@ -1146,7 +1342,15 @@ export type Database = {
       authorization_outcome:
         "allow" | "allow_constrained" | "replan" | "clarify" | "require_approval" | "deny";
       capability_status: "active" | "expired" | "revoked" | "consumed";
-      contract_status: "draft" | "active" | "superseded";
+      contract_status:
+        | "draft"
+        | "active"
+        | "superseded"
+        | "proposed"
+        | "awaiting_approval"
+        | "rejected"
+        | "expired"
+        | "revoked";
       execution_event_type:
         | "task_received"
         | "contract_issued"
@@ -1164,6 +1368,8 @@ export type Database = {
       integration_provider: "github" | "stripe" | "gmail" | "postgres" | "slack" | "salesforce";
       integration_status: "connected" | "warning" | "not_connected";
       plan_node_status: "proposed" | "allowed" | "rejected" | "executed" | "skipped";
+      plan_node_validation_status:
+        "pending" | "accepted" | "requires_review" | "clarify" | "replan" | "denied";
       plan_status: "proposed" | "superseded";
       policy_effect: "allow" | "deny";
       policy_status: "draft" | "active" | "archived";
@@ -1304,7 +1510,16 @@ export const Constants = {
       approval_status: ["pending", "approved", "rejected", "expired"],
       authorization_outcome: ["allow", "allow_constrained", "replan", "clarify", "require_approval", "deny"],
       capability_status: ["active", "expired", "revoked", "consumed"],
-      contract_status: ["draft", "active", "superseded"],
+      contract_status: [
+        "draft",
+        "active",
+        "superseded",
+        "proposed",
+        "awaiting_approval",
+        "rejected",
+        "expired",
+        "revoked",
+      ],
       execution_event_type: [
         "task_received",
         "contract_issued",
@@ -1323,6 +1538,7 @@ export const Constants = {
       integration_provider: ["github", "stripe", "gmail", "postgres", "slack", "salesforce"],
       integration_status: ["connected", "warning", "not_connected"],
       plan_node_status: ["proposed", "allowed", "rejected", "executed", "skipped"],
+      plan_node_validation_status: ["pending", "accepted", "requires_review", "clarify", "replan", "denied"],
       plan_status: ["proposed", "superseded"],
       policy_effect: ["allow", "deny"],
       policy_status: ["draft", "active", "archived"],

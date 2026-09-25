@@ -27,6 +27,19 @@ const ROW: Tables<"task_authority_contracts"> = {
   created_by: "a0000000-0000-4000-8000-000000000001",
   demo_key: "demo:contract:991",
   created_at: "2026-01-01T00:00:00.000Z",
+  plan_id: null,
+  registry_version: null,
+  compiler_version: null,
+  input_hash: null,
+  output_hash: null,
+  data_flow_bindings: null,
+  required_approvals: null,
+  forbidden_operations: [],
+  submitted_by_principal_id: null,
+  submitted_at: null,
+  rejected_by_principal_id: null,
+  rejected_at: null,
+  rejection_reason: null,
 };
 
 describe("contractRowToDomain", () => {

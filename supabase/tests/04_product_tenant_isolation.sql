@@ -32,6 +32,10 @@ insert into public.policies (id, tenant_id, name, effect, status) values
 insert into public.integrations (id, tenant_id, provider, display_name) values
   ('a5000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'salesforce', 'Test Integration A');
 
+insert into public.plans (id, tenant_id, task_id, input_hash) values
+  ('a6000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111',
+    'a3000000-0000-4000-8000-000000000001', repeat('9', 64));
+
 -- ---------------------------------------------------------------------
 -- Unauthenticated access: anon holds no privilege on any of these tables,
 -- so access fails before RLS is even consulted.
@@ -142,9 +146,13 @@ select t(throws_ok(
 
 select t(throws_ok(
   $$ insert into public.task_authority_contracts (
-       tenant_id, task_id, spec_version, allowed_actions, ephemeral_limits
+       tenant_id, task_id, plan_id, spec_version, allowed_actions, ephemeral_limits,
+       registry_version, compiler_version, input_hash, output_hash, data_flow_bindings, required_approvals
      )
-     values ('11111111-1111-4111-8111-111111111111', 'b3000000-0000-4000-8000-000000000001', 'v1',
-             '{"schemaVersion":1,"items":[]}', '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":1}') $$,
+     values ('11111111-1111-4111-8111-111111111111', 'b3000000-0000-4000-8000-000000000001',
+             'a6000000-0000-4000-8000-000000000001', 'v1',
+             '{"schemaVersion":1,"items":[]}', '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":1}',
+             'fixture-registry', 'fixture-compiler', repeat('a', 64), repeat('b', 64),
+             '{"schemaVersion":1,"refs":[]}', '{"schemaVersion":1,"items":[]}') $$,
   '23503', null,
   'a contract cannot reference a task from another tenant'));

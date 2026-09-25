@@ -19,6 +19,8 @@ const PLAN_ROW: Tables<"plans"> = {
   proposed_at: "2026-01-01T00:00:00.000Z",
   demo_key: "demo:plan:991",
   created_at: "2026-01-01T00:00:00.000Z",
+  idempotency_key: null,
+  input_hash: null,
 };
 
 function nodeRow(overrides: Partial<Tables<"plan_nodes">> = {}): Tables<"plan_nodes"> {
@@ -39,6 +41,10 @@ function nodeRow(overrides: Partial<Tables<"plan_nodes">> = {}): Tables<"plan_no
     rationale: null,
     demo_key: "demo:node:991:1",
     created_at: "2026-01-01T00:00:00.000Z",
+    declared_outputs: null,
+    data_flow_refs: null,
+    max_invocations: null,
+    validation_status: null,
     ...overrides,
   };
 }
