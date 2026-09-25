@@ -8,6 +8,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // server-only's real module throws unconditionally — it depends on
+      // Next's webpack config to swap in a no-op for server bundles, which
+      // Vitest never does. See src/tests/support/empty-server-only.ts.
+      "server-only": fileURLToPath(new URL("./src/tests/support/empty-server-only.ts", import.meta.url)),
     },
   },
   test: {
