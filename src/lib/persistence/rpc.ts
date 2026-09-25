@@ -244,7 +244,7 @@ export async function callDecideContractApproval(
   const { error } = await context.supabase.rpc("decide_contract_approval", {
     p_approval_id: approvalId,
     p_decision: decision,
-    p_reason: reason ?? null,
+    p_reason: reason,
   });
   if (error) throwDatabaseError("decide contract approval", error);
 }

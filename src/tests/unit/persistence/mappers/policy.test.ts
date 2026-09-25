@@ -16,6 +16,8 @@ const ROW: Tables<"policies"> = {
   demo_key: "demo:policy:no-secrets",
   created_at: "2026-01-01T00:00:00.000Z",
   activated_at: "2026-01-01T00:00:00.000Z",
+  required_approval_role: null,
+  required_approval_count: null,
 };
 
 describe("policyRowToDomain", () => {

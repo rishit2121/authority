@@ -40,6 +40,15 @@ const ROW: Tables<"task_authority_contracts"> = {
   rejected_by_principal_id: null,
   rejected_at: null,
   rejection_reason: null,
+  required_approvals_spec: null,
+  activated_at: null,
+  activated_by_principal_id: null,
+  expires_at: null,
+  revoked_at: null,
+  revoked_by_principal_id: null,
+  revocation_reason: null,
+  superseded_at: null,
+  superseded_by_contract_id: null,
 };
 
 describe("contractRowToDomain", () => {
