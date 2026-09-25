@@ -39,6 +39,11 @@ import type { RegistryData } from "../types";
  *  - `stripe.issue_refund` is the only operation with `financialImpact:
  *    true` — included purely to exercise Part 3B's approval-rule deriver,
  *    unrelated to the GitHub scenario otherwise.
+ *  - `github.delete_branch` is the only operation with `sideEffect:
+ *    "write_delete"` — included purely to exercise the approval-rule
+ *    deriver's irreversible-operation rule, since deleting a branch is the
+ *    one destructive action a real issue-resolution task could plausibly
+ *    need.
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
@@ -106,6 +111,20 @@ export const githubDemoRegistry: RegistryData = {
       argumentFields: [
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "target_branch", type: "string", required: true, identifiesResource: false },
+      ],
+    },
+    {
+      id: "github.delete_branch",
+      provider: "github",
+      sideEffect: "write_delete",
+      resourceType: "branch",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [
+        { key: "repository", type: "string", required: true, identifiesResource: true },
+        { key: "branch", type: "string", required: true, identifiesResource: false },
       ],
     },
     {
@@ -210,6 +229,15 @@ export const githubDemoRegistry: RegistryData = {
       classification: "write",
       riskCost: 5,
       resourceBreadth: 3,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "github.branches_delete",
+      provider: "github",
+      operations: ["github.delete_branch"],
+      classification: "write",
+      riskCost: 6,
+      resourceBreadth: 1,
       allowsExternalCommunication: false,
     },
     {

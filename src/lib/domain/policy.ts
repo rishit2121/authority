@@ -1,9 +1,18 @@
 import { z } from "zod";
 
-import { idSchema, timestampSchema } from "./common";
+import { idSchema, tenantRoleSchema, timestampSchema } from "./common";
 
 export const policyStatusSchema = z.enum(["draft", "active", "archived"]);
-export const policyEffectSchema = z.enum(["allow", "deny"]);
+/**
+ * `require_approval` (Part 3B): distinct from `deny`. A `deny` match removes
+ * an operation from the plan entirely (see plan-validator.ts's
+ * `evaluateActivePolicies`, unchanged). A `require_approval` match never
+ * touches plan validation at all — it is read only by
+ * `approval-rules.ts`'s deriver, which turns a match into a mandatory
+ * activation-time approval requirement. An `allow` match still grants
+ * nothing of its own, exactly as before.
+ */
+export const policyEffectSchema = z.enum(["allow", "deny", "require_approval"]);
 
 /** One condition a policy's effect applies under. Glob-matched, like a contract's constraints. */
 export const policyConditionSchema = z
@@ -29,6 +38,10 @@ export const policySchema = z
     status: policyStatusSchema,
     effect: policyEffectSchema,
     conditions: z.array(policyConditionSchema).default([]),
+    /** Only meaningful when `effect === "require_approval"`. Minimum role rank that may satisfy it. */
+    requiredApprovalRole: tenantRoleSchema.optional(),
+    /** Only meaningful when `effect === "require_approval"`. Defaults to 1 distinct qualifying approval. */
+    requiredApprovalCount: z.number().int().positive().max(10).optional(),
     createdAt: timestampSchema,
     /** Set once the policy transitions from draft to active; never cleared. */
     activatedAt: timestampSchema.optional(),

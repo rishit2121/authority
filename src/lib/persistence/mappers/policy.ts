@@ -28,6 +28,8 @@ export function policyRowToDomain(row: Tables<"policies">): Policy {
     status: row.status,
     effect: row.effect,
     conditions: conditions.rules,
+    requiredApprovalRole: row.required_approval_role ?? undefined,
+    requiredApprovalCount: row.required_approval_count ?? undefined,
     createdAt: row.created_at,
     activatedAt: row.activated_at ?? undefined,
   });
@@ -44,6 +46,8 @@ export interface CreatePolicyInput {
   version?: number;
   status?: Policy["status"];
   conditions?: Policy["conditions"];
+  requiredApprovalRole?: Policy["requiredApprovalRole"];
+  requiredApprovalCount?: Policy["requiredApprovalCount"];
   createdBy?: string;
 }
 
@@ -56,6 +60,8 @@ export function policyInputToInsertRow(input: CreatePolicyInput): InsertRow<"pol
     version: input.version,
     status: input.status,
     conditions: { schemaVersion: 1, rules: input.conditions ?? [] },
+    required_approval_role: input.requiredApprovalRole ?? null,
+    required_approval_count: input.requiredApprovalCount ?? null,
     created_by: input.createdBy ?? null,
   };
 }
