@@ -74,7 +74,9 @@ export default async function ApprovalsPage() {
                       Requested from
                     </dt>
                     <dd className="mt-0.5 text-on-surface-variant">
-                      {principalName(approval.requestedFromPrincipalId)}
+                      {approval.requestedFromPrincipalId
+                        ? principalName(approval.requestedFromPrincipalId)
+                        : "—"}
                     </dd>
                   </div>
                   <div>

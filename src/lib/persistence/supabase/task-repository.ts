@@ -95,5 +95,27 @@ export function createSupabaseContractRepository(context: RepositoryContext): Co
       if (error) throwDatabaseError("find active contract", error);
       return data ? contractRowToDomain(data) : null;
     },
+
+    async findById(contractId) {
+      const { data, error } = await context.supabase
+        .from("task_authority_contracts")
+        .select("*")
+        .eq("id", contractId)
+        .maybeSingle();
+
+      if (error) throwDatabaseError("find contract by id", error);
+      return data ? contractRowToDomain(data) : null;
+    },
+
+    async listByTaskId(taskId) {
+      const { data, error } = await context.supabase
+        .from("task_authority_contracts")
+        .select("*")
+        .eq("task_id", taskId)
+        .order("version", { ascending: false });
+
+      if (error) throwDatabaseError("list contracts", error);
+      return (data ?? []).map(contractRowToDomain);
+    },
   };
 }

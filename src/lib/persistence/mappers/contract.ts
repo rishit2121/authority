@@ -33,14 +33,22 @@ export function contractRowToDomain(row: Tables<"task_authority_contracts">): Ta
     [1],
     "task_authority_contracts.ephemeral_limits",
   );
+  const requiredApprovalsSpecPayload = row.required_approvals_spec
+    ? readVersionedJson(row.required_approvals_spec, [1], "task_authority_contracts.required_approvals_spec")
+    : undefined;
 
   const result = taskAuthorityContractSchema.safeParse({
     id: row.id,
     tenantId: row.tenant_id,
     taskId: row.task_id,
+    planId: row.plan_id ?? undefined,
     version: row.version,
     specVersion: row.spec_version,
     status: row.contract_status,
+    registryVersion: row.registry_version ?? undefined,
+    compilerVersion: row.compiler_version ?? undefined,
+    inputHash: row.input_hash ?? undefined,
+    outputHash: row.output_hash ?? undefined,
     allowedActions: allowedActionsPayload.items,
     forbiddenResources: row.forbidden_resources,
     forbiddenOperations: row.forbidden_operations ?? [],
@@ -48,7 +56,14 @@ export function contractRowToDomain(row: Tables<"task_authority_contracts">): Ta
       maxToolInvocations: ephemeralLimitsPayload.maxToolInvocations,
       expiresInSeconds: ephemeralLimitsPayload.expiresInSeconds,
     },
+    requiredApprovalsSpec: requiredApprovalsSpecPayload?.items ?? [],
     rejectionReason: row.rejection_reason ?? undefined,
+    activatedAt: row.activated_at ?? undefined,
+    expiresAt: row.expires_at ?? undefined,
+    revokedAt: row.revoked_at ?? undefined,
+    revocationReason: row.revocation_reason ?? undefined,
+    supersededAt: row.superseded_at ?? undefined,
+    supersededByContractId: row.superseded_by_contract_id ?? undefined,
     createdAt: row.created_at,
   });
 

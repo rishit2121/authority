@@ -66,6 +66,10 @@ export interface ContractRepository {
    * mistaken for authoritative merely because it's the latest version.
    */
   findActiveByTaskId(taskId: Id): Promise<TaskAuthorityContract | null>;
+  /** One exact contract version by its own id — for approval/activation actions that must target a specific, non-latest version. */
+  findById(contractId: Id): Promise<TaskAuthorityContract | null>;
+  /** Every version ever proposed for a task, newest first — for the contract version history UI. */
+  listByTaskId(taskId: Id): Promise<TaskAuthorityContract[]>;
 }
 
 export interface PlanRepository {

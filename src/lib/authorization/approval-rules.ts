@@ -1,6 +1,12 @@
 import "server-only";
 
-import type { CandidatePlan, Policy, TenantRole } from "@/lib/domain";
+import type {
+  ApprovalRequirement,
+  ApprovalRequirementKind,
+  CandidatePlan,
+  Policy,
+  TenantRole,
+} from "@/lib/domain";
 import type { LoadedRegistry } from "@/lib/registry";
 
 import { evaluatePolicyCondition, isSupportedPolicyKey } from "./policy-conditions";
@@ -35,28 +41,13 @@ import type { SolverOutcome } from "./solver";
  * each wanting one security_admin approval" is one requirement needing one
  * approval with three reasons, not a demand for three separate approvals.
  * A policy that names a strictly higher count for that same tier raises it.
+ *
+ * `ApprovalRequirement`/`ApprovalRequirementKind` are domain types (see
+ * `lib/domain/task-authority-contract.ts`), not defined here — a persisted
+ * contract's own shape carries this deriver's output verbatim, and domain
+ * types must stay importable from anywhere, including client code that only
+ * displays it.
  */
-
-export type ApprovalRequirementKind = "task_owner" | "role";
-
-export interface ApprovalRequirement {
-  kind: ApprovalRequirementKind;
-  /** Present only when `kind === "role"`. */
-  role?: TenantRole;
-  /** Distinct qualifying approvals required to satisfy this requirement. */
-  count: number;
-  /**
-   * Whether the contract's own submitting principal may satisfy this
-   * requirement. Always `true` for "task_owner" (it names that principal
-   * specifically — "self-approval prevention" is meaningless there). For
-   * "role" requirements this defaults to `false`: the person who proposed a
-   * contract should not, by default, also be the one who blesses its risk
-   * profile, even if they hold a qualifying role. An organization policy
-   * may explicitly relax a specific requirement.
-   */
-  selfApprovalAllowed: boolean;
-  reasons: string[];
-}
 
 export interface DeriveRequiredApprovalsInput {
   candidatePlan: CandidatePlan;
