@@ -24,6 +24,7 @@ function buildAdversarialRegistry(permCount: number): RegistryData {
     dataSensitivity: "internal" as const,
     externalCommunication: false,
     requiresApproval: false,
+    financialImpact: false,
     argumentFields: [],
   }));
 

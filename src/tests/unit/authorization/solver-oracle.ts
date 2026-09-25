@@ -183,6 +183,7 @@ export function toRegistryData(input: LoadedRegistryInput) {
       dataSensitivity: "internal" as const,
       externalCommunication: false,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [],
     })),
     permissions: input.permissions.map((p) => ({

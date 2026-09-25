@@ -89,6 +89,7 @@ describe("solveMinimumAuthority — the registry's designed scenarios", () => {
       dataSensitivity: "internal" as const,
       externalCommunication: false,
       requiresApproval: false,
+      financialImpact: false,
       argumentFields: [],
     }));
     const permissions = operations.map((op, i) => ({

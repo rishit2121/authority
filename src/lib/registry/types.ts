@@ -59,6 +59,14 @@ export const toolOperationSchema = z
      * away" this flag.
      */
     externalCommunication: z.boolean(),
+    /**
+     * True when this operation moves money or commits the organization to a
+     * financial obligation (a refund, a payment, a payout) — registry
+     * metadata, never inferred from the tool name or arguments. Part 3B's
+     * approval-rule deriver always escalates a financial operation to
+     * require at least one approval, unconditionally.
+     */
+    financialImpact: z.boolean(),
     argumentFields: z.array(argumentFieldSchema).max(20),
   })
   .strict();
