@@ -244,6 +244,7 @@ export async function proposeContractAction(
         dataFlowRefs: n.dataFlowRefs,
         maxInvocations: n.maxInvocations,
         validationStatus,
+        expectedSideEffect: n.expectedSideEffect,
       };
     });
 

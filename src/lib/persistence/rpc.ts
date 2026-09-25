@@ -107,6 +107,7 @@ export interface CreateCandidatePlanNodeInput {
   dataFlowRefs: { argumentKey: string; fromNodeId: string; output: string }[];
   maxInvocations: number;
   validationStatus: "pending" | "accepted" | "requires_review" | "clarify" | "replan" | "denied";
+  expectedSideEffect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
 }
 
 export interface CreateCandidatePlanInput {
@@ -137,6 +138,7 @@ export async function callCreateCandidatePlan(
     data_flow_refs: n.dataFlowRefs,
     max_invocations: n.maxInvocations,
     validation_status: n.validationStatus,
+    expected_effect: n.expectedSideEffect,
   }));
 
   const { data, error } = await context.supabase.rpc("create_candidate_plan", {

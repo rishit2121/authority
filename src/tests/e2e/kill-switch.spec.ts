@@ -64,13 +64,14 @@ test.describe.serial("kill switch", () => {
 
       insert into public.task_authority_contracts (
         id, tenant_id, task_id, plan_id, spec_version, allowed_actions, ephemeral_limits, contract_status,
-        registry_version, compiler_version, input_hash, output_hash, data_flow_bindings, required_approvals
+        registry_version, compiler_version, input_hash, output_hash, data_flow_bindings, required_approvals,
+        required_approvals_spec
       ) values (
         '${FIXTURE_ID_PREFIX}4', '${TENANT_A_ID}', '${FIXTURE_ID_PREFIX}3', '${FIXTURE_ID_PREFIX}8', 'v1',
         '{"schemaVersion":1,"items":[{"tool":"github.read_issue","constraints":[]}]}',
         '{"schemaVersion":1,"maxToolInvocations":5,"expiresInSeconds":60}', 'active',
         'fixture-registry', 'fixture-compiler', repeat('a', 64), repeat('b', 64),
-        '{"schemaVersion":1,"refs":[]}', '{"schemaVersion":1,"items":[]}'
+        '{"schemaVersion":1,"refs":[]}', '{"schemaVersion":1,"items":[]}', '{"schemaVersion":1,"items":[]}'
       )
       on conflict (id) do nothing;
 
