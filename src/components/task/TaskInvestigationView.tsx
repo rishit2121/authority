@@ -10,6 +10,7 @@ import type { TaskInvestigation } from "@/lib/data/task";
 
 import { BoundarySummary } from "./BoundarySummary";
 import { CapabilityTable } from "./CapabilityTable";
+import { ContractApprovalPanel } from "./ContractApprovalPanel";
 import { ContractLifecycleActions } from "./ContractLifecycleActions";
 import { ContractPanel } from "./ContractPanel";
 import { DecisionEvidence } from "./DecisionEvidence";
@@ -139,6 +140,7 @@ export function TaskInvestigationView({ investigation }: { investigation: TaskIn
       {contract ? (
         <>
           <ContractPanel contract={contract} />
+          <ContractApprovalPanel taskId={task.id} contractId={contract.id} />
           <ContractLifecycleActions taskId={task.id} contractId={contract.id} status={contract.status} />
           {contract.status === "rejected" ? (
             <PendingPanel
