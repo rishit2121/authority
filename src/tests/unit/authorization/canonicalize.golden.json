@@ -1,0 +1,48 @@
+[
+  {
+    "name": "empty object",
+    "input": {},
+    "canonical": "{}",
+    "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+  },
+  {
+    "name": "nested key reordering",
+    "input": {
+      "b": 1,
+      "a": {
+        "d": 2,
+        "c": 3
+      }
+    },
+    "canonical": "{\"a\":{\"c\":3,\"d\":2},\"b\":1}",
+    "sha256": "78d48859c3252943aab7306f76c80f3f07783582e05ab8f944ce0696f2dbfc67"
+  },
+  {
+    "name": "array order preserved",
+    "input": {
+      "items": [3, 1, 2]
+    },
+    "canonical": "{\"items\":[3,1,2]}",
+    "sha256": "de21aef9c6d6b65cfe6dc3c9159d9969659d1f5b854c6249d871036c57a26966"
+  },
+  {
+    "name": "every accepted type",
+    "input": {
+      "s": "x",
+      "b": true,
+      "n": null,
+      "i": -5,
+      "arr": [1, 2]
+    },
+    "canonical": "{\"arr\":[1,2],\"b\":true,\"i\":-5,\"n\":null,\"s\":\"x\"}",
+    "sha256": "b9fc49ef2ad5ca0f8aba37ff873c633584a564050ba904359b2a7968b4b177b4"
+  },
+  {
+    "name": "non-ASCII UTF-8",
+    "input": {
+      "greeting": "café 秘密 🎉"
+    },
+    "canonical": "{\"greeting\":\"café 秘密 🎉\"}",
+    "sha256": "cdc5a16fc86e611a6008d8b978f1b635f6165f1310ff581557f74ab263ff032a"
+  }
+]
