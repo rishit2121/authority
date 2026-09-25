@@ -80,6 +80,8 @@ async function loadActivePolicies(taskId: string) {
 export interface ValidatePlanResult {
   findings: PlanValidationResult["findings"];
   acceptedNodeIds: string[];
+  /** Accepted or requires_review — everything eligible to reach the solver. See plan-validator.ts. */
+  includedNodeIds: string[];
   requiredOperations: string[];
 }
 
@@ -112,6 +114,7 @@ export async function validateCandidatePlanAction(
       data: {
         findings: validation.findings,
         acceptedNodeIds: validation.acceptedNodeIds,
+        includedNodeIds: validation.includedNodeIds,
         requiredOperations: validation.requiredOperations,
       },
     };
@@ -162,8 +165,11 @@ export async function proposeContractAction(
     }
 
     const validation = validateCandidatePlan(plan, { registry, activePolicies });
-    if (validation.acceptedNodeIds.length === 0) {
-      return { ok: false, error: "No plan node was accepted — there is nothing to compile a contract from." };
+    if (validation.includedNodeIds.length === 0) {
+      return {
+        ok: false,
+        error: "No plan node was accepted or review-pending — there is nothing to compile a contract from.",
+      };
     }
 
     const solverOutcome = solveMinimumAuthority({
@@ -220,8 +226,8 @@ export async function proposeContractAction(
       schemaVersion: plan.schemaVersion,
       taskId: plan.taskId,
       registryVersion: registry.registryVersion,
-      acceptedNodes: plan.nodes
-        .filter((n) => validation.acceptedNodeIds.includes(n.id))
+      includedNodes: plan.nodes
+        .filter((n) => validation.includedNodeIds.includes(n.id))
         .sort((a, b) => a.sequence - b.sequence),
     });
 

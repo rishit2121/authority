@@ -29,9 +29,17 @@ import type { SolverOutcome } from "./solver";
  * re-derives everything rather than trusting this output, and
  * persistence/rpc.ts's `propose_task_contract`, which persists it as
  * `proposed` only, granting no runtime authority regardless.
+ *
+ * Part 3B: "the accepted plan" above now means every node whose finding is
+ * "accepted" *or* "requires_review" (see `PlanValidationResult.includedNodeIds`).
+ * A `requires_review` node's operation is real content in the compiled
+ * contract, not a silently-widened permission — the contract still narrows
+ * to exactly it — but activation of a contract containing one is gated on a
+ * human approval by `approval-rules.ts`'s deriver. `denied` nodes are
+ * excluded exactly as before, unconditionally, with no path to reconsideration.
  */
 
-export const COMPILER_VERSION = "authority-compiler-2026-09-25";
+export const COMPILER_VERSION = "authority-compiler-2026-09-25-3b";
 export const DEFAULT_CONTRACT_EXPIRY_SECONDS = 3600;
 export const SPEC_VERSION = "v1";
 
@@ -45,6 +53,8 @@ export interface CompiledContract {
   dataFlowBindings: DataFlowRef[];
   /** Tool identifiers that require human approval before their capability may ever be issued. */
   requiredApprovals: string[];
+  /** Tool identifiers included only because their plan node's finding was "requires_review". */
+  reviewRequiredOperations: string[];
   registryVersion: string;
   compilerVersion: string;
   selectedPermissionIds: string[];
@@ -62,9 +72,14 @@ export interface CompileContractInput {
 
 export class CompilationError extends Error {}
 
-function acceptedNodes(plan: CandidatePlan, validation: PlanValidationResult): CandidatePlanNode[] {
-  const acceptedIds = new Set(validation.acceptedNodeIds);
-  return plan.nodes.filter((n) => acceptedIds.has(n.id)).sort((a, b) => a.sequence - b.sequence);
+/**
+ * Nodes eligible for compilation: "accepted" or "requires_review" (see
+ * `PlanValidationResult.includedNodeIds`'s doc for why the latter belongs
+ * here) — never "denied", "clarify" or "replan".
+ */
+function includedNodes(plan: CandidatePlan, validation: PlanValidationResult): CandidatePlanNode[] {
+  const includedIds = new Set(validation.includedNodeIds);
+  return plan.nodes.filter((n) => includedIds.has(n.id)).sort((a, b) => a.sequence - b.sequence);
 }
 
 function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction[] {
@@ -97,14 +112,14 @@ function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction
 
 function normalizedInput(
   plan: CandidatePlan,
-  accepted: readonly CandidatePlanNode[],
+  included: readonly CandidatePlanNode[],
   registryVersion: string,
 ) {
   return {
     schemaVersion: plan.schemaVersion,
     taskId: plan.taskId,
     registryVersion,
-    acceptedNodes: accepted.map((n) => ({
+    includedNodes: included.map((n) => ({
       id: n.id,
       sequence: n.sequence,
       tool: n.tool,
@@ -118,7 +133,14 @@ function normalizedInput(
   };
 }
 
-function normalizedOutput(contract: Omit<CompiledContract, "inputHash" | "outputHash">) {
+/**
+ * Exported so contract-verifier.ts recomputes the output hash from this
+ * exact function rather than a hand-maintained copy of its field list — a
+ * duplicated copy silently drifted out of sync with a new `CompiledContract`
+ * field once already (`reviewRequiredOperations`), which a test caught
+ * immediately but which a second field addition could just as easily repeat.
+ */
+export function normalizedOutput(contract: Omit<CompiledContract, "inputHash" | "outputHash">) {
   return {
     specVersion: contract.specVersion,
     allowedActions: contract.allowedActions,
@@ -127,6 +149,7 @@ function normalizedOutput(contract: Omit<CompiledContract, "inputHash" | "output
     ephemeralLimits: contract.ephemeralLimits,
     dataFlowBindings: contract.dataFlowBindings,
     requiredApprovals: [...contract.requiredApprovals].sort(),
+    reviewRequiredOperations: [...contract.reviewRequiredOperations].sort(),
     registryVersion: contract.registryVersion,
     compilerVersion: contract.compilerVersion,
     selectedPermissionIds: contract.selectedPermissionIds,
@@ -137,9 +160,9 @@ function normalizedOutput(contract: Omit<CompiledContract, "inputHash" | "output
 export function compileContract(input: CompileContractInput): CompiledContract {
   const { candidatePlan, validation, solverOutcome, registry } = input;
 
-  const accepted = acceptedNodes(candidatePlan, validation);
-  if (accepted.length === 0) {
-    throw new CompilationError("no accepted plan nodes to compile a contract from");
+  const included = includedNodes(candidatePlan, validation);
+  if (included.length === 0) {
+    throw new CompilationError("no accepted or review-pending plan nodes to compile a contract from");
   }
 
   const deniedTools = [
@@ -149,16 +172,33 @@ export function compileContract(input: CompileContractInput): CompiledContract {
     .filter((t): t is string => Boolean(t));
 
   const requiredApprovals = [
-    ...new Set(accepted.filter((n) => registry.operations.get(n.tool)?.requiresApproval).map((n) => n.tool)),
+    ...new Set(included.filter((n) => registry.operations.get(n.tool)?.requiresApproval).map((n) => n.tool)),
   ].sort();
 
-  const dataFlowBindings = accepted.flatMap((n) => n.dataFlowRefs);
+  // Distinct from `requiredApprovals` above (a registry-level "this
+  // operation always needs approval" flag): this is which included
+  // operations reached the contract only because the plan validator's
+  // finding for their node was "requires_review", not "accepted" — see
+  // `PlanValidationResult.includedNodeIds`'s doc. `deriveRequiredApprovals()`
+  // in `approval-rules.ts` is what actually turns this into an activation
+  // gate; recorded here purely as compiled-contract content, byte-hashed
+  // like everything else.
+  const reviewRequiredOperations = [
+    ...new Set(
+      validation.findings
+        .filter((f) => f.status === "requires_review")
+        .map((f) => candidatePlan.nodes.find((n) => n.id === f.nodeId)?.tool)
+        .filter((t): t is string => Boolean(t)),
+    ),
+  ].sort();
 
-  const totalInvocations = accepted.reduce((sum, n) => sum + n.maxInvocations, 0);
+  const dataFlowBindings = included.flatMap((n) => n.dataFlowRefs);
+
+  const totalInvocations = included.reduce((sum, n) => sum + n.maxInvocations, 0);
 
   const withoutHashes: Omit<CompiledContract, "inputHash" | "outputHash"> = {
     specVersion: SPEC_VERSION,
-    allowedActions: buildAllowedActions(accepted),
+    allowedActions: buildAllowedActions(included),
     forbiddenResources: [],
     forbiddenOperations: [...new Set(deniedTools)].sort(),
     ephemeralLimits: {
@@ -167,13 +207,14 @@ export function compileContract(input: CompileContractInput): CompiledContract {
     },
     dataFlowBindings,
     requiredApprovals,
+    reviewRequiredOperations,
     registryVersion: registry.registryVersion,
     compilerVersion: COMPILER_VERSION,
     selectedPermissionIds: solverOutcome.solution.selectedPermissionIds,
     excessOperations: solverOutcome.solution.excessOperations,
   };
 
-  const inputHash = canonicalHash(normalizedInput(candidatePlan, accepted, registry.registryVersion));
+  const inputHash = canonicalHash(normalizedInput(candidatePlan, included, registry.registryVersion));
   const outputHash = canonicalHash(normalizedOutput(withoutHashes));
 
   return { ...withoutHashes, inputHash, outputHash };

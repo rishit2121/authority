@@ -181,4 +181,41 @@ describe("compileContract", () => {
     expect(first.inputHash).toBe(second.inputHash);
     expect(first.outputHash).toBe(second.outputHash);
   });
+
+  it("includes a requires_review node's operation in allowedActions and reviewRequiredOperations (Part 3B)", () => {
+    const plan: CandidatePlan = {
+      schemaVersion: 1,
+      taskId: "task_991",
+      nodes: [
+        {
+          id: "notify",
+          sequence: 0,
+          tool: "gmail.send_email",
+          arguments: { to: "customer@example.com", subject: "update" },
+          dependencies: [],
+          declaredOutputs: [],
+          dataFlowRefs: [],
+          expectedSideEffect: "write_create",
+          maxInvocations: 1,
+        },
+      ],
+    };
+    const validation = validateCandidatePlan(plan, { registry, activePolicies: [] });
+    expect(validation.findings[0].status).toBe("requires_review");
+    const solverOutcome = solveMinimumAuthority({
+      requiredOperations: validation.requiredOperations,
+      registry,
+      forbiddenPermissionIds: new Set(),
+    });
+    if (solverOutcome.status !== "solved") throw new Error(solverOutcome.status);
+    const contract = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
+
+    expect(contract.allowedActions.map((a) => a.tool)).toEqual(["gmail.send_email"]);
+    expect(contract.reviewRequiredOperations).toEqual(["gmail.send_email"]);
+  });
+
+  it("never sets reviewRequiredOperations for an ordinary accepted-only plan", () => {
+    const { contract } = compileIssue991();
+    expect(contract.reviewRequiredOperations).toEqual([]);
+  });
 });

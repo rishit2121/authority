@@ -305,3 +305,57 @@ describe("validateCandidatePlan — per-node findings", () => {
     expect(result.findings[0].status).toBe("requires_review");
   });
 });
+
+describe("validateCandidatePlan — includedNodeIds (Part 3B)", () => {
+  it("includes a requires_review node in includedNodeIds and requiredOperations, but never in acceptedNodeIds", () => {
+    const plan = basePlan([
+      node({
+        id: "a",
+        sequence: 0,
+        tool: "gmail.send_email",
+        arguments: { to: "customer@example.com", subject: "hi" },
+        expectedSideEffect: "write_create",
+      }),
+    ]);
+    const result = validateCandidatePlan(plan, { registry, activePolicies: [] });
+    expect(result.findings[0].status).toBe("requires_review");
+    expect(result.acceptedNodeIds).toEqual([]);
+    expect(result.includedNodeIds).toEqual(["a"]);
+    expect(result.requiredOperations).toEqual(["gmail.send_email"]);
+  });
+
+  it("never includes a denied node in includedNodeIds, even though both are non-accepted statuses", () => {
+    const plan = basePlan([
+      node({ id: "a", sequence: 0, tool: "github.get_repository_secrets", arguments: { repository: "r" } }),
+    ]);
+    const result = validateCandidatePlan(plan, { registry, activePolicies: [NO_SECRETS_POLICY] });
+    expect(result.findings[0].status).toBe("denied");
+    expect(result.includedNodeIds).toEqual([]);
+    expect(result.requiredOperations).toEqual([]);
+  });
+
+  it("includedNodeIds is the union of accepted and requires_review nodes, in sequence order", () => {
+    const plan = basePlan([
+      node({ id: "a", sequence: 0, tool: "github.get_issue", arguments: { issue_number: "1" } }),
+      node({
+        id: "b",
+        sequence: 1,
+        tool: "gmail.send_email",
+        arguments: { to: "customer@example.com", subject: "hi" },
+        expectedSideEffect: "write_create",
+      }),
+    ]);
+    const result = validateCandidatePlan(plan, { registry, activePolicies: [] });
+    expect(result.findings.map((f) => f.status)).toEqual(["accepted", "requires_review"]);
+    expect(result.acceptedNodeIds).toEqual(["a"]);
+    expect(result.includedNodeIds).toEqual(["a", "b"]);
+    expect(result.requiredOperations).toEqual(["github.get_issue", "gmail.send_email"]);
+  });
+
+  it("excludes a clarify node (missing required argument) from includedNodeIds", () => {
+    const plan = basePlan([node({ id: "a", sequence: 0, tool: "github.get_issue", arguments: {} })]);
+    const result = validateCandidatePlan(plan, { registry, activePolicies: [] });
+    expect(result.findings[0].status).toBe("clarify");
+    expect(result.includedNodeIds).toEqual([]);
+  });
+});
