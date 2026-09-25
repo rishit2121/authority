@@ -53,11 +53,17 @@ describe("contractRowToDomain", () => {
     expect(domain.forbiddenResources).toEqual(["*secret*", "*credentials*"]);
   });
 
-  it("drops version, source_evidence_metadata, contract_status, created_by and demo_key", () => {
+  it("drops source_evidence_metadata, created_by and demo_key, but keeps version and status", () => {
     const domain = contractRowToDomain(ROW);
-    for (const key of ["version", "sourceEvidenceMetadata", "contractStatus", "createdBy", "demoKey"]) {
+    for (const key of ["sourceEvidenceMetadata", "createdBy", "demoKey"]) {
       expect(domain).not.toHaveProperty(key);
     }
+    // version and status (from contract_status) are no longer database-only
+    // as of Part 3A — a contract can genuinely sit in a non-active lifecycle
+    // state for a visible stretch of time, so the domain type must say
+    // which one it's in.
+    expect(domain.version).toBe(1);
+    expect(domain.status).toBe("active");
   });
 
   it("rejects an unrecognized allowed_actions schema version", () => {

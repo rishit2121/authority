@@ -55,7 +55,17 @@ export interface TaskRepository {
 }
 
 export interface ContractRepository {
+  /** The task's latest contract version, in whatever lifecycle status it's in — for display only. */
   findByTaskId(taskId: Id): Promise<TaskAuthorityContract | null>;
+  /**
+   * The task's `active` contract, or null if none is active — the *only*
+   * sanctioned lookup for any future authority-consuming code path (e.g.
+   * capability issuance). Deliberately separate from `findByTaskId`: that
+   * method's result is a display concern, this one is a security boundary.
+   * A `proposed`/`awaiting_approval`/`rejected` contract must never be
+   * mistaken for authoritative merely because it's the latest version.
+   */
+  findActiveByTaskId(taskId: Id): Promise<TaskAuthorityContract | null>;
 }
 
 export interface PlanRepository {

@@ -81,5 +81,19 @@ export function createSupabaseContractRepository(context: RepositoryContext): Co
       if (error) throwDatabaseError("find contract", error);
       return data ? contractRowToDomain(data) : null;
     },
+
+    async findActiveByTaskId(taskId) {
+      const { data, error } = await context.supabase
+        .from("task_authority_contracts")
+        .select("*")
+        .eq("task_id", taskId)
+        .eq("contract_status", "active")
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throwDatabaseError("find active contract", error);
+      return data ? contractRowToDomain(data) : null;
+    },
   };
 }

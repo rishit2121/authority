@@ -44,12 +44,33 @@ test.describe.serial("kill switch", () => {
         'Kill switch e2e fixture task', 'executing')
       on conflict (id) do nothing;
 
-      insert into public.task_authority_contracts (
-        id, tenant_id, task_id, spec_version, allowed_actions, ephemeral_limits, contract_status
+      insert into public.plans (id, tenant_id, task_id, input_hash)
+      values ('${FIXTURE_ID_PREFIX}8', '${TENANT_A_ID}', '${FIXTURE_ID_PREFIX}3', repeat('9', 64))
+      on conflict (id) do nothing;
+
+      -- The domain's Plan schema requires at least one node (see
+      -- lib/domain/plan.ts) — the task page reads this plan through that
+      -- mapper, not just through pgTAP's raw-SQL checks, so an empty plan
+      -- would fail to render at all.
+      insert into public.plan_nodes (
+        tenant_id, plan_id, node_key, sequence_no, tool, operation, resource, status,
+        declared_outputs, data_flow_refs, max_invocations
       ) values (
-        '${FIXTURE_ID_PREFIX}4', '${TENANT_A_ID}', '${FIXTURE_ID_PREFIX}3', 'v1',
+        '${TENANT_A_ID}', '${FIXTURE_ID_PREFIX}8', 'read-issue', 0, 'github.read_issue', 'read_issue',
+        'payments-api#991', 'executed',
+        '{"schemaVersion":1,"outputs":[]}', '{"schemaVersion":1,"refs":[]}', 1
+      )
+      on conflict (plan_id, node_key) do nothing;
+
+      insert into public.task_authority_contracts (
+        id, tenant_id, task_id, plan_id, spec_version, allowed_actions, ephemeral_limits, contract_status,
+        registry_version, compiler_version, input_hash, output_hash, data_flow_bindings, required_approvals
+      ) values (
+        '${FIXTURE_ID_PREFIX}4', '${TENANT_A_ID}', '${FIXTURE_ID_PREFIX}3', '${FIXTURE_ID_PREFIX}8', 'v1',
         '{"schemaVersion":1,"items":[{"tool":"github.read_issue","constraints":[]}]}',
-        '{"schemaVersion":1,"maxToolInvocations":5,"expiresInSeconds":60}', 'active'
+        '{"schemaVersion":1,"maxToolInvocations":5,"expiresInSeconds":60}', 'active',
+        'fixture-registry', 'fixture-compiler', repeat('a', 64), repeat('b', 64),
+        '{"schemaVersion":1,"refs":[]}', '{"schemaVersion":1,"items":[]}'
       )
       on conflict (id) do nothing;
 
@@ -98,6 +119,8 @@ test.describe.serial("kill switch", () => {
       delete from public.authorization_decisions where task_id = '${FIXTURE_ID_PREFIX}3';
       delete from public.tool_requests where task_id = '${FIXTURE_ID_PREFIX}3';
       delete from public.task_authority_contracts where task_id = '${FIXTURE_ID_PREFIX}3';
+      delete from public.plan_nodes where plan_id = '${FIXTURE_ID_PREFIX}8';
+      delete from public.plans where task_id = '${FIXTURE_ID_PREFIX}3';
       delete from public.tasks where id = '${FIXTURE_ID_PREFIX}3';
       delete from public.agents where id = '${FIXTURE_ID_PREFIX}2';
       delete from public.principals where id = '${FIXTURE_ID_PREFIX}1';

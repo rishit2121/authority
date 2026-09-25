@@ -130,6 +130,8 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
     },
     contracts: {
       findByTaskId: async (taskId: Id) => dataset.contracts.find((c) => c.taskId === taskId) ?? null,
+      findActiveByTaskId: async (taskId: Id) =>
+        dataset.contracts.find((c) => c.taskId === taskId && c.status === "active") ?? null,
     },
     plans: {
       findByTaskId: async (taskId: Id) => dataset.plans.find((p) => p.taskId === taskId) ?? null,

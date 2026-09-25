@@ -16,9 +16,11 @@ import { readVersionedJson } from "../versioned-json";
  * `allowed_actions` and `ephemeral_limits` are versioned JSONB (see
  * `supabase/JSONB_VERSIONING.md`); `readVersionedJson` rejects anything not
  * on this mapper's known-version list before the payload's contents are
- * trusted at all. `version`, `source_evidence_metadata`, `contract_status`,
- * `created_by` and `demo_key` are database-only, dropped here — the domain
- * contract *is* the resulting authority boundary, not its lifecycle state.
+ * trusted at all. `source_evidence_metadata`, `created_by` and `demo_key`
+ * stay database-only. `version`, `contract_status` and `rejection_reason`
+ * are passed through as of Part 3A — a contract can now genuinely sit in a
+ * non-active lifecycle state for a visible stretch of time, so the domain
+ * type must say which one it's in rather than assuming "active."
  */
 export function contractRowToDomain(row: Tables<"task_authority_contracts">): TaskAuthorityContract {
   const allowedActionsPayload = readVersionedJson(
@@ -36,13 +38,17 @@ export function contractRowToDomain(row: Tables<"task_authority_contracts">): Ta
     id: row.id,
     tenantId: row.tenant_id,
     taskId: row.task_id,
+    version: row.version,
     specVersion: row.spec_version,
+    status: row.contract_status,
     allowedActions: allowedActionsPayload.items,
     forbiddenResources: row.forbidden_resources,
+    forbiddenOperations: row.forbidden_operations ?? [],
     ephemeralLimits: {
       maxToolInvocations: ephemeralLimitsPayload.maxToolInvocations,
       expiresInSeconds: ephemeralLimitsPayload.expiresInSeconds,
     },
+    rejectionReason: row.rejection_reason ?? undefined,
     createdAt: row.created_at,
   });
 

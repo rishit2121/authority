@@ -10,6 +10,7 @@ import type { TaskInvestigation } from "@/lib/data/task";
 
 import { BoundarySummary } from "./BoundarySummary";
 import { CapabilityTable } from "./CapabilityTable";
+import { ContractLifecycleActions } from "./ContractLifecycleActions";
 import { ContractPanel } from "./ContractPanel";
 import { DecisionEvidence } from "./DecisionEvidence";
 import { ExecutionTimeline } from "./ExecutionTimeline";
@@ -18,7 +19,17 @@ import { PlanTable } from "./PlanTable";
 import { Field, Panel } from "./panels";
 
 /** Shown in place of a panel whose underlying record doesn't exist yet. */
-function PendingPanel({ id, title, message }: { id: string; title: string; message: string }) {
+function PendingPanel({
+  id,
+  title,
+  message,
+  action,
+}: {
+  id: string;
+  title: string;
+  message: string;
+  action?: { href: string; label: string };
+}) {
   return (
     <section
       id={id}
@@ -29,6 +40,14 @@ function PendingPanel({ id, title, message }: { id: string; title: string; messa
         {title}
       </h2>
       <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">{message}</p>
+      {action ? (
+        <Link
+          href={action.href}
+          className="mt-space-md inline-flex items-center gap-1.5 rounded-lg bg-primary px-space-md py-2 font-headline-sm text-body-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+        >
+          {action.label}
+        </Link>
+      ) : null}
     </section>
   );
 }
@@ -118,12 +137,24 @@ export function TaskInvestigationView({ investigation }: { investigation: TaskIn
       <BoundarySummary />
 
       {contract ? (
-        <ContractPanel contract={contract} />
+        <>
+          <ContractPanel contract={contract} />
+          <ContractLifecycleActions taskId={task.id} contractId={contract.id} status={contract.status} />
+          {contract.status === "rejected" ? (
+            <PendingPanel
+              id="contract-reproposal"
+              title="Propose a new contract"
+              message="This contract was rejected. Editing the candidate plan and proposing again creates a new version — the rejected one stays exactly as it was."
+              action={{ href: `/app/tasks/${task.id}/contract/new`, label: "Create authority contract" }}
+            />
+          ) : null}
+        </>
       ) : (
         <PendingPanel
           id="contract"
           title="Task Authority Contract"
-          message="No contract has been issued for this task yet. Task Authority Contract generation is a later phase — this task exists, but nothing has evaluated what it may do."
+          message="No contract has been proposed for this task yet. Enter a structured candidate plan to compile the minimum authority it needs — proposing one creates no runtime authority by itself."
+          action={{ href: `/app/tasks/${task.id}/contract/new`, label: "Create authority contract" }}
         />
       )}
 
