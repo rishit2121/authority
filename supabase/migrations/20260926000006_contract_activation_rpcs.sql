@@ -239,7 +239,7 @@ begin
     )
   from jsonb_array_elements(v_required_approvals_spec -> 'items') as item
   cross join lateral generate_series(0, greatest(coalesce((item ->> 'count')::integer, 1), 1) - 1) as slot(slot_index)
-  on conflict (contract_id, required_kind, coalesce(required_role::text, ''), slot_index) where contract_id is not null
+  on conflict (contract_id, required_kind, required_role, slot_index) where contract_id is not null
     do nothing;
 end;
 $fn$;

@@ -73,8 +73,19 @@ alter table public.approvals
 -- One row per (contract, requirement tier, slot) — request creation
 -- generates exactly `count` rows per tier and relies on this to safely
 -- no-op on a retried call rather than duplicating rows.
+--
+-- Plain `required_role` (not `coalesce(required_role::text, '')`, tried
+-- first and rejected by the live database: PostgreSQL's built-in enum-to-
+-- text cast is STABLE, not IMMUTABLE, and index expressions must be
+-- IMMUTABLE). A NULL `required_role` (the "task_owner" tier, which never
+-- varies by role) means the index cannot itself block a duplicate insert
+-- for that one tier — harmless in practice, since
+-- submit_contract_for_approval() only ever runs its insert once per
+-- contract at all, gated by the `proposed -> awaiting_approval` transition
+-- guard; the ON CONFLICT target below is defense-in-depth for the "role"
+-- tiers' retry safety, not the sole correctness mechanism either way.
 create unique index approvals_one_per_contract_requirement_slot
-  on public.approvals (contract_id, required_kind, coalesce(required_role::text, ''), slot_index)
+  on public.approvals (contract_id, required_kind, required_role, slot_index)
   where contract_id is not null;
 
 -- Security-critical tightening, not merely additive: the existing

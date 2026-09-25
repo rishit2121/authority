@@ -35,7 +35,8 @@ set local request.jwt.claims = '{"sub":"b0000000-0000-4000-8000-000000000001","r
 select t(throws_ok(
   $$ select public.propose_task_contract('10000000-0000-4000-8000-000000000003'::uuid, '10000000-0000-4000-8000-000000000004'::uuid,
        '{"schemaVersion":1,"items":[]}'::jsonb, '{}', '{}', '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":60}'::jsonb,
-       '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, 'rv1', 'cv1', repeat('a',64), repeat('b',64),
+       '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
+       'rv1', 'cv1', repeat('a',64), repeat('b',64),
        '{"schemaVersion":1,"ok":true,"checks":[]}'::jsonb, '{"schemaVersion":1}'::jsonb) $$,
   '42501', null, 'a non-member cannot propose a contract for this task'));
 
@@ -43,7 +44,8 @@ set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000004","r
 select t(throws_ok(
   $$ select public.propose_task_contract('10000000-0000-4000-8000-000000000003'::uuid, '10000000-0000-4000-8000-000000000004'::uuid,
        '{"schemaVersion":1,"items":[]}'::jsonb, '{}', '{}', '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":60}'::jsonb,
-       '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, 'rv1', 'cv1', repeat('a',64), repeat('b',64),
+       '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
+       'rv1', 'cv1', repeat('a',64), repeat('b',64),
        '{"schemaVersion":1,"ok":true,"checks":[]}'::jsonb, '{"schemaVersion":1}'::jsonb) $$,
   '42501', null, 'a viewer (insufficient role) cannot propose a contract'));
 
@@ -54,7 +56,7 @@ select t(is(
   (select was_created from public.propose_task_contract('10000000-0000-4000-8000-000000000003'::uuid, '10000000-0000-4000-8000-000000000004'::uuid,
      '{"schemaVersion":1,"items":[{"tool":"github.get_issue","constraints":[]}]}'::jsonb, '{}', '{}',
      '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":60}'::jsonb,
-     '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
+     '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
      'github-demo-2026-09-23', 'authority-compiler-2026-09-25', repeat('a',64), repeat('b',64),
      '{"schemaVersion":1,"ok":true,"checks":[]}'::jsonb, '{"schemaVersion":1}'::jsonb)),
   true,
@@ -75,7 +77,7 @@ select t(is(
   (select was_created from public.propose_task_contract('10000000-0000-4000-8000-000000000003'::uuid, '10000000-0000-4000-8000-000000000004'::uuid,
      '{"schemaVersion":1,"items":[{"tool":"github.get_issue","constraints":[]}]}'::jsonb, '{}', '{}',
      '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":60}'::jsonb,
-     '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
+     '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
      'github-demo-2026-09-23', 'authority-compiler-2026-09-25', repeat('a',64), repeat('b',64),
      '{"schemaVersion":1,"ok":true,"checks":[]}'::jsonb, '{"schemaVersion":1}'::jsonb)),
   false,
@@ -86,7 +88,7 @@ select t(throws_ok(
   $$ select public.propose_task_contract('10000000-0000-4000-8000-000000000003'::uuid, '10000000-0000-4000-8000-000000000004'::uuid,
        '{"schemaVersion":1,"items":[{"tool":"github.get_issue","constraints":[]}]}'::jsonb, '{}', '{}',
        '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":60}'::jsonb,
-       '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
+       '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
        'github-demo-2026-09-23', 'authority-compiler-2026-09-25', repeat('a',64), repeat('c',64),
        '{"schemaVersion":1,"ok":true,"checks":[]}'::jsonb, '{"schemaVersion":1}'::jsonb) $$,
   '55000', null, 'the same compilation identity producing a different output hash raises loudly, never silently returns either row'));
@@ -96,7 +98,7 @@ select t(is(
   (select version from public.propose_task_contract('10000000-0000-4000-8000-000000000003'::uuid, '10000000-0000-4000-8000-000000000004'::uuid,
      '{"schemaVersion":1,"items":[{"tool":"github.get_issue","constraints":[]}]}'::jsonb, '{}', '{}',
      '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":60}'::jsonb,
-     '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
+     '{"schemaVersion":1,"refs":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb, '{"schemaVersion":1,"items":[]}'::jsonb,
      'github-demo-2026-09-23', 'authority-compiler-2026-09-26-v2', repeat('a',64), repeat('d',64),
      '{"schemaVersion":1,"ok":true,"checks":[]}'::jsonb, '{"schemaVersion":1}'::jsonb)),
   2,

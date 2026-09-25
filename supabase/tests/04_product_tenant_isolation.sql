@@ -147,12 +147,12 @@ select t(throws_ok(
 select t(throws_ok(
   $$ insert into public.task_authority_contracts (
        tenant_id, task_id, plan_id, spec_version, allowed_actions, ephemeral_limits,
-       registry_version, compiler_version, input_hash, output_hash, data_flow_bindings, required_approvals
+       registry_version, compiler_version, input_hash, output_hash, data_flow_bindings, required_approvals, required_approvals_spec
      )
      values ('11111111-1111-4111-8111-111111111111', 'b3000000-0000-4000-8000-000000000001',
              'a6000000-0000-4000-8000-000000000001', 'v1',
              '{"schemaVersion":1,"items":[]}', '{"schemaVersion":1,"maxToolInvocations":1,"expiresInSeconds":1}',
              'fixture-registry', 'fixture-compiler', repeat('a', 64), repeat('b', 64),
-             '{"schemaVersion":1,"refs":[]}', '{"schemaVersion":1,"items":[]}') $$,
+             '{"schemaVersion":1,"refs":[]}', '{"schemaVersion":1,"items":[]}', '{"schemaVersion":1,"items":[]}') $$,
   '23503', null,
   'a contract cannot reference a task from another tenant'));
