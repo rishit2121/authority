@@ -543,6 +543,221 @@ export type Database = {
           },
         ];
       };
+      capability_consumptions: {
+        Row: {
+          agent_id: string;
+          capability_id: string;
+          created_at: string;
+          id: string;
+          idempotency_key: string;
+          reason_code: string;
+          request_hash: string;
+          result: string;
+          simulated: boolean;
+          tenant_id: string;
+          use_number: number | null;
+        };
+        Insert: {
+          agent_id: string;
+          capability_id: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key: string;
+          reason_code: string;
+          request_hash: string;
+          result: string;
+          simulated?: boolean;
+          tenant_id: string;
+          use_number?: number | null;
+        };
+        Update: {
+          agent_id?: string;
+          capability_id?: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          reason_code?: string;
+          request_hash?: string;
+          result?: string;
+          simulated?: boolean;
+          tenant_id?: string;
+          use_number?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "capability_consumptions_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_consumptions_capability_id_tenant_id_fkey";
+            columns: ["capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capability_tokens";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_consumptions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      capability_tokens: {
+        Row: {
+          agent_id: string;
+          arguments_hash: string;
+          authorization_decision_id: string;
+          budget_capability_id: string;
+          contract_id: string;
+          contract_version: number;
+          credential_id: string;
+          expires_at: string;
+          final_decision_id: string;
+          format_version: number;
+          id: string;
+          issued_at: string;
+          max_uses: number;
+          operation: string;
+          resource: string | null;
+          resource_constraints: Json;
+          revocation_reason: string | null;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          revoked_by_principal_id: string | null;
+          status: string;
+          task_id: string;
+          tenant_id: string;
+          token_hash: string;
+          tool: string;
+          uses: number;
+        };
+        Insert: {
+          agent_id: string;
+          arguments_hash: string;
+          authorization_decision_id: string;
+          budget_capability_id: string;
+          contract_id: string;
+          contract_version: number;
+          credential_id: string;
+          expires_at: string;
+          final_decision_id: string;
+          format_version?: number;
+          id?: string;
+          issued_at?: string;
+          max_uses: number;
+          operation: string;
+          resource?: string | null;
+          resource_constraints: Json;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          revoked_by_principal_id?: string | null;
+          status?: string;
+          task_id: string;
+          tenant_id: string;
+          token_hash: string;
+          tool: string;
+          uses?: number;
+        };
+        Update: {
+          agent_id?: string;
+          arguments_hash?: string;
+          authorization_decision_id?: string;
+          budget_capability_id?: string;
+          contract_id?: string;
+          contract_version?: number;
+          credential_id?: string;
+          expires_at?: string;
+          final_decision_id?: string;
+          format_version?: number;
+          id?: string;
+          issued_at?: string;
+          max_uses?: number;
+          operation?: string;
+          resource?: string | null;
+          resource_constraints?: Json;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          revoked_by_principal_id?: string | null;
+          status?: string;
+          task_id?: string;
+          tenant_id?: string;
+          token_hash?: string;
+          tool?: string;
+          uses?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "capability_tokens_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_authorization_decision_id_tenant_id_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_budget_capability_id_tenant_id_fkey";
+            columns: ["budget_capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capabilities";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_contract_id_tenant_id_fkey";
+            columns: ["contract_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "task_authority_contracts";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_credential_id_tenant_id_fkey";
+            columns: ["credential_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_credentials";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_final_decision_id_tenant_id_fkey";
+            columns: ["final_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "final_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_revoked_by_principal_id_tenant_id_fkey";
+            columns: ["revoked_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       contract_compilations: {
         Row: {
           compiler_version: string;
@@ -697,6 +912,102 @@ export type Database = {
           },
           {
             foreignKeyName: "execution_events_tool_request_id_tenant_id_fkey";
+            columns: ["tool_request_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tool_requests";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      final_decisions: {
+        Row: {
+          authorization_decision_id: string;
+          composition_reasons: string[];
+          created_at: string;
+          degraded: boolean;
+          degraded_reason: string | null;
+          deterministic_outcome: Database["public"]["Enums"]["authorization_outcome"];
+          final_outcome: Database["public"]["Enums"]["authorization_outcome"];
+          gateway_version: string;
+          id: string;
+          narrowed: boolean;
+          risk_class: string;
+          semantic_evaluation_id: string | null;
+          semantic_mode: Database["public"]["Enums"]["semantic_mode"];
+          semantic_policy: string;
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Insert: {
+          authorization_decision_id: string;
+          composition_reasons?: string[];
+          created_at?: string;
+          degraded?: boolean;
+          degraded_reason?: string | null;
+          deterministic_outcome: Database["public"]["Enums"]["authorization_outcome"];
+          final_outcome: Database["public"]["Enums"]["authorization_outcome"];
+          gateway_version: string;
+          id?: string;
+          narrowed: boolean;
+          risk_class: string;
+          semantic_evaluation_id?: string | null;
+          semantic_mode: Database["public"]["Enums"]["semantic_mode"];
+          semantic_policy: string;
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Update: {
+          authorization_decision_id?: string;
+          composition_reasons?: string[];
+          created_at?: string;
+          degraded?: boolean;
+          degraded_reason?: string | null;
+          deterministic_outcome?: Database["public"]["Enums"]["authorization_outcome"];
+          final_outcome?: Database["public"]["Enums"]["authorization_outcome"];
+          gateway_version?: string;
+          id?: string;
+          narrowed?: boolean;
+          risk_class?: string;
+          semantic_evaluation_id?: string | null;
+          semantic_mode?: Database["public"]["Enums"]["semantic_mode"];
+          semantic_policy?: string;
+          task_id?: string;
+          tenant_id?: string;
+          tool_request_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "final_decisions_authorization_decision_id_tenant_id_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "final_decisions_semantic_evaluation_id_tenant_id_fkey";
+            columns: ["semantic_evaluation_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "semantic_evaluations";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "final_decisions_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "final_decisions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "final_decisions_tool_request_id_tenant_id_fkey";
             columns: ["tool_request_id", "tenant_id"];
             isOneToOne: false;
             referencedRelation: "tool_requests";
@@ -1098,35 +1409,174 @@ export type Database = {
           },
         ];
       };
+      semantic_evaluations: {
+        Row: {
+          agent_id: string;
+          attestation: string;
+          authorization_decision_id: string;
+          confidence: number;
+          created_at: string;
+          enforcement_grade: boolean;
+          error_category: string | null;
+          evidence_schema_version: number;
+          id: string;
+          indicators: string[];
+          input_hash: string;
+          latency_ms: number;
+          mode: Database["public"]["Enums"]["semantic_mode"];
+          model: string;
+          model_version: string;
+          provider: string;
+          redaction_summary: Json;
+          risk_level: Database["public"]["Enums"]["semantic_risk_level"];
+          signals: Json | null;
+          state: Database["public"]["Enums"]["semantic_evidence_state"];
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Insert: {
+          agent_id: string;
+          attestation?: string;
+          authorization_decision_id: string;
+          confidence: number;
+          created_at?: string;
+          enforcement_grade: boolean;
+          error_category?: string | null;
+          evidence_schema_version?: number;
+          id?: string;
+          indicators?: string[];
+          input_hash: string;
+          latency_ms: number;
+          mode: Database["public"]["Enums"]["semantic_mode"];
+          model: string;
+          model_version: string;
+          provider: string;
+          redaction_summary?: Json;
+          risk_level: Database["public"]["Enums"]["semantic_risk_level"];
+          signals?: Json | null;
+          state: Database["public"]["Enums"]["semantic_evidence_state"];
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Update: {
+          agent_id?: string;
+          attestation?: string;
+          authorization_decision_id?: string;
+          confidence?: number;
+          created_at?: string;
+          enforcement_grade?: boolean;
+          error_category?: string | null;
+          evidence_schema_version?: number;
+          id?: string;
+          indicators?: string[];
+          input_hash?: string;
+          latency_ms?: number;
+          mode?: Database["public"]["Enums"]["semantic_mode"];
+          model?: string;
+          model_version?: string;
+          provider?: string;
+          redaction_summary?: Json;
+          risk_level?: Database["public"]["Enums"]["semantic_risk_level"];
+          signals?: Json | null;
+          state?: Database["public"]["Enums"]["semantic_evidence_state"];
+          task_id?: string;
+          tenant_id?: string;
+          tool_request_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "semantic_evaluations_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "semantic_evaluations_authorization_decision_id_tenant_id_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "semantic_evaluations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "semantic_evaluations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "semantic_evaluations_tool_request_id_tenant_id_fkey";
+            columns: ["tool_request_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tool_requests";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
       semantic_settings: {
         Row: {
+          capability_ttl_seconds: number;
+          enforcement_approved_at: string | null;
+          enforcement_approved_by_principal_id: string | null;
+          enforcement_approved_model: string | null;
+          enforcement_approved_provider: string | null;
           mode: Database["public"]["Enums"]["semantic_mode"];
           model: string;
           provider: string;
+          semantic_required_classes: string[];
           tenant_id: string;
           timeout_ms: number;
           updated_at: string;
           updated_by_principal_id: string | null;
         };
         Insert: {
+          capability_ttl_seconds?: number;
+          enforcement_approved_at?: string | null;
+          enforcement_approved_by_principal_id?: string | null;
+          enforcement_approved_model?: string | null;
+          enforcement_approved_provider?: string | null;
           mode?: Database["public"]["Enums"]["semantic_mode"];
           model?: string;
           provider?: string;
+          semantic_required_classes?: string[];
           tenant_id: string;
           timeout_ms?: number;
           updated_at?: string;
           updated_by_principal_id?: string | null;
         };
         Update: {
+          capability_ttl_seconds?: number;
+          enforcement_approved_at?: string | null;
+          enforcement_approved_by_principal_id?: string | null;
+          enforcement_approved_model?: string | null;
+          enforcement_approved_provider?: string | null;
           mode?: Database["public"]["Enums"]["semantic_mode"];
           model?: string;
           provider?: string;
+          semantic_required_classes?: string[];
           tenant_id?: string;
           timeout_ms?: number;
           updated_at?: string;
           updated_by_principal_id?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "semantic_settings_approver_fk";
+            columns: ["enforcement_approved_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
           {
             foreignKeyName: "semantic_settings_tenant_id_fkey";
             columns: ["tenant_id"];
@@ -1614,6 +2064,9 @@ export type Database = {
       tool_requests: {
         Row: {
           agent_id: string;
+          argument_audit: Json | null;
+          arguments_hash: string | null;
+          arguments_redacted: boolean;
           demo_key: string | null;
           destination_metadata: Json | null;
           expected_effect: string | null;
@@ -1633,6 +2086,9 @@ export type Database = {
         };
         Insert: {
           agent_id: string;
+          argument_audit?: Json | null;
+          arguments_hash?: string | null;
+          arguments_redacted?: boolean;
           demo_key?: string | null;
           destination_metadata?: Json | null;
           expected_effect?: string | null;
@@ -1652,6 +2108,9 @@ export type Database = {
         };
         Update: {
           agent_id?: string;
+          argument_audit?: Json | null;
+          arguments_hash?: string | null;
+          arguments_redacted?: boolean;
           demo_key?: string | null;
           destination_metadata?: Json | null;
           expected_effect?: string | null;
@@ -1879,6 +2338,10 @@ export type Database = {
         Args: { p_credential_id: string; p_reason: string };
         Returns: undefined;
       };
+      revoke_capability: {
+        Args: { p_capability_id: string; p_reason: string };
+        Returns: undefined;
+      };
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
@@ -1888,6 +2351,19 @@ export type Database = {
           p_mode: Database["public"]["Enums"]["semantic_mode"];
           p_model: string;
           p_provider: string;
+          p_tenant_id: string;
+          p_timeout_ms: number;
+        };
+        Returns: undefined;
+      };
+      set_semantic_settings_v2: {
+        Args: {
+          p_approve_enforcement: boolean;
+          p_capability_ttl_seconds: number;
+          p_mode: Database["public"]["Enums"]["semantic_mode"];
+          p_model: string;
+          p_provider: string;
+          p_required_classes: string[];
           p_tenant_id: string;
           p_timeout_ms: number;
         };
