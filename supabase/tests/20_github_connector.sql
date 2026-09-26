@@ -2,7 +2,7 @@
 -- capability state machine, receipts, installation constraints, runtime approvals, and the
 -- removal of the legacy authorization function — all against the real deployed schema.
 
-select plan(104);
+select plan(108);
 
 set local role postgres;
 
@@ -318,3 +318,11 @@ select t(is((select status from public.github_installations where id = '20000000
 select t(is((select count(*)::int from public.github_repositories where installation_row_id = '20000000-0000-4000-8000-0000000000d1' and allowed), 0, 'and clears every allowlist entry'));
 select t(is((select reason from public.t20_reserve('rz-1', 'e-1')), 'CAPABILITY_REVOKED', 'a capability revoked by disconnect cannot be reserved'));
 
+-- =====================================================================
+-- 6. A signed-in member without a principal row gets one on first use; a non-member never does.
+-- =====================================================================
+select set_config('t20.viewer_principal', gateway.actor_principal('11111111-1111-4111-8111-111111111111'::uuid, 'a0000000-0000-4000-8000-000000000004'::uuid)::text, true);
+select t(ok(current_setting('t20.viewer_principal') <> '', 'a member with no principal gets one created on first use'));
+select t(is(gateway.actor_principal('11111111-1111-4111-8111-111111111111'::uuid, 'a0000000-0000-4000-8000-000000000004'::uuid)::text, current_setting('t20.viewer_principal'), 'and the same one on every later call'));
+select t(is(gateway.actor_principal('11111111-1111-4111-8111-111111111111'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid), null, 'a user who is not a member of the tenant gets none'));
+select t(is(gateway.actor_principal('22222222-2222-4222-8222-222222222222'::uuid, 'a0000000-0000-4000-8000-000000000004'::uuid), null, 'membership in one tenant confers nothing in another'));
