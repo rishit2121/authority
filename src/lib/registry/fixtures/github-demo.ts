@@ -47,7 +47,7 @@ import type { RegistryData } from "../types";
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
-  registryVersion: "github-demo-2026-09-23",
+  registryVersion: "github-demo-2026-09-30",
   operations: [
     {
       id: "github.get_issue",
@@ -59,6 +59,17 @@ export const githubDemoRegistry: RegistryData = {
       requiresApproval: false,
       financialImpact: false,
       argumentFields: [{ key: "issue_number", type: "string", required: true, identifiesResource: true }],
+    },
+    {
+      id: "github.get_pull_request",
+      provider: "github",
+      sideEffect: "read",
+      resourceType: "pull_request",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "pull_number", type: "string", required: true, identifiesResource: true }],
     },
     {
       id: "github.read_repository",
@@ -100,6 +111,21 @@ export const githubDemoRegistry: RegistryData = {
       ],
     },
     {
+      id: "github.put_file",
+      provider: "github",
+      sideEffect: "write_update",
+      resourceType: "file",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [
+        { key: "repository", type: "string", required: true, identifiesResource: true },
+        { key: "branch", type: "string", required: true, identifiesResource: false },
+        { key: "path", type: "string", required: true, identifiesResource: false },
+      ],
+    },
+    {
       id: "github.create_pull_request",
       provider: "github",
       sideEffect: "write_create",
@@ -111,6 +137,7 @@ export const githubDemoRegistry: RegistryData = {
       argumentFields: [
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "target_branch", type: "string", required: true, identifiesResource: false },
+        { key: "head_branch", type: "string", required: false, identifiesResource: false },
       ],
     },
     {
@@ -202,6 +229,24 @@ export const githubDemoRegistry: RegistryData = {
       classification: "read",
       riskCost: 2,
       resourceBreadth: 2,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "github.pull_requests_read",
+      provider: "github",
+      operations: ["github.get_pull_request"],
+      classification: "read",
+      riskCost: 1,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "github.files_write",
+      provider: "github",
+      operations: ["github.put_file"],
+      classification: "write",
+      riskCost: 2,
+      resourceBreadth: 1,
       allowsExternalCommunication: false,
     },
     {
