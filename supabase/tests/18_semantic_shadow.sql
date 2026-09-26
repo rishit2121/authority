@@ -2,6 +2,10 @@
 -- evidence immutability, tenant/agent isolation, forged-evidence rejection,
 -- and the Part 4 fix for failed-authentication auditing.
 
+-- NOTE (Part 6): the Part 5 semantic RPCs are no longer callable by anon; they
+-- are reached here as the table owner. The gateway path (suite 19) replaced
+-- them; these assertions remain as regression coverage of the Part 5 tables.
+
 select plan(48);
 
 set local role postgres;
@@ -52,7 +56,7 @@ set local request.jwt.claims = '{"sub":"b0000000-0000-4000-8000-000000000001","r
 select set_config('test.secret_b', r.plaintext_secret, true) from public.create_agent_credential('18000000-0000-4000-8000-0000000000b3'::uuid) r;
 
 -- Decisions to attach evidence to (default semantic mode is off: no settings row yet).
-set local role anon;
+set local role postgres;
 select set_config('test.dec_1', public.t18_call('s-1')::text, true);
 select set_config('test.dec_2', public.t18_call('s-2')::text, true);
 select set_config('test.dec_3', public.t18_call('s-3')::text, true);
@@ -115,7 +119,7 @@ select t(throws_ok($$ update public.semantic_settings set mode = 'enforce' where
 -- ---------------------------------------------------------------------
 -- Evaluation context: derived from persisted rows, scoped to the credential
 -- ---------------------------------------------------------------------
-set local role anon;
+set local role postgres;
 select t(is((select ctx_mode::text from public.get_semantic_evaluation_context(current_setting('test.secret_a'), current_setting('test.dec_1')::uuid)),
   'shadow', 'the context reports the tenant''s shadow mode'));
 select t(is((select ctx_task_intent from public.get_semantic_evaluation_context(current_setting('test.secret_a'), current_setting('test.dec_1')::uuid)),
@@ -140,7 +144,7 @@ select t(throws_ok($$ select * from public.get_semantic_evaluation_context(curre
 -- ---------------------------------------------------------------------
 -- Recording
 -- ---------------------------------------------------------------------
-set local role anon;
+set local role postgres;
 select set_config('test.eval_1', (select rec_evaluation_id::text from public.record_semantic_shadow(
   current_setting('test.secret_a'), current_setting('test.dec_1')::uuid, 'mock', 'mock-heuristic', '2026-09-28.1', 'ok',
   '{"schemaVersion":1,"taskAlignment":0.9,"resourceRelevance":0.9,"scopeExpansion":0.05,"externalDisclosure":0.05,"promptInjection":0.95,"suspiciousArgumentChange":0.05,"planDeviation":0.05}'::jsonb,
@@ -224,7 +228,7 @@ set local request.jwt.claims = '{"sub":"b0000000-0000-4000-8000-000000000001","r
 select t(is((select count(*)::int from public.semantic_shadow_evaluations), 0, 'another tenant sees none of it'));
 
 -- Part 4 fix: failed-authentication auditing now persists.
-set local role anon;
+set local role postgres;
 select public.record_agent_auth_failure('authority_rk_deadbeef00000000notreal');
 set local role postgres;
 select t(is((select count(*)::int from public.agent_auth_events where attempted_key_prefix = 'authority_rk_deadbeef' and outcome = 'invalid_credential'),

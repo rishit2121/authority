@@ -1,3 +1,5 @@
+> **Status (Part 6):** the enforcement prerequisites listed at the end of this document have been implemented — see `docs/gateway/TRUST_MODEL.md`, `docs/gateway/CAPABILITIES.md` and `docs/api/RUNTIME_API.md`. The text below describes the Part 5 shadow-only design and is kept for history; where it says `enforce` is unavailable or evidence is unattested, that describes the Part 5 tables (`semantic_shadow_evaluations`), which are now historical and read-only.
+
 # Semantic risk: shadow mode
 
 ## Modes
