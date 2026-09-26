@@ -48,6 +48,10 @@ test.describe.serial("runtime authorization", () => {
     await managementQuery(`
       begin;
       select set_config('authority.allow_demo_purge', 'on', true);
+      delete from public.capability_consumptions where capability_id in (select id from public.capability_tokens where task_id = '${taskId}');
+      delete from public.capability_tokens where task_id = '${taskId}';
+      delete from public.final_decisions where task_id = '${taskId}';
+      delete from public.semantic_evaluations where task_id = '${taskId}';
       delete from public.semantic_shadow_evaluations where task_id = '${taskId}';
       delete from public.execution_events where task_id = '${taskId}';
       delete from public.authorization_decisions where task_id = '${taskId}';
@@ -142,6 +146,9 @@ test.describe.serial("runtime authorization", () => {
     const allowedBody = await allowed.json();
     expect(allowedBody.status).toBe("allow_constrained");
     expect(allowedBody.wasReplayed).toBe(false);
+    expect(allowedBody.simulation).toBe(true);
+    expect(allowedBody.capability.token).toMatch(/^authcap_v1_/);
+    expect(allowedBody.capability.maxUses).toBe(1);
     expect(allowedBody).not.toHaveProperty("credential");
     expect(JSON.stringify(allowedBody)).not.toContain(secret);
 
@@ -161,6 +168,10 @@ test.describe.serial("runtime authorization", () => {
     const replayedBody = await replayed.json();
     expect(replayedBody.decisionId).toBe(allowedBody.decisionId);
     expect(replayedBody.wasReplayed).toBe(true);
+    // The plaintext capability is shown once, in the response that issued it, and never again.
+    expect(replayedBody.capability.token).toBeNull();
+    expect(replayedBody.capability.tokenAlreadyIssued).toBe(true);
+    expect(replayedBody.capability.id).toBe(allowedBody.capability.id);
 
     // A tool that was never part of the contract.
     const replan = await request.post("/api/v1/authorize", {

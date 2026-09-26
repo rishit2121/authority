@@ -1,17 +1,21 @@
 import { z } from "zod";
 
-import { idSchema, timestampSchema, toolArgumentsSchema, toolNameSchema } from "./common";
+import { timestampSchema, toolArgumentsSchema, toolNameSchema } from "./common";
 import { probabilitySchema } from "./semantic-decision";
 
 /**
- * Part 5 semantic-risk evidence.
+ * Semantic-risk evidence (Part 5, extended in Part 6).
  *
- * Everything here is *shadow-only, non-authoritative observation*. No type in
- * this module can express a decision, a permission, a budget or a capability,
- * and every schema is `.strict()`: a provider (or anything forging a
- * provider's output) that returns an extra field such as `decision`, `allow`
- * or `grantedTools` fails validation rather than being carried along. The
- * evidence describes; only the deterministic database decision authorizes.
+ * This is an *observation* produced by a provider and validated by our own
+ * code. No type in this module can express a decision, a permission, a budget or
+ * a capability, and every schema is `.strict()`: a provider (or anything forging
+ * one's output) that returns an extra field such as `decision`, `allow` or
+ * `grantedTools` fails validation rather than being carried along.
+ *
+ * `authoritative: false` on an evidence object means the *object itself* never
+ * carries authority. In `enforce` mode a semantic result influences an outcome
+ * only by being fed to `gateway.compose_outcome()` inside the database, which can
+ * only narrow a deterministic allow (see docs/gateway/TRUST_MODEL.md).
  *
  * Direction of each signal is stated explicitly because it is not uniform:
  * `taskAlignment` and `resourceRelevance` are *higher = more consistent with
@@ -21,9 +25,6 @@ import { probabilitySchema } from "./semantic-decision";
 export const SEMANTIC_MODES = ["off", "shadow", "enforce"] as const;
 export const semanticModeSchema = z.enum(SEMANTIC_MODES);
 export type SemanticMode = z.infer<typeof semanticModeSchema>;
-
-/** `enforce` is representable only so it can be refused; it is never effective. */
-export const EFFECTIVE_SEMANTIC_MODES = ["off", "shadow"] as const;
 
 export const SEMANTIC_PROVIDERS = ["mock", "openai_compatible", "legacy_lexical"] as const;
 export const semanticProviderNameSchema = z.enum(SEMANTIC_PROVIDERS);
@@ -150,26 +151,3 @@ export const semanticRiskInputSchema = z
   })
   .strict();
 export type SemanticRiskInput = z.infer<typeof semanticRiskInputSchema>;
-
-export const semanticObservationResponseSchema = z
-  .object({
-    mode: semanticModeSchema,
-    /** Always false: nothing here influenced the deterministic decision. */
-    authoritative: z.literal(false),
-    affectedAuthorization: z.literal(false),
-    status: z.enum(["disabled", "evaluated", "replayed", "record_failed", "enforcement_unavailable"]),
-    evidenceState: semanticEvidenceStateSchema.optional(),
-    riskLevel: semanticRiskLevelSchema.optional(),
-    signals: semanticSignalsSchema.nullable().optional(),
-    indicators: z.array(semanticIndicatorSchema).optional(),
-    confidence: probabilitySchema.optional(),
-    provider: z.string().optional(),
-    model: z.string().optional(),
-    modelVersion: z.string().optional(),
-    latencyMs: z.number().optional(),
-    disagreement: semanticDisagreementSchema.optional(),
-    evaluationId: idSchema.optional(),
-    note: z.string(),
-  })
-  .strict();
-export type SemanticObservationResponse = z.infer<typeof semanticObservationResponseSchema>;

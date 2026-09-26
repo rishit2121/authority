@@ -13,7 +13,8 @@ export const OPENAI_COMPATIBLE_PROVIDER_VERSION = "authority-semantic-openai-com
 const MAX_RESPONSE_CHARS = 16_000;
 
 export interface OpenAiCompatibleEnv {
-  apiKey: string;
+  /** Primary first. A secondary key exists only during a rotation (see docs/gateway/SECRETS.md). */
+  apiKeys: string[];
   baseUrl: string;
 }
 
@@ -25,15 +26,17 @@ export interface OpenAiCompatibleEnv {
 export function getSemanticProviderEnv(
   env: Record<string, string | undefined> = process.env,
 ): OpenAiCompatibleEnv | null {
-  const apiKey = env.SEMANTIC_PROVIDER_API_KEY?.trim();
-  if (!apiKey) return null;
+  const primary = env.SEMANTIC_PROVIDER_API_KEY?.trim();
+  if (!primary) return null;
+  const secondary = env.SEMANTIC_PROVIDER_API_KEY_SECONDARY?.trim();
+  const apiKeys = secondary && secondary !== primary ? [primary, secondary] : [primary];
   const baseUrl = (env.SEMANTIC_PROVIDER_BASE_URL?.trim() || "https://api.openai.com/v1").replace(/\/+$/, "");
   try {
     if (new URL(baseUrl).protocol !== "https:") return null;
   } catch {
     return null;
   }
-  return { apiKey, baseUrl };
+  return { apiKeys, baseUrl };
 }
 
 const RESPONSE_JSON_SCHEMA = z.toJSONSchema(providerSignalPayloadSchema);
@@ -61,6 +64,34 @@ export class OpenAiCompatibleSemanticProvider implements SemanticRiskProvider {
     private readonly fetchImpl: typeof fetch = fetch,
   ) {}
 
+  private buildBody(input: SemanticRiskInput) {
+    return {
+      model: this.model,
+      temperature: 0,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: JSON.stringify({
+            trustedTaskIntent: input.taskIntent,
+            contractAllowedTools: input.contractAllowedTools,
+            priorCalls: input.priorCalls,
+            proposedToolCall: {
+              tool: input.tool,
+              operation: input.operation,
+              resource: input.resource,
+              arguments: input.arguments,
+            },
+          }),
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "semantic_risk", schema: RESPONSE_JSON_SCHEMA, strict: false },
+      },
+    };
+  }
+
   async evaluate(input: SemanticRiskInput, call: SemanticProviderCall): Promise<unknown> {
     if (!this.env) {
       throw new SemanticProviderUnavailableError(
@@ -68,42 +99,25 @@ export class OpenAiCompatibleSemanticProvider implements SemanticRiskProvider {
       );
     }
 
-    let response: Response;
-    try {
-      response = await this.fetchImpl(`${this.env.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${this.env.apiKey}` },
-        body: JSON.stringify({
-          model: this.model,
-          temperature: 0,
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            {
-              role: "user",
-              content: JSON.stringify({
-                trustedTaskIntent: input.taskIntent,
-                contractAllowedTools: input.contractAllowedTools,
-                priorCalls: input.priorCalls,
-                proposedToolCall: {
-                  tool: input.tool,
-                  operation: input.operation,
-                  resource: input.resource,
-                  arguments: input.arguments,
-                },
-              }),
-            },
-          ],
-          response_format: {
-            type: "json_schema",
-            json_schema: { name: "semantic_risk", schema: RESPONSE_JSON_SCHEMA, strict: false },
-          },
-        }),
-        signal: call.signal,
-      });
-    } catch (error) {
-      if (call.signal.aborted) throw new SemanticProviderError("timeout", "aborted");
-      throw new SemanticProviderError("network_error", "request failed", { cause: error });
+    // Key rotation: try the primary key; only an authentication failure
+    // (401/403) falls through to the secondary, so a rotation needs no downtime
+    // and a transient error never causes a second key to be tried.
+    let response: Response | null = null;
+    for (const apiKey of this.env.apiKeys) {
+      try {
+        response = await this.fetchImpl(`${this.env.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify(this.buildBody(input)),
+          signal: call.signal,
+        });
+      } catch (error) {
+        if (call.signal.aborted) throw new SemanticProviderError("timeout", "aborted");
+        throw new SemanticProviderError("network_error", "request failed", { cause: error });
+      }
+      if (response.status !== 401 && response.status !== 403) break;
     }
+    if (!response) throw new SemanticProviderError("network_error", "request failed");
 
     // Response bodies are never echoed into errors: they can contain request content.
     if (!response.ok) throw new SemanticProviderError("http_error", `status ${response.status}`);

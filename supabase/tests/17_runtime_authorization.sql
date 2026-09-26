@@ -6,6 +6,12 @@
 -- `anon` (the only role granted EXECUTE on authorize_tool_call() itself,
 -- since a real agent has no Supabase session at all).
 
+-- NOTE (Part 6): authorize_tool_call() is no longer callable by anon or any
+-- client role — only by the table owner, which is how this legacy regression
+-- suite now reaches it. The application path is gateway.commit_authorization(),
+-- covered by suite 19. These assertions are retained because they pin the
+-- deterministic engine's semantics the gateway's evaluator was extracted from.
+
 select plan(39);
 
 set local role postgres;
@@ -65,7 +71,7 @@ select t(lives_ok(
   $$ select public.revoke_agent_credential(current_setting('test.revoked_id')::uuid, 'no longer needed') $$,
   'security_admin+ can revoke a runtime credential'));
 
-set local role anon;
+set local role postgres;
 
 select t(throws_ok(
   $$ select * from public.authorize_tool_call('not-a-real-secret-at-all', '17000000-0000-4000-8000-000000000004'::uuid,
@@ -101,7 +107,7 @@ select t(throws_ok(
 -- ---------------------------------------------------------------------
 -- Task not yet executable: no contract has ever been proposed.
 -- ---------------------------------------------------------------------
-set local role anon;
+set local role postgres;
 
 select t(is(
   (select outcome::text from public.authorize_tool_call(
@@ -168,7 +174,7 @@ select t(is(
 -- ---------------------------------------------------------------------
 -- Runtime evaluation against the now-active contract.
 -- ---------------------------------------------------------------------
-set local role anon;
+set local role postgres;
 
 select t(is(
   (select outcome::text from public.authorize_tool_call(
@@ -342,7 +348,7 @@ select t(lives_ok(
      ) $$,
   'the second version activates even though its computed expiry is already in the past'));
 
-set local role anon;
+set local role postgres;
 select t(is(
   (select outcome::text from public.authorize_tool_call(
      current_setting('test.secret_1'), '17000000-0000-4000-8000-000000000004'::uuid,
@@ -366,7 +372,7 @@ select t(lives_ok(
      ) $$,
   'the expired contract can still be revoked explicitly'));
 
-set local role anon;
+set local role postgres;
 select t(is(
   (select outcome::text from public.authorize_tool_call(
      current_setting('test.secret_1'), '17000000-0000-4000-8000-000000000004'::uuid,

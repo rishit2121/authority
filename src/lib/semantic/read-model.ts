@@ -35,7 +35,7 @@ interface EvidenceRow {
   indicators: string[];
   confidence: number;
   latency_ms: number;
-  disagreement: string;
+  disagreement?: string;
   error_category: string | null;
   redaction_summary: unknown;
   created_at: string;
@@ -43,6 +43,10 @@ interface EvidenceRow {
 
 export const EVIDENCE_COLUMNS =
   "id, authorization_decision_id, task_id, provider, model, model_version, state, risk_level, signals, indicators, confidence, latency_ms, disagreement, error_category, redaction_summary, created_at";
+
+/** semantic_evaluations (Part 6) carries no stored disagreement: it is derived from the two decisions. */
+export const GATEWAY_EVIDENCE_COLUMNS =
+  "id, authorization_decision_id, task_id, provider, model, model_version, state, risk_level, signals, indicators, confidence, latency_ms, error_category, redaction_summary, created_at";
 
 export function toEvidenceView(row: EvidenceRow): SemanticEvidenceView {
   let signals: SemanticSignals | null = null;
@@ -66,7 +70,7 @@ export function toEvidenceView(row: EvidenceRow): SemanticEvidenceView {
     indicators: row.indicators ?? [],
     confidence: row.confidence,
     latencyMs: row.latency_ms,
-    disagreement: row.disagreement,
+    disagreement: row.disagreement ?? "none",
     errorCategory: row.error_category,
     redactionCounts: counts,
     createdAt: row.created_at,

@@ -21,6 +21,9 @@ const ROW: Tables<"tool_requests"> = {
   demo_key: "demo:req:991:3",
   requested_at: "2026-01-01T00:00:00.000Z",
   request_hash: null,
+  argument_audit: null,
+  arguments_redacted: false,
+  arguments_hash: null,
 };
 
 describe("toolRequestRowToDomain", () => {

@@ -17,7 +17,13 @@ const STATE_LABEL: Record<string, string> = {
 };
 
 /** Compact risk pill. Always accompanied by the shadow-only label: it never implies enforcement. */
-export function SemanticShadowBadge({ evidence }: { evidence: SemanticEvidenceView | undefined }) {
+export function SemanticShadowBadge({
+  evidence,
+  enforcing = false,
+}: {
+  evidence: SemanticEvidenceView | undefined;
+  enforcing?: boolean;
+}) {
   if (!evidence) {
     return <span className="font-mono-code text-[11px] text-outline">not evaluated</span>;
   }
@@ -32,7 +38,7 @@ export function SemanticShadowBadge({ evidence }: { evidence: SemanticEvidenceVi
         {degraded ? ` · ${degraded}` : ""}
       </span>
       <span className="font-label-sm text-[10px] uppercase tracking-wider text-outline">
-        Shadow only — did not affect authorization
+        {enforcing ? "Enforcing — can only narrow an allow" : "Shadow only — did not affect authorization"}
       </span>
     </span>
   );

@@ -17,6 +17,12 @@ const REASON_SUMMARIES: Record<string, string> = {
   ARGUMENTS_UNDERSPECIFIED: "One or more required arguments are missing.",
   CONSTRAINT_VIOLATION: "The arguments fall outside the contract's constraints for this action.",
   INVOCATION_LIMIT_REACHED: "The invocation budget for this task or action has been exhausted.",
+  SEMANTIC_CRITICAL_RISK: "Semantic enforcement narrowed this allow to a deny (critical risk).",
+  SEMANTIC_HIGH_RISK: "Semantic enforcement narrowed this allow to require approval (high risk).",
+  SEMANTIC_REQUIRED_UNAVAILABLE:
+    "A required semantic evaluation was unavailable, so the request failed closed.",
+  SEMANTIC_DEGRADED_OPTIONAL:
+    "The optional semantic evaluation was degraded; the deterministic result was kept.",
   WITHIN_CONTRACT: "Permitted; the request satisfies every contract constraint.",
 };
 

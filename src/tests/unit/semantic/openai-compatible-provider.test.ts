@@ -15,7 +15,7 @@ const input = {
   contractAllowedTools: ["github.get_issue"],
   priorCalls: [],
 };
-const env = { apiKey: "test-key", baseUrl: "https://llm.example/v1" };
+const env = { apiKeys: ["test-key"], baseUrl: "https://llm.example/v1" };
 const payload = {
   signals: {
     taskAlignment: 0.9,
