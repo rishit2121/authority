@@ -1,107 +1,80 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { idSchema, toolArgumentsSchema, toolNameSchema } from "@/lib/domain";
 import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
-import { githubDemoRegistry, loadRegistry } from "@/lib/registry";
+import { toolArgumentsSchema, toolNameSchema } from "@/lib/domain";
+import { authorizeThroughGateway } from "@/lib/gateway/pipeline";
+import { gatewayRegistry } from "@/lib/gateway/risk-class";
 import {
-  authorizeToolCall,
-  AuthorizeToolCallError,
-  type AuthorizeFailureReason,
-} from "@/lib/runtime/authorize-tool-call";
-import { summarizeReasonCodes } from "@/lib/runtime/reason-codes";
-import { recordAgentAuthFailure } from "@/lib/runtime/semantic-rpc";
-import { runSemanticShadowForDecision } from "@/lib/semantic/shadow";
-import { createRuntimeClient } from "@/lib/supabase/runtime-client";
+  UNAUTHENTICATED,
+  contractForError,
+  extractBearer,
+  jsonError,
+  jsonOk,
+  logHandlerFailure,
+  newRequestId,
+  readJsonBody,
+} from "@/lib/gateway/http";
+import { failureContract, toAgentResponse } from "@/lib/gateway/response";
 
 /**
- * `POST /api/v1/authorize` — the one runtime authorization entry point an
- * agent calls before executing a tool.
+ * `POST /api/v1/authorize` — the ONLY supported runtime authorization path.
  *
- * This handler is deliberately thin: it validates request *shape*, extracts
- * the credential from the Authorization header, and calls
- * `authorize_tool_call()`, which is the actual authority (see that
- * migration's module doc). It never accepts a tenant id, principal id,
- * contract status, or any policy/permission result from the request body —
- * the schema below has no field for any of them, and the RPC re-derives
- * every one of those facts itself from the credential and the database.
- *
- * No Supabase session is involved: `createRuntimeClient()` uses only the
- * public publishable key, exactly as any anonymous caller would, because
- * the RPC it calls authenticates the caller itself.
+ * Agents authenticate with a runtime key (Authorization: Bearer). The request
+ * schema has no field for a tenant, principal, contract status, permission or
+ * policy result: the database re-derives every one of those from the key. The
+ * database functions behind this handler are callable only by the gateway's
+ * dedicated role — a caller holding just the anonymous key cannot reach them.
+ * See docs/api/RUNTIME_API.md for the contract and docs/gateway/TRUST_MODEL.md
+ * for the trust boundary.
  */
 
-const registry = loadRegistry(githubDemoRegistry);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const requestSchema = z
   .object({
-    taskId: idSchema,
+    taskId: z.string().uuid(),
     tool: toolNameSchema,
     operation: z.string().trim().min(1).max(100),
-    resource: z.string().trim().min(1).max(500).optional(),
-    arguments: toolArgumentsSchema.optional(),
-    planNodeId: idSchema.optional(),
+    resource: z.string().trim().min(1).max(200).optional(),
+    arguments: toolArgumentsSchema.default({}),
+    planNodeId: z.string().uuid().optional(),
     idempotencyKey: z.string().trim().min(1).max(200),
+    /** 1 = single-use (default). Up to 5 for explicitly bounded multi-use. */
+    maxUses: z.number().int().min(1).max(5).optional(),
+    /** Accepted for compatibility and validated, but never stored. */
     executionContext: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 
-const STATUS_FOR_FAILURE: Record<AuthorizeFailureReason, number> = {
-  invalid_credential: 401,
-  forbidden: 403,
-  not_found: 404,
-  idempotency_conflict: 409,
-  rate_limited: 429,
-  invalid_request: 400,
-  unknown: 500,
-};
+const registryVersion = gatewayRegistry.registryVersion;
 
-function extractBearerSecret(request: NextRequest): string | null {
-  const header = request.headers.get("authorization");
-  if (!header) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  return match ? match[1].trim() : null;
-}
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const requestId = newRequestId();
 
-export async function POST(request: NextRequest) {
-  const credentialSecret = extractBearerSecret(request);
-  if (!credentialSecret) {
-    return NextResponse.json(
-      { error: { reason: "invalid_credential", message: "Missing or malformed Authorization header." } },
-      { status: 401 },
-    );
-  }
+  const credentialSecret = extractBearer(request);
+  if (!credentialSecret) return jsonError(UNAUTHENTICATED, requestId);
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: { reason: "invalid_request", message: "Request body must be valid JSON." } },
-      { status: 400 },
-    );
-  }
+  const body = await readJsonBody(request);
+  if (!body.ok) return jsonError(body.contract, requestId);
 
-  const parsed = requestSchema.safeParse(body);
+  const parsed = requestSchema.safeParse(body.body);
   if (!parsed.success) {
-    return NextResponse.json(
+    // Field paths only — never the offending values, which may be sensitive.
+    return jsonError(
+      { http: 400, code: "INVALID_REQUEST", message: "Request failed validation." },
+      requestId,
       {
-        error: {
-          reason: "invalid_request",
-          message: "Request failed validation.",
-          issues: parsed.error.issues,
-        },
+        issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), code: i.code })),
       },
-      { status: 400 },
     );
   }
-
   const input = parsed.data;
 
-  const supabase = createRuntimeClient();
-
   try {
-    const result = await authorizeToolCall(supabase, {
+    const result = await authorizeThroughGateway({
       credentialSecret,
       taskId: input.taskId,
       tool: input.tool,
@@ -110,44 +83,25 @@ export async function POST(request: NextRequest) {
       arguments: input.arguments,
       planNodeId: input.planNodeId,
       idempotencyKey: input.idempotencyKey,
-      executionContext: input.executionContext,
-      currentRegistryVersion: registry.registryVersion,
-      currentCompilerVersion: COMPILER_VERSION,
+      maxUses: input.maxUses,
+      registryVersion,
+      compilerVersion: COMPILER_VERSION,
     });
 
-    // The deterministic decision above is final and already persisted. The
-    // semantic step below runs strictly afterwards, never throws, and only
-    // adds a separately-labeled, non-authoritative observation to the reply.
-    const semantic = await runSemanticShadowForDecision(supabase, credentialSecret, result.decisionId);
+    if (result.kind === "failure") return jsonError(failureContract(result.status), requestId);
 
-    return NextResponse.json({
-      decisionId: result.decisionId,
-      status: result.outcome,
-      reasonCodes: result.reasonCodes,
-      summary: summarizeReasonCodes(result.reasonCodes),
-      contract: result.contractId ? { id: result.contractId, version: result.contractVersion } : null,
-      remainingInvocations: result.remainingInvocations,
-      requiresApproval: result.outcome === "require_approval",
-      requiresClarification: result.outcome === "clarify",
-      requiresReplan: result.outcome === "replan",
-      wasReplayed: result.wasReplayed,
-      semantic,
-    });
-  } catch (error) {
-    if (error instanceof AuthorizeToolCallError) {
-      // authorize_tool_call() raises on a bad/revoked credential, which rolls
-      // back the audit row it inserted first — so the failure is recorded by
-      // a separate call that returns normally (Part 5 fix for a Part 4 gap).
-      if (error.reason === "invalid_credential") await recordAgentAuthFailure(supabase, credentialSecret);
-      return NextResponse.json(
-        { error: { reason: error.reason, message: error.message } },
-        { status: STATUS_FOR_FAILURE[error.reason] },
-      );
-    }
-    console.error("authorize route: unexpected failure", error);
-    return NextResponse.json(
-      { error: { reason: "unknown", message: "An unexpected error occurred." } },
-      { status: 500 },
+    return jsonOk(
+      toAgentResponse({
+        commit: result.commit,
+        capabilityToken: result.capabilityToken,
+        tool: input.tool,
+        operation: input.operation,
+      }),
+      requestId,
     );
+  } catch (error) {
+    const contract = contractForError(error);
+    if (contract.http >= 500 && contract.http !== 503) logHandlerFailure("authorize", error);
+    return jsonError(contract, requestId);
   }
 }
