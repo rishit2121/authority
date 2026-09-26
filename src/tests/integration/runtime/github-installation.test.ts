@@ -168,7 +168,7 @@ describe("GitHub installation flow (mock GitHub, real database)", () => {
       };
       expect(await handleSetupCallback({ ...base, cookieNonce: undefined, urlState: nonce })).toEqual({
         kind: "error",
-        code: "invalid_state",
+        code: "not_started_here",
       });
       expect(await handleSetupCallback({ ...base, cookieNonce: nonce, urlState: "x".repeat(43) })).toEqual({
         kind: "error",

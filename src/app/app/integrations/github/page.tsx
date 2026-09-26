@@ -11,6 +11,8 @@ import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-te
 export const metadata: Metadata = { title: "GitHub integration" };
 
 const ERRORS: Record<string, string> = {
+  not_started_here:
+    "GitHub sent you back without the connection having been started from Authority in this browser (usually because the App was installed directly on GitHub). Nothing was connected. Click Connect GitHub below: if the App is already installed, GitHub will show its settings for it; choose the installation and save, and you will return here.",
   invalid_state: "The installation link expired or was not started from this browser. Start again.",
   invalid_installation: "GitHub did not report a valid installation.",
   installation_unavailable: "That GitHub installation is not available to this workspace.",

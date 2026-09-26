@@ -154,7 +154,7 @@ test.describe.serial("GitHub connector (mock GitHub)", () => {
     // A crafted callback with no state cookie from this browser is refused and connects nothing.
     await page.goto("/api/github/setup?installation_id=9001&state=" + "a".repeat(43));
     await expect(page.getByTestId("github-error")).toContainText(
-      /expired or was not started from this browser/i,
+      /without the connection having been started from Authority/i,
     );
     await expect(page.getByTestId("github-not-connected")).toBeVisible();
 

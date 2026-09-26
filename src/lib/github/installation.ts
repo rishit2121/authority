@@ -102,8 +102,10 @@ export async function handleSetupCallback(input: {
 }): Promise<SetupOutcome> {
   const base = publicBaseUrl();
   if (!base) return { kind: "error", code: "not_configured" };
-  if (!input.cookieNonce || !NONCE_SHAPE.test(input.cookieNonce))
-    return { kind: "error", code: "invalid_state" };
+  // No state cookie at all: GitHub sent the user back without Authority having started the flow in this
+  // browser (typically the App was installed directly from GitHub). Nothing is mapped; the user is told to start here.
+  if (!input.cookieNonce) return { kind: "error", code: "not_started_here" };
+  if (!NONCE_SHAPE.test(input.cookieNonce)) return { kind: "error", code: "invalid_state" };
   if (input.urlState !== null && input.urlState !== input.cookieNonce)
     return { kind: "error", code: "invalid_state" };
   if (!input.installationId || !/^[0-9]{1,15}$/.test(input.installationId))
