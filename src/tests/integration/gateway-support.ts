@@ -46,6 +46,8 @@ export async function createGatewayFixture(options: {
   forbiddenResources?: string;
   /** Use the app's real registry/compiler versions (for tests that go through the HTTP routes). */
   useCurrentVersions?: boolean;
+  /** Bind the task to a mock-installation repository (creating the installation if needed). Default: none. */
+  githubRepo?: string;
 }): Promise<GatewayFixture> {
   const suffix = randomBytes(2).toString("hex");
   const id = (n: number) => `dd000000-0000-4000-8000-0000000${n}${suffix}`;
@@ -89,6 +91,8 @@ export async function createGatewayFixture(options: {
     values ('${credentialId}', '${TENANT_A_ID}', '${agentId}', '${secret.slice(0, 21)}', '${hash}', 'active');
   `);
 
+  if (options.githubRepo) await bindTaskToMockRepo(taskId, options.githubRepo);
+
   return {
     tenantId: TENANT_A_ID,
     agentId,
@@ -100,8 +104,13 @@ export async function createGatewayFixture(options: {
       await managementQuery(`
         set local role postgres;
         select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.github_execution_receipts where task_id = '${taskId}';
+        delete from public.capability_reservations where task_id = '${taskId}';
+        delete from public.task_repository_bindings where task_id = '${taskId}';
+        delete from public.runtime_approval_decisions where request_id in (select id from public.runtime_approval_requests where task_id = '${taskId}');
         delete from public.capability_consumptions where capability_id in (select id from public.capability_tokens where task_id = '${taskId}');
         delete from public.capability_tokens where task_id = '${taskId}';
+        delete from public.runtime_approval_requests where task_id = '${taskId}';
         delete from public.final_decisions where task_id = '${taskId}';
         delete from public.semantic_evaluations where task_id = '${taskId}';
         delete from public.semantic_shadow_evaluations where task_id = '${taskId}';
@@ -153,5 +162,72 @@ export async function resetSemanticSettings(): Promise<void> {
     select set_config('authority.allow_demo_purge', 'on', true);
     delete from public.semantic_settings_audit where tenant_id = '${TENANT_A_ID}';
     delete from public.semantic_settings where tenant_id = '${TENANT_A_ID}';
+  `);
+}
+
+
+/**
+ * A `mock`-mode GitHub installation for tenant A with a few repositories. Idempotent and
+ * non-destructive, so several fixtures can share it. Mirrors the mock GitHub's seed data.
+ */
+export const MOCK_REPOS: Record<string, number> = {
+  "acme/widgets": 1001,
+  "acme/fault-write-timeout": 1002,
+  "acme/fault-write-timeout-applied": 1003,
+  "acme/fault-write-502": 1004,
+  "acme/fault-write-403": 1005,
+};
+
+export async function ensureMockInstallation(): Promise<{ installationRowId: string }> {
+  const rows = (await managementQuery(`
+    insert into public.github_installations (tenant_id, github_installation_id, mode, account_login, account_type, github_account_id,
+      repository_selection, granted_permissions, status)
+    select '${TENANT_A_ID}', 9001, 'mock', 'acme', 'Organization', 5001, 'selected',
+      '{"contents":"write","issues":"read","metadata":"read","pull_requests":"write"}'::jsonb, 'active'
+    where not exists (select 1 from public.github_installations where tenant_id = '${TENANT_A_ID}' and status <> 'disconnected')
+    on conflict (github_installation_id) do nothing;
+    select id from public.github_installations where tenant_id = '${TENANT_A_ID}' and github_installation_id = 9001 and status = 'active';
+  `)) as Array<{ id: string }>;
+  if (!rows[0]) throw new Error("mock installation is not active for tenant A (a different installation is connected)");
+  const row = rows[0].id;
+  const values = Object.entries(MOCK_REPOS)
+    .map(([full, id]) => {
+      const [owner, name] = full.split("/");
+      return `('${TENANT_A_ID}', '${row}', ${id}, '${owner}', '${name}', 'main', true, false, true, true, now())`;
+    })
+    .join(",");
+  await managementQuery(`
+    insert into public.github_repositories (tenant_id, installation_row_id, github_repository_id, owner, name, default_branch, is_private,
+      archived, present, allowed, allowed_at)
+    values ${values}
+    on conflict (installation_row_id, github_repository_id) do update set present = true, allowed = true, archived = false,
+      allowed_at = coalesce(public.github_repositories.allowed_at, now());
+  `);
+  return { installationRowId: row };
+}
+
+export async function bindTaskToMockRepo(taskId: string, fullName: string): Promise<void> {
+  await ensureMockInstallation();
+  const [owner, name] = fullName.split("/");
+  await managementQuery(`
+    insert into public.task_repository_bindings (tenant_id, task_id, repository_id, bound_by_principal_id)
+    select '${TENANT_A_ID}', '${taskId}', r.id,
+      (select id from public.principals where tenant_id = '${TENANT_A_ID}' and kind = 'human' limit 1)
+    from public.github_repositories r where r.tenant_id = '${TENANT_A_ID}' and r.owner = '${owner}' and r.name = '${name}';
+  `);
+}
+
+/** Removes every GitHub row for tenant A (installation flow tests start from a clean slate). */
+export async function purgeGithubState(): Promise<void> {
+  await managementQuery(`
+    set local role postgres;
+    select set_config('authority.allow_demo_purge', 'on', true);
+    delete from public.github_execution_receipts where tenant_id = '${TENANT_A_ID}';
+    delete from public.capability_reservations where tenant_id = '${TENANT_A_ID}';
+    delete from public.task_repository_bindings where tenant_id = '${TENANT_A_ID}';
+    delete from public.github_repositories where tenant_id = '${TENANT_A_ID}';
+    delete from public.github_install_states where tenant_id = '${TENANT_A_ID}';
+    delete from public.github_installations where tenant_id = '${TENANT_A_ID}';
+    delete from public.github_webhook_deliveries;
   `);
 }

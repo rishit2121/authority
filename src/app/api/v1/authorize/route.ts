@@ -96,6 +96,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         capabilityToken: result.capabilityToken,
         tool: input.tool,
         operation: input.operation,
+        approval: result.approval,
       }),
       requestId,
     );

@@ -72,7 +72,7 @@ describe("POST /api/v1/authorize", () => {
     expect(res.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
     const body = await res.json();
     expect(body.capability.token).toBe(CAP);
-    expect(body.simulation).toBe(true);
+    expect(body.simulation).toBe(false); // github.* is executed by a real connector
   });
 
   it("returns nothing of the semantic evidence or internal policy to the agent", async () => {

@@ -11,7 +11,8 @@ import { runSemanticEvaluation } from "@/lib/semantic/runner";
 import { buildArgumentAudit, sanitizeResource, type ArgumentValue } from "./argument-audit";
 import { generateCapabilityToken } from "./capability-token";
 import { commitAuthorization, prepareAuthorization, type CommitResult, type GatewayStatus } from "./rpc";
-import { riskClassFor } from "./risk-class";
+import { approvalForRequest, type ApprovalStatus } from "./rpc-github";
+import { registryRequiresApproval, riskClassFor } from "./risk-class";
 
 export const GATEWAY_VERSION = "authority-gateway-2026-09-29";
 
@@ -34,11 +35,18 @@ export interface AuthorizeInput {
 
 export type PipelineResult =
   | { kind: "failure"; status: Exclude<GatewayStatus, "ok"> }
-  | { kind: "decision"; commit: CommitResult; capabilityToken: string | null; riskClass: string };
+  | {
+      kind: "decision";
+      commit: CommitResult;
+      capabilityToken: string | null;
+      riskClass: string;
+      approval: ApprovalStatus | null;
+    };
 
 export interface PipelineDeps {
   prepare: typeof prepareAuthorization;
   commit: typeof commitAuthorization;
+  approval: typeof approvalForRequest;
   createProvider: (name: string, model: string) => SemanticRiskProvider;
   breakerFor: (key: string) => CircuitBreaker;
 }
@@ -46,6 +54,7 @@ export interface PipelineDeps {
 export const defaultPipelineDeps: PipelineDeps = {
   prepare: prepareAuthorization,
   commit: commitAuthorization,
+  approval: approvalForRequest,
   createProvider: createSemanticProvider,
   breakerFor,
 };
@@ -128,12 +137,20 @@ export async function authorizeThroughGateway(
     tokenHash: token.hash,
     evidence,
     gatewayVersion: GATEWAY_VERSION,
+    registryRequiresApproval: registryRequiresApproval(input.tool),
   });
   if (commit.status !== "ok") return { kind: "failure", status: commit.status };
+
+  // A request awaiting approval reports the approval's state so the agent can poll it.
+  const approval =
+    commit.finalOutcome === "require_approval" && commit.toolRequestId
+      ? await deps.approval({ credentialSecret: input.credentialSecret, toolRequestId: commit.toolRequestId })
+      : null;
 
   return {
     kind: "decision",
     commit,
+    approval: approval && approval.status === "ok" && approval.approvalId ? approval : null,
     // Plaintext leaves this function only when a capability was issued *now*.
     capabilityToken: commit.capabilityId && !commit.replayed ? token.plaintext : null,
     riskClass,

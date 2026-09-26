@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { hashCapabilityToken } from "@/lib/gateway/capability-token";
 import { authorizeThroughGateway } from "@/lib/gateway/pipeline";
 import { closeGatewayPool } from "@/lib/gateway/db";
-import { consumeCapability } from "@/lib/gateway/rpc";
+import { finishExecution, markDispatched, reserveExecution } from "@/lib/gateway/rpc-github";
 
 import { createGatewayFixture, resetSemanticSettings, type GatewayFixture } from "../gateway-support";
 import { managementQuery } from "../support";
@@ -24,6 +24,7 @@ describe("gateway concurrency", () => {
       taskId: f.taskId,
       tool: "github.get_issue",
       operation: "get_issue",
+      resource: "acme/widgets",
       arguments: { issue_number: "1" },
       idempotencyKey: key,
       maxUses,
@@ -31,20 +32,31 @@ describe("gateway concurrency", () => {
       compilerVersion: "cv1",
     });
 
-  const consume = (f: GatewayFixture, token: string, key: string) =>
-    consumeCapability({
+  const reserve = (f: GatewayFixture, token: string, key: string) =>
+    reserveExecution({
       credentialSecret: f.secret,
       tokenHash: hashCapabilityToken(token),
       tool: "github.get_issue",
       operation: "get_issue",
-      resource: null,
+      resource: "acme/widgets",
       args: { issue_number: "1" },
       idempotencyKey: key,
+      executionMode: "mock",
+      leaseSeconds: 45,
     });
+
+  /** Reserve -> dispatch -> succeed, the full happy path for one reservation. */
+  const settleSuccess = async (f: GatewayFixture, executionId: string) => {
+    await markDispatched({ executionId, agentId: f.agentId });
+    return finishExecution({
+      executionId, agentId: f.agentId, category: "succeeded", reasonCode: null, githubRequestId: "MOCK-1",
+      httpStatusClass: 2, resourceIds: {}, beforeSha: null, afterSha: null, startedAt: new Date(), redaction: {},
+    });
+  };
 
   beforeAll(async () => {
     await resetSemanticSettings();
-    fx = await createGatewayFixture({ label: "gw-conc", maxToolInvocations: 50 });
+    fx = await createGatewayFixture({ label: "gw-conc", maxToolInvocations: 50, githubRepo: "acme/widgets" });
     budgetFx = await createGatewayFixture({ label: "gw-budget", maxToolInvocations: 1 });
   }, 30_000);
 
@@ -75,23 +87,29 @@ describe("gateway concurrency", () => {
     expect(rows[0].consumed_uses).toBe(1);
   });
 
-  it("lets exactly one of many concurrent consumers use the last use of a single-use capability", async () => {
+  it("lets exactly one of many concurrent reservations take the last use of a single-use capability", async () => {
     const issued = await authorize(fx, "single-use");
     if (issued.kind !== "decision" || !issued.capabilityToken) throw new Error("no capability issued");
     const token = issued.capabilityToken;
 
-    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => consume(fx, token, `race-${i}`)));
-    const accepted = results.filter((r) => r.result === "accepted");
+    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => reserve(fx, token, `race-${i}`)));
+    const reserved = results.filter((r) => r.result === "reserved");
     const rejected = results.filter((r) => r.result === "rejected");
-
-    expect(accepted).toHaveLength(1);
+    expect(reserved).toHaveLength(1);
     expect(rejected).toHaveLength(7);
-    expect(new Set(rejected.map((r) => r.reasonCode))).toEqual(new Set(["CAPABILITY_ALREADY_USED"]));
+    expect(new Set(rejected.map((r) => r.reasonCode))).toEqual(new Set(["RESERVATION_IN_PROGRESS"]));
+
+    const settled = await settleSuccess(fx, reserved[0].executionId!);
+    expect(settled.status).toBe("ok");
+
+    // Replay after consumption: a fresh key can no longer reserve anything.
+    const after = await reserve(fx, token, "after-consume");
+    expect(after).toMatchObject({ result: "rejected", reasonCode: "CAPABILITY_ALREADY_USED" });
 
     const [row] = (await managementQuery(
-      `select uses, status from public.capability_tokens where token_hash = '${hashCapabilityToken(token)}';`,
-    )) as Array<{ uses: number; status: string }>;
-    expect(row).toMatchObject({ uses: 1, status: "consumed" });
+      `select uses, reserved_uses, status from public.capability_tokens where token_hash = '${hashCapabilityToken(token)}';`,
+    )) as Array<{ uses: number; reserved_uses: number; status: string }>;
+    expect(row).toMatchObject({ uses: 1, reserved_uses: 0, status: "consumed" });
   });
 
   it("never lets a bounded multi-use capability exceed its uses under concurrency", async () => {
@@ -99,26 +117,34 @@ describe("gateway concurrency", () => {
     if (issued.kind !== "decision" || !issued.capabilityToken) throw new Error("no capability issued");
     const token = issued.capabilityToken;
 
-    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => consume(fx, token, `multi-${i}`)));
-    expect(results.filter((r) => r.result === "accepted")).toHaveLength(3);
+    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => reserve(fx, token, `multi-${i}`)));
+    const reserved = results.filter((r) => r.result === "reserved");
+    expect(reserved).toHaveLength(3);
+    const [held] = (await managementQuery(
+      `select uses, reserved_uses from public.capability_tokens where token_hash = '${hashCapabilityToken(token)}';`,
+    )) as Array<{ uses: number; reserved_uses: number }>;
+    expect(held).toMatchObject({ uses: 0, reserved_uses: 3 });
+
+    for (const r of reserved) await settleSuccess(fx, r.executionId!);
     const [row] = (await managementQuery(
-      `select uses from public.capability_tokens where token_hash = '${hashCapabilityToken(token)}';`,
-    )) as Array<{ uses: number }>;
-    expect(row.uses).toBe(3);
+      `select uses, reserved_uses from public.capability_tokens where token_hash = '${hashCapabilityToken(token)}';`,
+    )) as Array<{ uses: number; reserved_uses: number }>;
+    expect(row).toMatchObject({ uses: 3, reserved_uses: 0 });
   });
 
-  it("treats concurrent retries with the same idempotency key as one consumption", async () => {
+  it("treats concurrent retries with the same idempotency key as one reservation", async () => {
     const issued = await authorize(fx, "idem-consume");
     if (issued.kind !== "decision" || !issued.capabilityToken) throw new Error("no capability issued");
     const token = issued.capabilityToken;
 
-    const results = await Promise.all(Array.from({ length: 6 }, () => consume(fx, token, "same-key")));
-    expect(results.every((r) => r.result === "accepted")).toBe(true);
-    expect(results.filter((r) => !r.replayed)).toHaveLength(1);
+    const results = await Promise.all(Array.from({ length: 6 }, () => reserve(fx, token, "same-key")));
+    expect(results.filter((r) => r.result === "reserved")).toHaveLength(1);
+    expect(results.filter((r) => r.result === "in_progress")).toHaveLength(5);
+    expect(new Set(results.map((r) => r.executionId)).size).toBe(1);
     const [row] = (await managementQuery(
-      `select uses from public.capability_tokens where token_hash = '${hashCapabilityToken(token)}';`,
-    )) as Array<{ uses: number }>;
-    expect(row.uses).toBe(1);
+      `select uses, reserved_uses from public.capability_tokens where token_hash = '${hashCapabilityToken(token)}';`,
+    )) as Array<{ uses: number; reserved_uses: number }>;
+    expect(row).toMatchObject({ uses: 0, reserved_uses: 1 });
   });
 
   it("treats concurrent retries of one authorization as a single decision and a single capability", async () => {

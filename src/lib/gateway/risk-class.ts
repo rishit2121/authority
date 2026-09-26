@@ -33,4 +33,9 @@ export function riskClassFor(tool: string): RiskClass {
   return "low";
 }
 
+/** Registry-declared approval requirement (never inferred from the request). */
+export function registryRequiresApproval(tool: string): boolean {
+  return registry.operations.get(tool)?.requiresApproval ?? false;
+}
+
 export { registry as gatewayRegistry };

@@ -63,6 +63,7 @@ function deps(over: Partial<PipelineDeps> & { p?: Partial<PrepareResult>; c?: Pa
   const d: PipelineDeps = {
     prepare: prepare as never,
     commit: commit as never,
+    approval: vi.fn().mockResolvedValue({ status: "ok", approvalId: null }) as never,
     createProvider: provider as never,
     breakerFor: () => new CircuitBreaker(),
     ...over,
