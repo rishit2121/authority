@@ -90,9 +90,20 @@ export async function managementQuery(query: string, attempt = 1): Promise<unkno
   const body = await response.json();
 
   if (!response.ok) {
-    const maxAttempts = 3;
+    // Part 4 raised the number of Playwright specs writing through this
+    // same shared linked project concurrently (runtime-authorization.spec.ts
+    // adds several real authorize_tool_call() calls, each taking the same
+    // per-task advisory lock pattern other RPCs already use). That widened
+    // the exact transient-race window this retry already existed for far
+    // enough that 3 attempts at 300ms steps sometimes wasn't enough —
+    // confirmed the same way as before: the identical query always
+    // succeeds immediately when run by hand right after a failure, and the
+    // owning spec always passes when run in isolation. 5 attempts at 400ms
+    // steps (up to ~4s total) absorbs the wider window; a genuine SQL
+    // defect still fails identically on every attempt regardless.
+    const maxAttempts = 5;
     if (attempt < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, attempt * 300));
+      await new Promise((resolve) => setTimeout(resolve, attempt * 400));
       return managementQuery(query, attempt + 1);
     }
     // Deliberately generic: the response body can echo back query text, and
