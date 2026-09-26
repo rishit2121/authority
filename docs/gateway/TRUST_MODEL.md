@@ -72,9 +72,24 @@ connection limit (bounded to 40). Rotate immediately (below).
 ## Deployment constraints and known gaps
 
 - Use the **transaction pooler** (port 6543); the code uses only parameterized statements, no session state.
-- **TLS**: the connection is encrypted; the certificate chain is verified only if `GATEWAY_DATABASE_CA` is set. Set it in
-  production. Without it the code uses `rejectUnauthorized: false` (documented gap).
+- **TLS**: the connection is encrypted; the certificate chain is verified only if `GATEWAY_DATABASE_CA` is set. **Since Part 7,
+  `/api/v1/ready` returns 503 (`tls_unverified`) in production without it.** Only an explicit `AUTHORITY_DEPLOYMENT=local` (a local
+  `next start`) relaxes that, and readiness then reports `tls: unverified_local`.
 - One role serves every environment that shares this project. Production should get its own project/role, with the role
   limited by `pg_hba`/network policy where the platform allows.
 - Future path: split into `authority_gateway_authorize` and `authority_gateway_admin` roles so the hot path holds no
   function that administers settings, and add signed attestations on semantic evidence (see Part 7 notes).
+
+
+## Part 7 additions
+
+- **`public.authorize_tool_call` no longer exists** (migration `20260930000009`). Historical rows it wrote are untouched. The
+  regression suites 17/18 pin the deterministic semantics through a test-only shim over the gateway functions
+  (`scripts/db-test.mjs`). The Part 5 shadow helpers remain, revoked from every client role, cannot decide or reserve anything.
+- **Installation administration is server-verified**: `gateway.github_*` take the verified user id from the Next server and
+  re-derive that user's role from `tenant_memberships` in SQL. The gateway credential is server-only, so a browser cannot call them.
+- **Tenant ↔ installation mapping is exclusive**: `github_installations.github_installation_id` is globally unique; a second tenant
+  claiming it gets `installation_unavailable`. Installation ids from the callback URL are only *claims*, verified with GitHub's
+  OAuth flow (`GET /user/installations`) and bound to a hashed, single-use, user-bound state nonce held in an HttpOnly cookie.
+- **Approver identity is the signed-in user** (`decide_runtime_approval` runs in the approver's own session): self-approval and
+  distinct-approver checks consider every principal row that user holds.

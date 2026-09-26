@@ -2,7 +2,7 @@
 
 Base path `/api/v1`. All endpoints return JSON with `Cache-Control: no-store` and an `X-Request-Id` header. Agents
 authenticate with a runtime key: `Authorization: Bearer authority_rk_…`. No Supabase session is involved.
-**Part 6 executes no external tool** — every response that mentions a capability says `simulation: true`.
+**Tools with a real connector (`github.*`) are executed via `POST /api/v1/github/execute`; their responses say `simulation: false`.** All other tools remain simulated (`simulation: true`).
 
 ## `POST /authorize` — authorize a call and issue a capability
 
@@ -135,3 +135,30 @@ Administrators revoke from the dashboard (`revoke_capability()`, security_admin+
 | `INTERNAL_ERROR`       | 500  | generic                                                                |
 
 Failed authentication attempts are audited (`agent_auth_events`: only a 21-character key prefix, never the key).
+
+
+## Part 7 endpoints
+
+### `POST /api/v1/github/execute`
+
+Bearer runtime key. Body (strict): `capability`, `tool`, `operation`, `resource` (`owner/repo`), `arguments`, `idempotencyKey`.
+The agent supplies **no URL, method or path**. Responses:
+
+- `200 { result: "succeeded" | "succeeded_noop", executionId, receiptId, execution: { mode: "mock"|"live", simulated }, resource, data }`
+- `200 { replayed: true, status, receipt }` — the same idempotency key after the execution finished (result body is not stored).
+- `4xx { error: { code }, executionId?, status: "released" | "failed" }` — `released` means nothing was sent and the use was returned.
+- `504 { error: { code: "EXECUTION_INDETERMINATE" }, status: "indeterminate" }` — the write's outcome is unknown; **not retried**.
+- `409 EXECUTION_IN_PROGRESS`, `403 REPOSITORY_NOT_BOUND|REPOSITORY_NOT_ALLOWED|INSTALLATION_UNAVAILABLE|SCOPE_MISMATCH`,
+  `409 CAPABILITY_ALREADY_USED|CAPABILITY_REVOKED|CAPABILITY_EXPIRED|IDEMPOTENCY_CONFLICT`, `503 CONNECTOR_DISABLED|CONNECTOR_NOT_CONFIGURED`.
+
+### `GET /api/v1/approvals/{id}`
+
+Bearer runtime key (only the requesting agent's own approvals; others are `404`). `{ approvalId, state, requiredApprovals, approvals,
+expiresAt, reason }`, state ∈ `pending | approved | rejected | expired | stale | consumed`. When `require_approval` is returned by
+`/authorize`, the response includes `approval: { id, state, statusUrl, … }`. After `approved`, re-call `/authorize` with the same
+idempotency key and arguments to receive the capability.
+
+### GitHub App endpoints (browser / GitHub, not agents)
+
+`POST /api/github/connect`, `GET /api/github/setup`, `GET /api/github/oauth/callback`, `POST /api/github/webhook`
+(HMAC-SHA256 `X-Hub-Signature-256`, delivery-id de-duplication).

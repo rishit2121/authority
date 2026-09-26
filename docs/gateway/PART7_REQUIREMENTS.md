@@ -1,3 +1,8 @@
+> **Status (Part 7 delivered):** items 1–12 and 16 are implemented — see [../github/CONNECTOR.md](../github/CONNECTOR.md). Item 13:
+> production readiness now fails without `GATEWAY_DATABASE_CA` (the authorize/admin role split and signed evidence remain open). Items 14
+> (token re-delivery) and 15 (real-provider calibration) remain open. The App key lives in the deployment secret boundary (env / ignored
+> file) rather than Supabase Vault; nothing secret is stored in ordinary tables.
+
 # Part 7 (first real GitHub connector): exact requirements
 
 Part 6 delivers everything upstream of execution. Part 7 replaces the _simulated_ step of
