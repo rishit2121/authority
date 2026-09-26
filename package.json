@@ -22,7 +22,8 @@
     "db:test": "node scripts/db-test.mjs",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
-    "db:reset": "supabase db reset"
+    "db:reset": "supabase db reset",
+    "semantic:eval": "SEMANTIC_EVAL_WRITE=1 vitest run src/tests/unit/semantic/eval.test.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
