@@ -1,6 +1,9 @@
 import { presentDecisionStatus } from "@/lib/authorization/decision-status";
 import type { DecisionStatus } from "@/lib/domain";
+import { SemanticEvidenceDetail } from "@/components/semantic/SemanticEvidenceDetail";
+import { SemanticShadowBadge } from "@/components/semantic/SemanticShadowBadge";
 import { summarizeReasonCodes } from "@/lib/runtime/reason-codes";
+import { EVIDENCE_COLUMNS, RISK_ORDER, toEvidenceView } from "@/lib/semantic/read-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 interface RuntimeRow {
@@ -61,6 +64,17 @@ export default async function RuntimePage({
         .in("id", toolRequestIds)
     : { data: [] };
 
+  const decisionIds = decisionRows.map((d) => d.id);
+  const { data: evidenceRows } = decisionIds.length
+    ? await context.supabase
+        .from("semantic_shadow_evaluations")
+        .select(EVIDENCE_COLUMNS)
+        .in("authorization_decision_id", decisionIds)
+    : { data: [] };
+  const evidenceByDecision = new Map(
+    (evidenceRows ?? []).map((r) => [r.authorization_decision_id, toEvidenceView(r)]),
+  );
+
   const toolRequestById = new Map((toolRequestRows ?? []).map((r) => [r.id, r]));
   const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
 
@@ -91,7 +105,19 @@ export default async function RuntimePage({
     .filter((row) => !params.agentId || row.agentId === params.agentId)
     .filter((row) => !params.taskId || row.taskId === params.taskId)
     .filter((row) => !params.tool || row.tool === params.tool)
-    .filter((row) => !params.outcome || row.outcome === params.outcome);
+    .filter((row) => !params.outcome || row.outcome === params.outcome)
+    .filter(
+      (row) =>
+        !params.risk ||
+        (evidenceByDecision.get(row.decisionId)?.riskLevel ?? "not_evaluated") === params.risk,
+    )
+    .filter((row) => !params.provider || evidenceByDecision.get(row.decisionId)?.provider === params.provider)
+    .filter(
+      (row) =>
+        !params.disagreement || evidenceByDecision.get(row.decisionId)?.disagreement === params.disagreement,
+    );
+
+  const providers = Array.from(new Set((evidenceRows ?? []).map((e) => e.provider))).sort();
 
   const outcomes = Array.from(new Set(decisionRows.map((d) => d.outcome))).sort();
   const tools = Array.from(new Set(rows.map((r) => r.tool))).sort();
@@ -107,6 +133,16 @@ export default async function RuntimePage({
           deterministically — it never calls an external tool, so nothing below reflects real execution.
         </p>
       </header>
+
+      <p
+        data-testid="semantic-shadow-notice"
+        className="max-w-3xl rounded-lg border border-outline-variant/30 bg-surface-container-low p-space-md font-body-sm text-body-sm text-on-surface-variant"
+      >
+        Semantic risk is <strong>shadow only</strong>: it is recorded next to each decision but never changes
+        it, consumes budget, or grants anything. It is unattested evidence — direct callers of the
+        authorization RPC can bypass any check made outside the database, so semantic enforcement is
+        unavailable.
+      </p>
 
       <form className="flex flex-wrap items-center gap-2" method="get">
         <select
@@ -145,6 +181,42 @@ export default async function RuntimePage({
             </option>
           ))}
         </select>
+        <select
+          name="risk"
+          defaultValue={params.risk ?? ""}
+          aria-label="Semantic risk"
+          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+        >
+          <option value="">Any semantic risk</option>
+          {[...RISK_ORDER, "not_evaluated"].map((risk) => (
+            <option key={risk} value={risk}>
+              {risk.replace("_", " ")}
+            </option>
+          ))}
+        </select>
+        <select
+          name="provider"
+          defaultValue={params.provider ?? ""}
+          aria-label="Semantic provider"
+          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+        >
+          <option value="">Any provider</option>
+          {providers.map((provider) => (
+            <option key={provider} value={provider}>
+              {provider}
+            </option>
+          ))}
+        </select>
+        <select
+          name="disagreement"
+          defaultValue={params.disagreement ?? ""}
+          aria-label="Disagreement"
+          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+        >
+          <option value="">Any disagreement</option>
+          <option value="semantic_flags_permitted">Semantic flags a permitted request</option>
+          <option value="semantic_clears_denied">Semantic clears a denied request</option>
+        </select>
         <button
           type="submit"
           className="rounded border border-outline-variant/40 bg-surface-container-high px-3 py-1 font-label-sm text-label-sm text-on-surface"
@@ -157,19 +229,21 @@ export default async function RuntimePage({
         <p className="font-body-sm text-body-sm text-outline">No runtime authorization requests yet.</p>
       ) : (
         <div className="overflow-auto rounded-xl border border-outline-variant/30 bg-surface-container">
-          <table className="w-full min-w-[960px] border-collapse text-left">
+          <table className="w-full min-w-[1120px] border-collapse text-left">
             <caption className="sr-only">Recent runtime authorization decisions</caption>
             <thead>
               <tr className="border-b border-outline-variant/30">
-                {["Time", "Agent", "Tool", "Status", "Reason", "Budget", "Contract"].map((heading) => (
-                  <th
-                    key={heading}
-                    scope="col"
-                    className="whitespace-nowrap px-space-lg py-space-md font-label-caps text-label-caps uppercase tracking-widest text-outline"
-                  >
-                    {heading}
-                  </th>
-                ))}
+                {["Time", "Agent", "Tool", "Status", "Reason", "Semantic (shadow)", "Budget", "Contract"].map(
+                  (heading) => (
+                    <th
+                      key={heading}
+                      scope="col"
+                      className="whitespace-nowrap px-space-lg py-space-md font-label-caps text-label-caps uppercase tracking-widest text-outline"
+                    >
+                      {heading}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
@@ -194,6 +268,18 @@ export default async function RuntimePage({
                     </td>
                     <td className="px-space-lg py-space-md font-body-sm text-body-sm text-on-surface-variant">
                       {summarizeReasonCodes(row.reasonCodes)}
+                    </td>
+                    <td className="px-space-lg py-space-md" data-testid="semantic-cell">
+                      <SemanticShadowBadge evidence={evidenceByDecision.get(row.decisionId)} />
+                      {evidenceByDecision.get(row.decisionId)?.disagreement &&
+                      evidenceByDecision.get(row.decisionId)?.disagreement !== "none" ? (
+                        <span className="mt-1 block font-mono-code text-[10px] text-secondary">
+                          ⚠ disagrees with deterministic decision
+                        </span>
+                      ) : null}
+                      {evidenceByDecision.get(row.decisionId) ? (
+                        <SemanticEvidenceDetail evidence={evidenceByDecision.get(row.decisionId)!} />
+                      ) : null}
                     </td>
                     <td className="whitespace-nowrap px-space-lg py-space-md font-mono-code text-[11px] text-outline">
                       {row.capabilityId ? "reserved" : "—"}

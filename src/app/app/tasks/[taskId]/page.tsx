@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { SemanticShadowPanel, type SemanticPanelRow } from "@/components/semantic/SemanticShadowPanel";
 import { TaskInvestigationView } from "@/components/task/TaskInvestigationView";
 import { loadTaskInvestigation } from "@/lib/data/task";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { EVIDENCE_COLUMNS, toEvidenceView } from "@/lib/semantic/read-model";
 
 export const metadata: Metadata = {
   title: "Task investigation",
@@ -21,10 +23,42 @@ export const metadata: Metadata = {
  */
 export default async function TaskInvestigationPage({ params }: { params: Promise<{ taskId: string }> }) {
   const { taskId } = await params;
-  const { repositories } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
+  const { repositories, context } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
 
   const investigation = await loadTaskInvestigation(taskId, repositories);
   if (!investigation) notFound();
 
-  return <TaskInvestigationView investigation={investigation} />;
+  // Semantic shadow observations, read through the caller's own RLS scope and
+  // rendered beside — never merged into — the deterministic decisions.
+  const [{ data: evidenceRows }, { data: decisionRows }] = await Promise.all([
+    context.supabase.from("semantic_shadow_evaluations").select(EVIDENCE_COLUMNS).eq("task_id", taskId),
+    context.supabase
+      .from("authorization_decisions")
+      .select("id, outcome, tool_request_id, created_at")
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
+  const requestIds = (decisionRows ?? []).map((d) => d.tool_request_id);
+  const { data: requestRows } = requestIds.length
+    ? await context.supabase.from("tool_requests").select("id, tool").in("id", requestIds)
+    : { data: [] };
+  const toolById = new Map((requestRows ?? []).map((r) => [r.id, r.tool]));
+  const evidenceByDecision = new Map(
+    (evidenceRows ?? []).map((r) => [r.authorization_decision_id, toEvidenceView(r)]),
+  );
+  const panelRows: SemanticPanelRow[] = (decisionRows ?? []).map((d) => ({
+    decisionId: d.id,
+    tool: toolById.get(d.tool_request_id) ?? "unknown",
+    outcome: d.outcome,
+    requestedAt: d.created_at,
+    evidence: evidenceByDecision.get(d.id),
+  }));
+
+  return (
+    <div className="flex flex-col gap-space-lg">
+      <TaskInvestigationView investigation={investigation} />
+      <SemanticShadowPanel rows={panelRows} />
+    </div>
+  );
 }

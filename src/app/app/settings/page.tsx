@@ -1,10 +1,140 @@
-import { PlaceholderSection } from "@/components/dashboard/PlaceholderSection";
+import { SemanticSettingsForm } from "@/components/semantic/SemanticSettingsForm";
+import { TENANT_ROLE_RANK } from "@/lib/domain";
+import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { snapshotBreakers } from "@/lib/semantic/circuit-breaker";
+import { getSemanticProviderEnv } from "@/lib/semantic/openai-compatible-provider";
+import { EVIDENCE_COLUMNS, summarizeHealth, toEvidenceView } from "@/lib/semantic/read-model";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const { identity, context } = await createRepositoriesForCurrentTenant("/app/settings");
+
+  const { data: settings } = await context.supabase
+    .from("semantic_settings")
+    .select("mode, provider, model, timeout_ms")
+    .eq("tenant_id", identity.tenant.tenantId)
+    .maybeSingle();
+
+  const { data: evidenceRows } = await context.supabase
+    .from("semantic_shadow_evaluations")
+    .select(EVIDENCE_COLUMNS)
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  const health = summarizeHealth((evidenceRows ?? []).map(toEvidenceView));
+  const breakers = snapshotBreakers();
+  const canEdit = TENANT_ROLE_RANK[identity.role] >= TENANT_ROLE_RANK.security_admin;
+  const mode = settings?.mode === "shadow" ? "shadow" : "off";
+
   return (
-    <PlaceholderSection
-      title="Settings"
-      description="Tenant configuration, retention windows and audit export."
-    />
+    <div className="flex flex-col gap-space-lg">
+      <header>
+        <h1 className="font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
+          Settings
+        </h1>
+        <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
+          Tenant configuration for semantic risk evaluation. Retention windows and audit export are not yet
+          available.
+        </p>
+      </header>
+
+      <section
+        aria-labelledby="semantic-settings-heading"
+        className="rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg"
+      >
+        <h2
+          id="semantic-settings-heading"
+          className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+        >
+          Semantic risk evaluation
+        </h2>
+        <p className="mb-space-md mt-space-sm max-w-2xl font-body-sm text-body-sm text-on-surface-variant">
+          The deterministic engine remains the security boundary. Semantic models add evidence beside each
+          decision; they cannot allow, widen, activate or grant anything.
+        </p>
+        <SemanticSettingsForm
+          canEdit={canEdit}
+          apiKeyConfigured={getSemanticProviderEnv() !== null}
+          initial={{
+            mode,
+            provider: settings?.provider ?? "mock",
+            model: settings?.model ?? "mock-heuristic",
+            timeoutMs: settings?.timeout_ms ?? 800,
+          }}
+        />
+      </section>
+
+      <section
+        aria-labelledby="semantic-health-heading"
+        className="rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg"
+      >
+        <h2
+          id="semantic-health-heading"
+          className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+        >
+          Provider health
+        </h2>
+        <p className="mt-space-sm max-w-2xl font-body-sm text-body-sm text-on-surface-variant">
+          Computed from the most recent {evidenceRows?.length ?? 0} persisted shadow evaluations.
+          Circuit-breaker state below is per server process and resets on restart.
+        </p>
+        {health.length === 0 ? (
+          <p className="mt-space-md font-body-sm text-body-sm text-outline">
+            No semantic evaluations recorded yet.
+          </p>
+        ) : (
+          <div className="mt-space-md overflow-auto">
+            <table className="w-full min-w-[640px] border-collapse text-left font-mono-code text-[11px]">
+              <caption className="sr-only">Semantic provider health</caption>
+              <thead>
+                <tr className="border-b border-outline-variant/30 text-outline">
+                  {[
+                    "Provider / model",
+                    "Evaluations",
+                    "OK",
+                    "Timeout",
+                    "Error",
+                    "Unavailable",
+                    "Circuit open",
+                    "p50",
+                    "p95",
+                  ].map((h) => (
+                    <th key={h} scope="col" className="px-2 py-1 font-normal">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {health.map((h) => (
+                  <tr
+                    key={h.provider}
+                    className="border-b border-outline-variant/20 last:border-b-0 text-on-surface"
+                  >
+                    <td className="px-2 py-1">{h.provider}</td>
+                    <td className="px-2 py-1">{h.total}</td>
+                    <td className="px-2 py-1">{h.ok}</td>
+                    <td className="px-2 py-1">{h.timeout}</td>
+                    <td className="px-2 py-1">{h.error}</td>
+                    <td className="px-2 py-1">{h.unavailable}</td>
+                    <td className="px-2 py-1">{h.circuitOpen}</td>
+                    <td className="px-2 py-1">{h.p50LatencyMs} ms</td>
+                    <td className="px-2 py-1">{h.p95LatencyMs} ms</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {breakers.length > 0 ? (
+          <ul className="mt-space-md font-mono-code text-[11px] text-on-surface-variant">
+            {breakers.map((b) => (
+              <li key={b.key}>
+                breaker {b.key}: {b.state} ({b.consecutiveFailures} consecutive failures)
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+    </div>
   );
 }
