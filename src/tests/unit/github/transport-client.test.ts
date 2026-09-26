@@ -21,7 +21,9 @@ function stubFetch(impl: (url: URL, init: RequestInit) => Response | Promise<Res
 
 describe("LiveGithubTransport egress", () => {
   it("only ever calls api.github.com over https, with the credential in the Authorization header", async () => {
-    const calls = stubFetch(() => new Response('{"ok":true}', { status: 200, headers: { "x-github-request-id": "ABC:1" } }));
+    const calls = stubFetch(
+      () => new Response('{"ok":true}', { status: 200, headers: { "x-github-request-id": "ABC:1" } }),
+    );
     const res = await new LiveGithubTransport().send(req, okAuth, { timeoutMs: 1000 });
     expect(res).toMatchObject({ status: 200, requestId: "ABC:1", body: { ok: true } });
     expect(calls).toHaveLength(1);
@@ -35,44 +37,79 @@ describe("LiveGithubTransport egress", () => {
 
   it("refuses to attach a credential of the wrong kind to a route", async () => {
     const calls = stubFetch(() => new Response("{}", { status: 200 }));
-    await expect(new LiveGithubTransport().send(req, { kind: "app_jwt", token: "x" }, { timeoutMs: 1000 })).rejects.toBeInstanceOf(TransportError);
+    await expect(
+      new LiveGithubTransport().send(req, { kind: "app_jwt", token: "x" }, { timeoutMs: 1000 }),
+    ).rejects.toBeInstanceOf(TransportError);
     expect(calls).toHaveLength(0);
   });
 
   it("never follows a redirect, whatever the status or host", async () => {
     for (const status of [301, 302, 307, 308]) {
-      const calls = stubFetch(() => new Response(null, { status, headers: { location: "https://evil.example/steal" } }));
-      await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 1000 })).rejects.toMatchObject({ kind: "redirect" });
+      const calls = stubFetch(
+        () => new Response(null, { status, headers: { location: "https://evil.example/steal" } }),
+      );
+      await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 1000 })).rejects.toMatchObject({
+        kind: "redirect",
+      });
       expect(calls).toHaveLength(1);
     }
   });
 
   it("caps response size (declared and streamed)", async () => {
-    stubFetch(() => new Response("{}", { status: 200, headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) } }));
-    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 1000 })).rejects.toMatchObject({ kind: "too_large" });
+    stubFetch(
+      () =>
+        new Response("{}", { status: 200, headers: { "content-length": String(MAX_RESPONSE_BYTES + 1) } }),
+    );
+    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 1000 })).rejects.toMatchObject({
+      kind: "too_large",
+    });
     stubFetch(() => new Response(new Uint8Array(MAX_RESPONSE_BYTES + 10), { status: 200 }));
-    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 1000 })).rejects.toMatchObject({ kind: "too_large" });
+    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 1000 })).rejects.toMatchObject({
+      kind: "too_large",
+    });
   });
 
   it("times out", async () => {
-    stubFetch((_url, init) => new Promise((_res, rej) => (init.signal as AbortSignal).addEventListener("abort", () => rej(new Error("aborted")))));
-    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 20 })).rejects.toMatchObject({ kind: "timeout" });
+    stubFetch(
+      (_url, init) =>
+        new Promise((_res, rej) =>
+          (init.signal as AbortSignal).addEventListener("abort", () => rej(new Error("aborted"))),
+        ),
+    );
+    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 20 })).rejects.toMatchObject({
+      kind: "timeout",
+    });
   });
 
   it("maps network errors and unparseable bodies", async () => {
     stubFetch(() => Promise.reject(new Error("ECONNRESET")));
-    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 100 })).rejects.toMatchObject({ kind: "network" });
+    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 100 })).rejects.toMatchObject({
+      kind: "network",
+    });
     stubFetch(() => new Response("<html>", { status: 200 }));
-    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 100 })).rejects.toMatchObject({ kind: "bad_json" });
+    await expect(new LiveGithubTransport().send(req, okAuth, { timeoutMs: 100 })).rejects.toMatchObject({
+      kind: "bad_json",
+    });
   });
 });
 
 describe("failure classification", () => {
   const client = (impl: () => Promise<GithubHttpResponse>) =>
     new GithubClient({ send: impl } as GithubTransport, () => "jwt", "mock");
-  const resp = (status: number, extra: Partial<GithubHttpResponse> = {}): GithubHttpResponse => ({ status, requestId: null, rateLimitRemaining: null, retryAfterSeconds: null, body: null, ...extra });
+  const resp = (status: number, extra: Partial<GithubHttpResponse> = {}): GithubHttpResponse => ({
+    status,
+    requestId: null,
+    rateLimitRemaining: null,
+    retryAfterSeconds: null,
+    body: null,
+    ...extra,
+  });
   const READ = req;
-  const WRITE = { route: "createRef" as const, params: { owner: "acme", repo: "widgets" }, body: { ref: "refs/heads/x", sha: "0".repeat(40) } };
+  const WRITE = {
+    route: "createRef" as const,
+    params: { owner: "acme", repo: "widgets" },
+    body: { ref: "refs/heads/x", sha: "0".repeat(40) },
+  };
 
   it.each([
     [401, "AUTH_REJECTED"],
@@ -82,19 +119,32 @@ describe("failure classification", () => {
     [422, "UNPROCESSABLE"],
     [400, "HTTP_ERROR"],
   ])("treats a %s on a write as a DEFINITE failure (%s)", async (status, code) => {
-    await expect(client(async () => resp(status)).request(WRITE, okAuth)).rejects.toMatchObject({ name: "GithubDefiniteError", code });
+    await expect(client(async () => resp(status)).request(WRITE, okAuth)).rejects.toMatchObject({
+      name: "GithubDefiniteError",
+      code,
+    });
   });
 
   it("recognizes primary and secondary rate limits as definite", async () => {
-    await expect(client(async () => resp(403, { rateLimitRemaining: 0 })).request(WRITE, okAuth)).rejects.toMatchObject({ code: "RATE_LIMITED" });
-    await expect(client(async () => resp(403, { retryAfterSeconds: 60 })).request(WRITE, okAuth)).rejects.toMatchObject({ code: "RATE_LIMITED" });
-    await expect(client(async () => resp(429)).request(READ, okAuth)).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    await expect(
+      client(async () => resp(403, { rateLimitRemaining: 0 })).request(WRITE, okAuth),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    await expect(
+      client(async () => resp(403, { retryAfterSeconds: 60 })).request(WRITE, okAuth),
+    ).rejects.toMatchObject({ code: "RATE_LIMITED" });
+    await expect(client(async () => resp(429)).request(READ, okAuth)).rejects.toMatchObject({
+      code: "RATE_LIMITED",
+    });
   });
 
   it("treats a 5xx on a WRITE as indeterminate but on a READ as a definite failure", async () => {
     for (const status of [500, 502, 503, 504]) {
-      await expect(client(async () => resp(status)).request(WRITE, okAuth)).rejects.toBeInstanceOf(GithubIndeterminateError);
-      await expect(client(async () => resp(status)).request(READ, okAuth)).rejects.toBeInstanceOf(GithubDefiniteError);
+      await expect(client(async () => resp(status)).request(WRITE, okAuth)).rejects.toBeInstanceOf(
+        GithubIndeterminateError,
+      );
+      await expect(client(async () => resp(status)).request(READ, okAuth)).rejects.toBeInstanceOf(
+        GithubDefiniteError,
+      );
     }
   });
 
@@ -112,14 +162,20 @@ describe("failure classification", () => {
     const c = client(async () => {
       throw new TransportError("redirect");
     });
-    await expect(c.request(WRITE, okAuth)).rejects.toMatchObject({ name: "GithubDefiniteError", code: "REDIRECT_REJECTED" });
+    await expect(c.request(WRITE, okAuth)).rejects.toMatchObject({
+      name: "GithubDefiniteError",
+      code: "REDIRECT_REJECTED",
+    });
   });
 
   it("treats a local route-building error as definite (nothing was sent)", async () => {
     const c = client(async () => {
       throw new Error("RouteBuildError");
     });
-    await expect(c.request(WRITE, okAuth)).rejects.toMatchObject({ name: "GithubDefiniteError", code: "REQUEST_REJECTED_LOCALLY" });
+    await expect(c.request(WRITE, okAuth)).rejects.toMatchObject({
+      name: "GithubDefiniteError",
+      code: "REQUEST_REJECTED_LOCALLY",
+    });
   });
 
   it("lets a caller tolerate specific statuses (existence probes)", async () => {

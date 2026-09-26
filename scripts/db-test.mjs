@@ -67,7 +67,6 @@ $harness$;
 grant execute on function public.t(text) to authenticated;
 `;
 
-
 // Suites 17 and 18 pin the deterministic engine's semantics through the Part 4
 // `public.authorize_tool_call()` signature, which no longer exists in the
 // schema. This TEST-ONLY shim (rolled back with each suite) re-creates that

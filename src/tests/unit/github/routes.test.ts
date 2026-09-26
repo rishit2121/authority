@@ -5,7 +5,11 @@ import { buildUrl, ROUTES, RouteBuildError, type RouteRequest } from "@/lib/gith
 
 describe("fixed route table", () => {
   it("builds every URL on api.github.com over https", () => {
-    const req: RouteRequest = { route: "getContents", params: { owner: "acme", repo: "widgets", path: "src/a b.ts".replace(" ", "_") }, query: { ref: "main" } };
+    const req: RouteRequest = {
+      route: "getContents",
+      params: { owner: "acme", repo: "widgets", path: "src/a b.ts".replace(" ", "_") },
+      query: { ref: "main" },
+    };
     const { url, method } = buildUrl(req);
     expect(url.origin).toBe(GITHUB_API_ORIGIN);
     expect(url.protocol).toBe("https:");
@@ -14,12 +18,16 @@ describe("fixed route table", () => {
   });
 
   it("has exactly one method per route and never exposes DELETE for repository content", () => {
-    const deletes = Object.entries(ROUTES).filter(([, r]) => r.method === "DELETE").map(([id]) => id);
+    const deletes = Object.entries(ROUTES)
+      .filter(([, r]) => r.method === "DELETE")
+      .map(([id]) => id);
     expect(deletes).toEqual(["deleteInstallation"]);
     // No route can reach secrets, actions, hooks, admin, collaborators, releases or repository deletion.
     for (const r of Object.values(ROUTES)) {
       const joined = r.segments.join("/");
-      expect(joined).not.toMatch(/secrets|actions|hooks|collaborators|releases|keys|environments|rulesets|protection/);
+      expect(joined).not.toMatch(
+        /secrets|actions|hooks|collaborators|releases|keys|environments|rulesets|protection/,
+      );
     }
     expect(Object.keys(ROUTES).sort()).toMatchInlineSnapshot(`
       [
@@ -43,12 +51,30 @@ describe("fixed route table", () => {
   });
 
   it("encodes each path segment and refuses anything that could escape the template", () => {
-    const attacks = ["../admin", "a/../b", "a/./b", "a?x=1", "a#f", "a%2f..%2f", "a\\b", "//evil.example", "a b", "x:y", "a\n", ""];
+    const attacks = [
+      "../admin",
+      "a/../b",
+      "a/./b",
+      "a?x=1",
+      "a#f",
+      "a%2f..%2f",
+      "a\\b",
+      "//evil.example",
+      "a b",
+      "x:y",
+      "a\n",
+      "",
+    ];
     for (const path of attacks) {
-      expect(() => buildUrl({ route: "getContents", params: { owner: "acme", repo: "widgets", path } }), JSON.stringify(path)).toThrow(RouteBuildError);
+      expect(
+        () => buildUrl({ route: "getContents", params: { owner: "acme", repo: "widgets", path } }),
+        JSON.stringify(path),
+      ).toThrow(RouteBuildError);
     }
     for (const owner of ["ac me", "acme/x", "a?b", "..", "a:b", "https://evil.example"]) {
-      expect(() => buildUrl({ route: "getRepository", params: { owner, repo: "w" } }), owner).toThrow(RouteBuildError);
+      expect(() => buildUrl({ route: "getRepository", params: { owner, repo: "w" } }), owner).toThrow(
+        RouteBuildError,
+      );
     }
   });
 
@@ -65,8 +91,16 @@ describe("fixed route table", () => {
   });
 
   it("only accepts declared query parameters", () => {
-    expect(() => buildUrl({ route: "getIssue", params: { owner: "a", repo: "b", number: 1 }, query: { per_page: 1 } })).toThrow(RouteBuildError);
-    expect(() => buildUrl({ route: "getContents", params: { owner: "a", repo: "b", path: "x" }, query: { ref: "main", extra: "1" } })).toThrow(RouteBuildError);
+    expect(() =>
+      buildUrl({ route: "getIssue", params: { owner: "a", repo: "b", number: 1 }, query: { per_page: 1 } }),
+    ).toThrow(RouteBuildError);
+    expect(() =>
+      buildUrl({
+        route: "getContents",
+        params: { owner: "a", repo: "b", path: "x" },
+        query: { ref: "main", extra: "1" },
+      }),
+    ).toThrow(RouteBuildError);
   });
 
   it("requires every path parameter", () => {

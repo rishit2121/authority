@@ -136,7 +136,6 @@ Administrators revoke from the dashboard (`revoke_capability()`, security_admin+
 
 Failed authentication attempts are audited (`agent_auth_events`: only a 21-character key prefix, never the key).
 
-
 ## Part 7 endpoints
 
 ### `POST /api/v1/github/execute`

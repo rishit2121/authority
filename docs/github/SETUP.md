@@ -5,22 +5,22 @@ Everything is built and tested against a mock. To verify against real GitHub you
 
 ## 1. Create the App (GitHub → Settings → Developer settings → GitHub Apps → New)
 
-| Field                                  | Value                                                                                   |
-| -------------------------------------- | --------------------------------------------------------------------------------------- |
-| GitHub App name                        | e.g. `Authority (dev)` — the URL slug becomes `GITHUB_APP_SLUG`                         |
-| Homepage URL                           | your `AUTHORITY_PUBLIC_URL`                                                             |
-| Callback URL                           | `<AUTHORITY_PUBLIC_URL>/api/github/oauth/callback`                                      |
-| Setup URL                              | `<AUTHORITY_PUBLIC_URL>/api/github/setup`                                               |
-| Redirect on update                     | on (so adding/removing repos returns to Authority)                                      |
-| Request user authorization (OAuth) during installation | **off** (Authority runs its own state-bound OAuth step)                  |
-| Expire user authorization tokens       | on                                                                                      |
-| Webhook → Active                       | on                                                                                      |
-| Webhook URL                            | `<AUTHORITY_PUBLIC_URL>/api/github/webhook`                                             |
-| Webhook secret                         | generate a long random string → `GITHUB_WEBHOOK_SECRET`                                 |
-| Repository permissions                 | **Metadata: Read-only; Contents: Read and write; Issues: Read-only; Pull requests: Read and write** — nothing else |
-| Account / organization permissions     | none                                                                                    |
-| Subscribe to events                    | none needed (`installation` and `installation_repositories` are delivered by default)   |
-| Where can it be installed              | Only on this account                                                                    |
+| Field                                                  | Value                                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| GitHub App name                                        | e.g. `Authority (dev)` — the URL slug becomes `GITHUB_APP_SLUG`                                                    |
+| Homepage URL                                           | your `AUTHORITY_PUBLIC_URL`                                                                                        |
+| Callback URL                                           | `<AUTHORITY_PUBLIC_URL>/api/github/oauth/callback`                                                                 |
+| Setup URL                                              | `<AUTHORITY_PUBLIC_URL>/api/github/setup`                                                                          |
+| Redirect on update                                     | on (so adding/removing repos returns to Authority)                                                                 |
+| Request user authorization (OAuth) during installation | **off** (Authority runs its own state-bound OAuth step)                                                            |
+| Expire user authorization tokens                       | on                                                                                                                 |
+| Webhook → Active                                       | on                                                                                                                 |
+| Webhook URL                                            | `<AUTHORITY_PUBLIC_URL>/api/github/webhook`                                                                        |
+| Webhook secret                                         | generate a long random string → `GITHUB_WEBHOOK_SECRET`                                                            |
+| Repository permissions                                 | **Metadata: Read-only; Contents: Read and write; Issues: Read-only; Pull requests: Read and write** — nothing else |
+| Account / organization permissions                     | none                                                                                                               |
+| Subscribe to events                                    | none needed (`installation` and `installation_repositories` are delivered by default)                              |
+| Where can it be installed                              | Only on this account                                                                                               |
 
 (For local testing use a public tunnel URL as `AUTHORITY_PUBLIC_URL`, since GitHub must reach the webhook.)
 

@@ -21,7 +21,16 @@ describe("webhook signature (X-Hub-Signature-256)", () => {
   it("rejects tampering, wrong secrets, bad formats and empty inputs", () => {
     expect(verifyWebhookSignature(secret, payload + "!", good)).toBe(false);
     expect(verifyWebhookSignature("other", payload, good)).toBe(false);
-    for (const h of [null, "", "sha256=", "sha1=757107ea0eb2509fc211221cce984b8a37570b6d", good.toUpperCase(), good.slice(0, -2), `${good}00`, "757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17"]) {
+    for (const h of [
+      null,
+      "",
+      "sha256=",
+      "sha1=757107ea0eb2509fc211221cce984b8a37570b6d",
+      good.toUpperCase(),
+      good.slice(0, -2),
+      `${good}00`,
+      "757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17",
+    ]) {
       expect(verifyWebhookSignature(secret, payload, h), String(h)).toBe(false);
     }
     expect(verifyWebhookSignature("", payload, good)).toBe(false);
@@ -30,10 +39,23 @@ describe("webhook signature (X-Hub-Signature-256)", () => {
 
 describe("webhook payload parsing", () => {
   it("extracts only the fields it acts on", () => {
-    const body = JSON.stringify({ action: "removed", installation: { id: 9001 }, repositories_removed: [{ id: 5 }, { id: "x" }, { id: -1 }], sender: { login: "x" } });
-    expect(parseWebhook("installation_repositories", body)).toEqual({ event: "installation_repositories", action: "removed", installationId: "9001", removedRepositoryIds: [5] });
+    const body = JSON.stringify({
+      action: "removed",
+      installation: { id: 9001 },
+      repositories_removed: [{ id: 5 }, { id: "x" }, { id: -1 }],
+      sender: { login: "x" },
+    });
+    expect(parseWebhook("installation_repositories", body)).toEqual({
+      event: "installation_repositories",
+      action: "removed",
+      installationId: "9001",
+      removedRepositoryIds: [5],
+    });
     expect(parseWebhook("installation", "not json")).toBeNull();
-    expect(parseWebhook("installation", '{"action":"a b","installation":{"id":"9"}}')).toMatchObject({ action: null, installationId: null });
+    expect(parseWebhook("installation", '{"action":"a b","installation":{"id":"9"}}')).toMatchObject({
+      action: null,
+      installationId: null,
+    });
   });
 });
 
@@ -49,7 +71,10 @@ describe("redaction", () => {
   });
 
   it("redacts deeply and leaves ordinary text alone", () => {
-    const v = redactValue({ a: ["x ghp_aB3dE6gH9jK2mN5pQ8sT1vW4yZ7cF0hJ3kL6"], b: { c: "plain text", n: 3 } });
+    const v = redactValue({
+      a: ["x ghp_aB3dE6gH9jK2mN5pQ8sT1vW4yZ7cF0hJ3kL6"],
+      b: { c: "plain text", n: 3 },
+    });
     expect(JSON.stringify(v)).not.toContain("ghp_");
     expect(v.b).toEqual({ c: "plain text", n: 3 });
   });
@@ -90,21 +115,39 @@ describe("connector configuration fails closed", () => {
     expect(executionMode({} as NodeJS.ProcessEnv)).toBe("disabled");
     expect(executionMode({ GITHUB_EXECUTION_MODE: "yes" } as never)).toBe("disabled");
     expect(executionMode({ GITHUB_EXECUTION_MODE: "mock", NODE_ENV: "development" } as never)).toBe("mock");
-    expect(executionMode({ GITHUB_EXECUTION_MODE: "mock", NODE_ENV: "production" } as never)).toBe("disabled");
+    expect(executionMode({ GITHUB_EXECUTION_MODE: "mock", NODE_ENV: "production" } as never)).toBe(
+      "disabled",
+    );
     expect(executionMode({ GITHUB_EXECUTION_MODE: "live" } as never)).toBe("live");
   });
 
   it("reports only the NAMES of missing live variables", () => {
-    const env = { GITHUB_EXECUTION_MODE: "live", NODE_ENV: "production", GITHUB_APP_ID: "1" } as unknown as NodeJS.ProcessEnv;
+    const env = {
+      GITHUB_EXECUTION_MODE: "live",
+      NODE_ENV: "production",
+      GITHUB_APP_ID: "1",
+    } as unknown as NodeJS.ProcessEnv;
     const r = githubReadiness(env);
     expect(r.ready).toBe(false);
-    expect(r.missing).toEqual(expect.arrayContaining(["GITHUB_APP_CLIENT_ID", "GITHUB_APP_CLIENT_SECRET", "GITHUB_APP_SLUG", "GITHUB_WEBHOOK_SECRET", "AUTHORITY_PUBLIC_URL"]));
+    expect(r.missing).toEqual(
+      expect.arrayContaining([
+        "GITHUB_APP_CLIENT_ID",
+        "GITHUB_APP_CLIENT_SECRET",
+        "GITHUB_APP_SLUG",
+        "GITHUB_WEBHOOK_SECRET",
+        "AUTHORITY_PUBLIC_URL",
+      ]),
+    );
     expect(JSON.stringify(r)).not.toContain('"1"');
-    expect(missingLiveConfig({ ...env, GITHUB_APP_PRIVATE_KEY: "-----BEGIN-----" } as never)).not.toContain("GITHUB_APP_PRIVATE_KEY (or _BASE64 / _FILE)");
+    expect(missingLiveConfig({ ...env, GITHUB_APP_PRIVATE_KEY: "-----BEGIN-----" } as never)).not.toContain(
+      "GITHUB_APP_PRIVATE_KEY (or _BASE64 / _FILE)",
+    );
   });
 
   it("requires an explicit public URL in production", () => {
     expect(publicBaseUrl({ NODE_ENV: "production" } as never)).toBeNull();
-    expect(publicBaseUrl({ NODE_ENV: "production", AUTHORITY_PUBLIC_URL: "https://app.example.com/x?y" } as never)).toBe("https://app.example.com");
+    expect(
+      publicBaseUrl({ NODE_ENV: "production", AUTHORITY_PUBLIC_URL: "https://app.example.com/x?y" } as never),
+    ).toBe("https://app.example.com");
   });
 });

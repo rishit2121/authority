@@ -14,8 +14,26 @@ const P = taskBranchPrefix(TASK);
 
 describe("repository full name", () => {
   it("accepts owner/name and rejects everything else", () => {
-    expect(parseRepositoryFullName("acme/widgets")).toMatchObject({ ok: true, value: { owner: "acme", name: "widgets" } });
-    for (const bad of ["acme", "acme/", "/widgets", "a/b/c", "acme/..", "acme/.", "-acme/x", "acme/wid gets", "acme/x?y=1", "https://github.com/a/b", "acme\\x", "", null, 5]) {
+    expect(parseRepositoryFullName("acme/widgets")).toMatchObject({
+      ok: true,
+      value: { owner: "acme", name: "widgets" },
+    });
+    for (const bad of [
+      "acme",
+      "acme/",
+      "/widgets",
+      "a/b/c",
+      "acme/..",
+      "acme/.",
+      "-acme/x",
+      "acme/wid gets",
+      "acme/x?y=1",
+      "https://github.com/a/b",
+      "acme\\x",
+      "",
+      null,
+      5,
+    ]) {
       expect(parseRepositoryFullName(bad as never).ok, String(bad)).toBe(false);
     }
   });
@@ -51,7 +69,8 @@ describe("file paths", () => {
       ["a".repeat(241), "PATH_INVALID"],
       ["", "PATH_INVALID"],
     ];
-    for (const [input, code] of cases) expect(normalizeRepositoryPath(input), input).toEqual({ ok: false, code });
+    for (const [input, code] of cases)
+      expect(normalizeRepositoryPath(input), input).toEqual({ ok: false, code });
   });
 
   it("allows other dot-directories", () => {
@@ -65,7 +84,8 @@ describe("task branches", () => {
   });
 
   it("accepts branches inside the namespace", () => {
-    for (const tail of ["fix", "fix-login", "a/b", "a/b/c", "v1.2"]) expect(validateTaskBranch(`${P}${tail}`, TASK).ok, tail).toBe(true);
+    for (const tail of ["fix", "fix-login", "a/b", "a/b/c", "v1.2"])
+      expect(validateTaskBranch(`${P}${tail}`, TASK).ok, tail).toBe(true);
   });
 
   it("rejects escapes, defaults, protected names and malformed refs", () => {
@@ -87,11 +107,14 @@ describe("task branches", () => {
       [`${P}${"a".repeat(130)}`, "BRANCH_INVALID"],
       [42, "BRANCH_INVALID"],
     ];
-    for (const [input, code] of cases) expect(validateTaskBranch(input, TASK), String(input)).toEqual({ ok: false, code });
+    for (const [input, code] of cases)
+      expect(validateTaskBranch(input, TASK), String(input)).toEqual({ ok: false, code });
   });
 
   it("does not let one task write into another task's namespace", () => {
-    expect(validateTaskBranch(`${taskBranchPrefix("aa000000-0000-4000-8000-000000000001")}x`, TASK).ok).toBe(false);
+    expect(validateTaskBranch(`${taskBranchPrefix("aa000000-0000-4000-8000-000000000001")}x`, TASK).ok).toBe(
+      false,
+    );
   });
 });
 
@@ -99,12 +122,14 @@ describe("read refs and numbers", () => {
   it("validates read refs", () => {
     expect(validateReadRef("main").ok).toBe(true);
     expect(validateReadRef("release/1.0").ok).toBe(true);
-    for (const bad of ["", "..", "a..b", "-x", "a b", "a%2e", "x".repeat(201)]) expect(validateReadRef(bad).ok, bad).toBe(false);
+    for (const bad of ["", "..", "a..b", "-x", "a b", "a%2e", "x".repeat(201)])
+      expect(validateReadRef(bad).ok, bad).toBe(false);
   });
 
   it("parses positive integers strictly", () => {
     expect(parsePositiveInt("12")).toEqual({ ok: true, value: 12 });
     expect(parsePositiveInt(12)).toEqual({ ok: true, value: 12 });
-    for (const bad of ["0", "-1", "1.5", "1e3", "abc", "12345678901", "", null, 1.5, Number.NaN]) expect(parsePositiveInt(bad as never).ok, String(bad)).toBe(false);
+    for (const bad of ["0", "-1", "1.5", "1e3", "abc", "12345678901", "", null, 1.5, Number.NaN])
+      expect(parsePositiveInt(bad as never).ok, String(bad)).toBe(false);
   });
 });

@@ -9,14 +9,14 @@ fixed GitHub calls built server-side from validated parameters (`src/lib/github/
 
 ## Supported operations
 
-| Tool                           | GitHub calls (fixed)                                                     | Installation-token permissions          |
-| ------------------------------ | ------------------------------------------------------------------------ | --------------------------------------- |
-| `github.get_issue`             | `GET /repos/{o}/{r}/issues/{n}`                                          | issues:read, metadata:read              |
-| `github.read_repository`       | `GET /repos/{o}/{r}`, optional `GET …/contents/{path}?ref=`              | contents:read, metadata:read            |
-| `github.create_branch`         | `GET …/git/ref/heads/{b}` ×2, `POST …/git/refs`                          | contents:write, metadata:read           |
-| `github.put_file`              | `GET …/branches/{b}`, `GET …/contents/{path}`, `PUT …/contents/{path}`   | contents:write, metadata:read           |
-| `github.create_pull_request`   | `GET …/pulls?head&base`, `GET …/git/ref`, `POST …/pulls`                 | pull_requests:write, contents:read, metadata:read |
-| `github.get_pull_request`      | `GET …/pulls/{n}`                                                        | pull_requests:read, metadata:read       |
+| Tool                         | GitHub calls (fixed)                                                   | Installation-token permissions                    |
+| ---------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------- |
+| `github.get_issue`           | `GET /repos/{o}/{r}/issues/{n}`                                        | issues:read, metadata:read                        |
+| `github.read_repository`     | `GET /repos/{o}/{r}`, optional `GET …/contents/{path}?ref=`            | contents:read, metadata:read                      |
+| `github.create_branch`       | `GET …/git/ref/heads/{b}` ×2, `POST …/git/refs`                        | contents:write, metadata:read                     |
+| `github.put_file`            | `GET …/branches/{b}`, `GET …/contents/{path}`, `PUT …/contents/{path}` | contents:write, metadata:read                     |
+| `github.create_pull_request` | `GET …/pulls?head&base`, `GET …/git/ref`, `POST …/pulls`               | pull_requests:write, contents:read, metadata:read |
+| `github.get_pull_request`    | `GET …/pulls/{n}`                                                      | pull_requests:read, metadata:read                 |
 
 Deliberately **not** supported and unreachable (no route exists): repository or Actions secrets, organization or
 repository administration, webhook modification, arbitrary API paths or external URLs, repository/branch deletion, force
@@ -31,12 +31,12 @@ else. Any extra permission (or a missing one) on an installation is **drift**: t
 
 ## Credential architecture
 
-| Secret                                   | Where it lives                                             | Persisted in a table? |
-| ---------------------------------------- | ---------------------------------------------------------- | --------------------- |
-| App private key                          | server env `GITHUB_APP_PRIVATE_KEY` / `_BASE64` / `_FILE`  | never                 |
-| Webhook secret, OAuth client secret      | server env                                                 | never                 |
-| Installation access token                | process memory for one execution (`SecretToken`)           | never                 |
-| User-to-server OAuth token               | process memory for one callback                            | never                 |
+| Secret                              | Where it lives                                            | Persisted in a table? |
+| ----------------------------------- | --------------------------------------------------------- | --------------------- |
+| App private key                     | server env `GITHUB_APP_PRIVATE_KEY` / `_BASE64` / `_FILE` | never                 |
+| Webhook secret, OAuth client secret | server env                                                | never                 |
+| Installation access token           | process memory for one execution (`SecretToken`)          | never                 |
+| User-to-server OAuth token          | process memory for one callback                           | never                 |
 
 Persisted (ordinary tables, RLS): installation ids, account login, repository metadata, health, receipts.
 A token is minted **per execution**, restricted to **one repository** and the **permissions that operation needs**

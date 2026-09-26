@@ -31,10 +31,13 @@ export async function GET(): Promise<NextResponse> {
       return NextResponse.json({ status: "not_ready", gateway: "ok", github }, { status: 503, headers });
     }
     const tls = gatewayTlsVerified() ? "verified" : "unverified_local";
-    return NextResponse.json(ok ? { status: "ready", github, tls } : { status: "not_ready", gateway: "unreachable" }, {
-      status: ok ? 200 : 503,
-      headers,
-    });
+    return NextResponse.json(
+      ok ? { status: "ready", github, tls } : { status: "not_ready", gateway: "unreachable" },
+      {
+        status: ok ? 200 : 503,
+        headers,
+      },
+    );
   } catch {
     return NextResponse.json({ status: "not_ready", gateway: "unreachable" }, { status: 503, headers });
   }

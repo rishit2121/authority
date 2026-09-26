@@ -80,7 +80,6 @@ connection limit (bounded to 40). Rotate immediately (below).
 - Future path: split into `authority_gateway_authorize` and `authority_gateway_admin` roles so the hot path holds no
   function that administers settings, and add signed attestations on semantic evidence (see Part 7 notes).
 
-
 ## Part 7 additions
 
 - **`public.authorize_tool_call` no longer exists** (migration `20260930000009`). Historical rows it wrote are untouched. The
@@ -89,7 +88,7 @@ connection limit (bounded to 40). Rotate immediately (below).
 - **Installation administration is server-verified**: `gateway.github_*` take the verified user id from the Next server and
   re-derive that user's role from `tenant_memberships` in SQL. The gateway credential is server-only, so a browser cannot call them.
 - **Tenant ↔ installation mapping is exclusive**: `github_installations.github_installation_id` is globally unique; a second tenant
-  claiming it gets `installation_unavailable`. Installation ids from the callback URL are only *claims*, verified with GitHub's
+  claiming it gets `installation_unavailable`. Installation ids from the callback URL are only _claims_, verified with GitHub's
   OAuth flow (`GET /user/installations`) and bound to a hashed, single-use, user-bound state nonce held in an HttpOnly cookie.
 - **Approver identity is the signed-in user** (`decide_runtime_approval` runs in the approver's own session): self-approval and
   distinct-approver checks consider every principal row that user holds.

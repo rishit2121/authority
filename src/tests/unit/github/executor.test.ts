@@ -9,14 +9,32 @@ const TASK = "dd000000-0000-4000-8000-000000000012";
 const BRANCH = "authority/dd000000/fix";
 
 const reserved = (over: Partial<ReserveResult> = {}): ReserveResult => ({
-  status: "ok", result: "reserved", reasonCode: "RESERVED", executionId: "e1", capabilityId: "c1", taskId: TASK, agentId: "a1",
-  githubInstallationId: "9001", repository: "acme/widgets", defaultBranch: "main", leaseExpiresAt: null, previousStatus: null, previousReceipt: null, ...over,
+  status: "ok",
+  result: "reserved",
+  reasonCode: "RESERVED",
+  executionId: "e1",
+  capabilityId: "c1",
+  taskId: TASK,
+  agentId: "a1",
+  githubInstallationId: "9001",
+  repository: "acme/widgets",
+  defaultBranch: "main",
+  leaseExpiresAt: null,
+  previousStatus: null,
+  previousReceipt: null,
+  ...over,
 });
 
-function harness(options: Partial<Omit<ExecutorDeps, "reserve">> & { reserve?: ReserveResult; mock?: MockGithub } = {}) {
+function harness(
+  options: Partial<Omit<ExecutorDeps, "reserve">> & { reserve?: ReserveResult; mock?: MockGithub } = {},
+) {
   const { reserve: reserveResult, mock: providedMock, ...over } = options;
   const mock = providedMock ?? new MockGithub();
-  const finish = vi.fn(async (i: { category: string }) => ({ status: "ok", receiptId: "r1", finalStatus: i.category === "released" ? "released" : "consumed" }));
+  const finish = vi.fn(async (i: { category: string }) => ({
+    status: "ok",
+    receiptId: "r1",
+    finalStatus: i.category === "released" ? "released" : "consumed",
+  }));
   const dispatch = vi.fn(async () => ({ status: "ok", reason: null as string | null }));
   const reserve = vi.fn(async () => reserveResult ?? reserved());
   const deps: ExecutorDeps = {
@@ -33,13 +51,21 @@ function harness(options: Partial<Omit<ExecutorDeps, "reserve">> & { reserve?: R
 }
 
 const input = (tool: string, args: Record<string, unknown>) => ({
-  credentialSecret: "authority_rk_x".padEnd(40, "0"), tokenHash: "0".repeat(64), tool, operation: tool.split(".")[1], resource: "acme/widgets", args, idempotencyKey: "k",
+  credentialSecret: "authority_rk_x".padEnd(40, "0"),
+  tokenHash: "0".repeat(64),
+  tool,
+  operation: tool.split(".")[1],
+  resource: "acme/widgets",
+  args,
+  idempotencyKey: "k",
 });
 
 describe("executor (no database)", () => {
   it("does not touch the database or GitHub when the connector is disabled or unconfigured", async () => {
     const h = harness({ mode: () => "disabled" });
-    expect((await executeGithubOperation(input("github.get_issue", { issue_number: "1" }), h.deps)).http).toBe(503);
+    expect(
+      (await executeGithubOperation(input("github.get_issue", { issue_number: "1" }), h.deps)).http,
+    ).toBe(503);
     const h2 = harness({ ready: () => ({ ready: false, missing: ["GITHUB_APP_ID"] }) });
     const r = await executeGithubOperation(input("github.get_issue", { issue_number: "1" }), h2.deps);
     expect(r.http).toBe(503);
@@ -51,7 +77,13 @@ describe("executor (no database)", () => {
 
   it("rejects tools the connector does not implement before reserving anything", async () => {
     const h = harness();
-    for (const tool of ["github.delete_branch", "github.get_repository_secrets", "github.push_commit", "gmail.send_email", "stripe.issue_refund"]) {
+    for (const tool of [
+      "github.delete_branch",
+      "github.get_repository_secrets",
+      "github.push_commit",
+      "gmail.send_email",
+      "stripe.issue_refund",
+    ]) {
       const r = await executeGithubOperation(input(tool, {}), h.deps);
       expect(r.http, tool).toBe(400);
       expect(r.body.error).toMatchObject({ code: "OPERATION_NOT_SUPPORTED" });
@@ -77,7 +109,9 @@ describe("executor (no database)", () => {
   });
 
   it("never sends a request when the dispatch re-check blocks", async () => {
-    const h = harness({ dispatch: (async () => ({ status: "blocked", reason: "CAPABILITY_REVOKED" })) as never });
+    const h = harness({
+      dispatch: (async () => ({ status: "blocked", reason: "CAPABILITY_REVOKED" })) as never,
+    });
     const r = await executeGithubOperation(input("github.get_issue", { issue_number: "1" }), h.deps);
     expect(r.http).toBe(403);
     expect(h.mock.log.filter((l) => l.repo)).toHaveLength(0);
@@ -96,7 +130,15 @@ describe("executor (no database)", () => {
   it("marks an unexpected internal error after a write started as indeterminate, before one as failed", async () => {
     const h = harness();
     h.mock.repoByName("acme", "widgets")!.issues.set(1, { title: "t", body: "b", state: "open" });
-    const boom = new GithubClient({ send: async () => { throw new Error("boom"); } }, () => "j", "mock");
+    const boom = new GithubClient(
+      {
+        send: async () => {
+          throw new Error("boom");
+        },
+      },
+      () => "j",
+      "mock",
+    );
     const h2 = harness({ client: () => boom });
     const r = await executeGithubOperation(input("github.get_issue", { issue_number: "1" }), h2.deps);
     expect(r.http).toBe(502); // token mint failed: nothing dispatched -> released
@@ -104,14 +146,24 @@ describe("executor (no database)", () => {
   });
 
   it("reports a settlement failure as unknown state and never as success", async () => {
-    const h = harness({ finish: (async () => { throw new Error("db down"); }) as never });
+    const h = harness({
+      finish: (async () => {
+        throw new Error("db down");
+      }) as never,
+    });
     const r = await executeGithubOperation(input("github.get_issue", { issue_number: "1" }), h.deps);
     expect(r.http).toBe(503);
     expect(r.body.error).toMatchObject({ code: "EXECUTION_STATE_UNKNOWN" });
   });
 
   it("returns the recorded state, not a re-execution, for a replayed key", async () => {
-    const h = harness({ reserve: reserved({ result: "replayed", previousStatus: "indeterminate", previousReceipt: { category: "indeterminate" } }) });
+    const h = harness({
+      reserve: reserved({
+        result: "replayed",
+        previousStatus: "indeterminate",
+        previousReceipt: { category: "indeterminate" },
+      }),
+    });
     const r = await executeGithubOperation(input("github.create_branch", { branch: BRANCH }), h.deps);
     expect(r.body).toMatchObject({ replayed: true, status: "indeterminate" });
     expect(h.dispatch).not.toHaveBeenCalled();
@@ -119,7 +171,12 @@ describe("executor (no database)", () => {
   });
 
   it("maps database rejections without leaking anything", async () => {
-    for (const [reason, http] of [["REPOSITORY_NOT_BOUND", 403], ["SCOPE_MISMATCH", 403], ["CAPABILITY_NOT_FOUND", 404], ["CAPABILITY_ALREADY_USED", 409]] as const) {
+    for (const [reason, http] of [
+      ["REPOSITORY_NOT_BOUND", 403],
+      ["SCOPE_MISMATCH", 403],
+      ["CAPABILITY_NOT_FOUND", 404],
+      ["CAPABILITY_ALREADY_USED", 409],
+    ] as const) {
       const h = harness({ reserve: reserved({ result: "rejected", reasonCode: reason, executionId: null }) });
       const r = await executeGithubOperation(input("github.get_issue", { issue_number: "1" }), h.deps);
       expect(r.http).toBe(http);

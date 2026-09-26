@@ -7,8 +7,20 @@ import { approvalById } from "@/lib/gateway/rpc-github";
 import { defaultExecutorDeps, executeGithubOperation } from "@/lib/github/executor";
 import { mockGithub } from "@/lib/github/mock";
 
-import { createGatewayFixture, currentVersions, resetSemanticSettings, type GatewayFixture } from "../gateway-support";
-import { OWNER_A_EMAIL, OWNER_B_EMAIL, TENANT_A_ID, TENANT_B_ID, managementQuery, signInAs } from "../support";
+import {
+  createGatewayFixture,
+  currentVersions,
+  resetSemanticSettings,
+  type GatewayFixture,
+} from "../gateway-support";
+import {
+  OWNER_A_EMAIL,
+  OWNER_B_EMAIL,
+  TENANT_A_ID,
+  TENANT_B_ID,
+  managementQuery,
+  signInAs,
+} from "../support";
 
 /**
  * Approval-to-capability: an approval request bound to the exact runtime call,
@@ -18,7 +30,10 @@ import { OWNER_A_EMAIL, OWNER_B_EMAIL, TENANT_A_ID, TENANT_B_ID, managementQuery
 
 const ACTIONS = JSON.stringify({
   schemaVersion: 1,
-  items: ["github.create_branch", "github.delete_branch", "github.get_issue"].map((tool) => ({ tool, constraints: [] })),
+  items: ["github.create_branch", "github.delete_branch", "github.get_issue"].map((tool) => ({
+    tool,
+    constraints: [],
+  })),
 });
 const ADMIN_EMAIL = "admin.a@authority.test";
 const DEV_EMAIL = "dev.a@authority.test";
@@ -40,19 +55,40 @@ async function setClasses(classes: string[]) {
   `);
 }
 
-async function decide(email: string, requestId: string, decision: "approve" | "reject", tenantId = TENANT_A_ID) {
+async function decide(
+  email: string,
+  requestId: string,
+  decision: "approve" | "reject",
+  tenantId = TENANT_A_ID,
+) {
   const { supabase } = await signInAs(email, tenantId);
-  return supabase.rpc("decide_runtime_approval", { p_request_id: requestId, p_decision: decision, p_note: "test" });
+  return supabase.rpc("decide_runtime_approval", {
+    p_request_id: requestId,
+    p_decision: decision,
+    p_note: "test",
+  });
 }
 
 describe("runtime approval -> capability", () => {
   const fixtures: GatewayFixture[] = [];
   const mk = async (label: string) => {
-    const fx = await createGatewayFixture({ label, actions: ACTIONS, maxToolInvocations: 100, useCurrentVersions: true, githubRepo: "acme/widgets" });
+    const fx = await createGatewayFixture({
+      label,
+      actions: ACTIONS,
+      maxToolInvocations: 100,
+      useCurrentVersions: true,
+      githubRepo: "acme/widgets",
+    });
     fixtures.push(fx);
     return fx;
   };
-  const request = (fx: GatewayFixture, tool: string, args: Record<string, string>, idem: string, extra: Partial<Parameters<typeof authorizeThroughGateway>[0]> = {}) =>
+  const request = (
+    fx: GatewayFixture,
+    tool: string,
+    args: Record<string, string>,
+    idem: string,
+    extra: Partial<Parameters<typeof authorizeThroughGateway>[0]> = {},
+  ) =>
     authorizeThroughGateway({
       credentialSecret: fx.secret,
       taskId: fx.taskId,
@@ -64,8 +100,14 @@ describe("runtime approval -> capability", () => {
       ...currentVersions(),
       ...extra,
     });
-  const branchOf = (fx: GatewayFixture, s: string) => `authority/${fx.taskId.replace(/-/g, "").slice(0, 8)}/${s}`;
-  const openApproval = async (fx: GatewayFixture, tool = "github.create_branch", args?: Record<string, string>, idem = key("appr")) => {
+  const branchOf = (fx: GatewayFixture, s: string) =>
+    `authority/${fx.taskId.replace(/-/g, "").slice(0, 8)}/${s}`;
+  const openApproval = async (
+    fx: GatewayFixture,
+    tool = "github.create_branch",
+    args?: Record<string, string>,
+    idem = key("appr"),
+  ) => {
     const a = args ?? { branch: branchOf(fx, "x") };
     const r = await request(fx, tool, a, idem);
     if (r.kind !== "decision") throw new Error("expected a decision");
@@ -111,12 +153,23 @@ describe("runtime approval -> capability", () => {
     const [row] = (await managementQuery(
       `select tool, resource, risk_class, trigger_kind, status, required_approvals, arguments_hash, contract_version from public.runtime_approval_requests where id = '${approvalId}';`,
     )) as Array<Record<string, unknown>>;
-    expect(row).toMatchObject({ tool: "github.create_branch", resource: "acme/widgets", risk_class: "medium", trigger_kind: "policy_class", status: "pending", required_approvals: 1 });
+    expect(row).toMatchObject({
+      tool: "github.create_branch",
+      resource: "acme/widgets",
+      risk_class: "medium",
+      trigger_kind: "policy_class",
+      status: "pending",
+      required_approvals: 1,
+    });
     expect(row.arguments_hash).toMatch(/^[0-9a-f]{64}$/);
-    const caps = (await managementQuery(`select count(*)::int as n from public.capability_tokens where task_id = '${fx.taskId}';`)) as Array<{ n: number }>;
+    const caps = (await managementQuery(
+      `select count(*)::int as n from public.capability_tokens where task_id = '${fx.taskId}';`,
+    )) as Array<{ n: number }>;
     expect(caps[0].n).toBe(0);
     // Budget was NOT consumed by a request that was never allowed.
-    const budget = (await managementQuery(`select count(*)::int as n from public.capabilities where task_id = '${fx.taskId}';`)) as Array<{ n: number }>;
+    const budget = (await managementQuery(
+      `select count(*)::int as n from public.capabilities where task_id = '${fx.taskId}';`,
+    )) as Array<{ n: number }>;
     expect(budget[0].n).toBe(0);
   });
 
@@ -132,10 +185,17 @@ describe("runtime approval -> capability", () => {
     expect(res.data).toBe("approved");
 
     // The approval alone minted nothing.
-    expect(((await managementQuery(`select count(*)::int as n from public.capability_tokens where task_id = '${fx.taskId}';`)) as Array<{ n: number }>)[0].n).toBe(0);
+    expect(
+      (
+        (await managementQuery(
+          `select count(*)::int as n from public.capability_tokens where task_id = '${fx.taskId}';`,
+        )) as Array<{ n: number }>
+      )[0].n,
+    ).toBe(0);
 
     const minted = await request(fx, "github.create_branch", args, idem);
-    if (minted.kind !== "decision" || !minted.capabilityToken) throw new Error("expected a minted capability");
+    if (minted.kind !== "decision" || !minted.capabilityToken)
+      throw new Error("expected a minted capability");
     expect(minted.commit.finalOutcome).toBe("allow");
     expect(minted.commit.reasonCodes).toContain("APPROVAL_GRANTED");
     const [cap] = (await managementQuery(
@@ -144,7 +204,15 @@ describe("runtime approval -> capability", () => {
     expect(cap.approval_request_id).toBe(approvalId);
 
     const run = await executeGithubOperation(
-      { credentialSecret: fx.secret, tokenHash: hashCapabilityToken(minted.capabilityToken), tool: "github.create_branch", operation: "create_branch", resource: "acme/widgets", args, idempotencyKey: key("exec") },
+      {
+        credentialSecret: fx.secret,
+        tokenHash: hashCapabilityToken(minted.capabilityToken),
+        tool: "github.create_branch",
+        operation: "create_branch",
+        resource: "acme/widgets",
+        args,
+        idempotencyKey: key("exec"),
+      },
       defaultExecutorDeps,
     );
     expect(run.body).toMatchObject({ result: "succeeded" });
@@ -168,7 +236,13 @@ describe("runtime approval -> capability", () => {
     expect(after.commit.finalOutcome).toBe("require_approval");
     // Cannot flip a rejected approval to approved afterwards.
     expect((await decide(ADMIN_EMAIL, approvalId, "approve")).data).toBe("rejected");
-    expect(((await managementQuery(`select count(*)::int as n from public.capability_tokens where task_id = '${fx.taskId}';`)) as Array<{ n: number }>)[0].n).toBe(0);
+    expect(
+      (
+        (await managementQuery(
+          `select count(*)::int as n from public.capability_tokens where task_id = '${fx.taskId}';`,
+        )) as Array<{ n: number }>
+      )[0].n,
+    ).toBe(0);
   });
 
   it("enforces role: developers and viewers cannot decide; another tenant cannot even see it", async () => {
@@ -182,14 +256,18 @@ describe("runtime approval -> capability", () => {
 
   it("forbids self-approval: the task's principal and the agent's owner cannot decide", async () => {
     const fx = await mk("ap-self");
-    await managementQuery(`update public.agents set owner_principal_id = '${ids.admin}' where id = '${fx.agentId}';`);
+    await managementQuery(
+      `update public.agents set owner_principal_id = '${ids.admin}' where id = '${fx.agentId}';`,
+    );
     const { approvalId } = await openApproval(fx);
     const owner = await decide(ADMIN_EMAIL, approvalId, "approve");
     expect(owner.error?.code).toBe("42501");
     expect(owner.error?.message).toMatch(/own/);
 
     const fx2 = await mk("ap-self2");
-    await managementQuery(`update public.tasks set principal_id = '${ids.owner}' where id = '${fx2.taskId}';`);
+    await managementQuery(
+      `update public.tasks set principal_id = '${ids.owner}' where id = '${fx2.taskId}';`,
+    );
     const second = await openApproval(fx2);
     expect((await decide(OWNER_A_EMAIL, second.approvalId, "approve")).error?.code).toBe("42501");
     expect((await decide(ADMIN_EMAIL, second.approvalId, "approve")).data).toBe("approved");
@@ -215,14 +293,24 @@ describe("runtime approval -> capability", () => {
       } finally {
         await setClasses(["medium", "high"]);
       }
-      const [row] = (await managementQuery(`select status, stale_reason from public.runtime_approval_requests where id = '${approvalId}';`)) as Array<{ status: string; stale_reason: string }>;
+      const [row] = (await managementQuery(
+        `select status, stale_reason from public.runtime_approval_requests where id = '${approvalId}';`,
+      )) as Array<{ status: string; stale_reason: string }>;
       expect(row).toMatchObject({ status: "stale", stale_reason: "CONTEXT_CHANGED" });
     });
 
     it("does not mint when policy, integration permissions, or the contract changed after approval", async () => {
       const cases: Array<[string, string, string]> = [
-        ["policy", `update public.semantic_settings set runtime_approval_classes = '{medium,high}', mode = 'shadow' where tenant_id = '${TENANT_A_ID}'`, `update public.semantic_settings set mode = 'off' where tenant_id = '${TENANT_A_ID}'`],
-        ["integration", `update public.github_installations set granted_permissions = granted_permissions || '{"administration":"write"}' where tenant_id = '${TENANT_A_ID}' and status = 'active'`, `update public.github_installations set granted_permissions = granted_permissions - 'administration' where tenant_id = '${TENANT_A_ID}' and status = 'active'`],
+        [
+          "policy",
+          `update public.semantic_settings set runtime_approval_classes = '{medium,high}', mode = 'shadow' where tenant_id = '${TENANT_A_ID}'`,
+          `update public.semantic_settings set mode = 'off' where tenant_id = '${TENANT_A_ID}'`,
+        ],
+        [
+          "integration",
+          `update public.github_installations set granted_permissions = granted_permissions || '{"administration":"write"}' where tenant_id = '${TENANT_A_ID}' and status = 'active'`,
+          `update public.github_installations set granted_permissions = granted_permissions - 'administration' where tenant_id = '${TENANT_A_ID}' and status = 'active'`,
+        ],
       ];
       for (const [label, breakIt, restore] of cases) {
         const fx = await mk(`ap-stale-${label}`);
@@ -236,7 +324,9 @@ describe("runtime approval -> capability", () => {
         } finally {
           await managementQuery(restore);
         }
-        const [row] = (await managementQuery(`select status, stale_reason from public.runtime_approval_requests where id = '${approvalId}';`)) as Array<{ status: string; stale_reason: string }>;
+        const [row] = (await managementQuery(
+          `select status, stale_reason from public.runtime_approval_requests where id = '${approvalId}';`,
+        )) as Array<{ status: string; stale_reason: string }>;
         expect(row, label).toMatchObject({ status: "stale", stale_reason: "CONTEXT_CHANGED" });
       }
     });
@@ -245,11 +335,19 @@ describe("runtime approval -> capability", () => {
       const fx = await mk("ap-stale-contract");
       const { approvalId, args, idem } = await openApproval(fx);
       await decide(OWNER_A_EMAIL, approvalId, "approve");
-      await managementQuery(`update public.tasks set status = 'terminated', terminated_at = now() where id = '${fx.taskId}';`);
+      await managementQuery(
+        `update public.tasks set status = 'terminated', terminated_at = now() where id = '${fx.taskId}';`,
+      );
       const r = await request(fx, "github.create_branch", args, idem);
       if (r.kind !== "decision") throw new Error("decision");
       expect(r.capabilityToken).toBeNull();
-      expect(((await managementQuery(`select status from public.runtime_approval_requests where id = '${approvalId}';`)) as Array<{ status: string }>)[0].status).toBe("stale");
+      expect(
+        (
+          (await managementQuery(
+            `select status from public.runtime_approval_requests where id = '${approvalId}';`,
+          )) as Array<{ status: string }>
+        )[0].status,
+      ).toBe("stale");
     });
 
     it("cannot be replayed with different arguments", async () => {
@@ -273,7 +371,13 @@ describe("runtime approval -> capability", () => {
       const r = await request(fx, "github.create_branch", args, idem);
       if (r.kind !== "decision") throw new Error("decision");
       expect(r.capabilityToken).toBeNull();
-      expect(((await managementQuery(`select status from public.runtime_approval_requests where id = '${approvalId}';`)) as Array<{ status: string }>)[0].status).toBe("expired");
+      expect(
+        (
+          (await managementQuery(
+            `select status from public.runtime_approval_requests where id = '${approvalId}';`,
+          )) as Array<{ status: string }>
+        )[0].status,
+      ).toBe("expired");
     });
   });
 
@@ -281,9 +385,15 @@ describe("runtime approval -> capability", () => {
     const fx = await mk("ap-agent");
     const other = await mk("ap-agent-other");
     const { approvalId } = await openApproval(fx);
-    expect(await approvalById({ credentialSecret: fx.secret, approvalId })).toMatchObject({ state: "pending" });
-    expect(await approvalById({ credentialSecret: other.secret, approvalId })).toMatchObject({ state: "not_found" });
-    expect((await approvalById({ credentialSecret: "authority_rk_" + "e".repeat(64), approvalId })).status).toBe("invalid_credential");
+    expect(await approvalById({ credentialSecret: fx.secret, approvalId })).toMatchObject({
+      state: "pending",
+    });
+    expect(await approvalById({ credentialSecret: other.secret, approvalId })).toMatchObject({
+      state: "not_found",
+    });
+    expect(
+      (await approvalById({ credentialSecret: "authority_rk_" + "e".repeat(64), approvalId })).status,
+    ).toBe("invalid_credential");
     mockGithub().log.splice(0);
   });
 });

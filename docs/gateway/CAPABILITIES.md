@@ -78,12 +78,11 @@ rows are left as they were (no destructive rewrite); the dashboard marks them "p
   expiry is a Part 7 decision).
 - `require_approval` finals (from semantic narrowing) are recorded but nothing yet turns an approval into a capability.
 
-
 ## Part 7 additions
 
 - `capability_tokens.reserved_uses` (uses held by an in-flight reservation) and `budget_released_uses` (unused budget
   returned on expiry/revocation/disconnect). CHECK: `uses + reserved_uses + budget_released_uses <= max_uses`.
 - `capability_reservations`: one row per (capability, idempotency key); states `reserved → consumed | released | failed |
-  indeterminate`; binding columns immutable; terminal states frozen (only an operator annotation of an indeterminate
+indeterminate`; binding columns immutable; terminal states frozen (only an operator annotation of an indeterminate
   outcome may be added, once, and never changes the spent use).
 - `capability_tokens.approval_request_id` links a capability minted after a human approval.
