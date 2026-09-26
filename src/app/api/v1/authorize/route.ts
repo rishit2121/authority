@@ -10,6 +10,8 @@ import {
   type AuthorizeFailureReason,
 } from "@/lib/runtime/authorize-tool-call";
 import { summarizeReasonCodes } from "@/lib/runtime/reason-codes";
+import { recordAgentAuthFailure } from "@/lib/runtime/semantic-rpc";
+import { runSemanticShadowForDecision } from "@/lib/semantic/shadow";
 import { createRuntimeClient } from "@/lib/supabase/runtime-client";
 
 /**
@@ -96,8 +98,10 @@ export async function POST(request: NextRequest) {
 
   const input = parsed.data;
 
+  const supabase = createRuntimeClient();
+
   try {
-    const result = await authorizeToolCall(createRuntimeClient(), {
+    const result = await authorizeToolCall(supabase, {
       credentialSecret,
       taskId: input.taskId,
       tool: input.tool,
@@ -111,6 +115,11 @@ export async function POST(request: NextRequest) {
       currentCompilerVersion: COMPILER_VERSION,
     });
 
+    // The deterministic decision above is final and already persisted. The
+    // semantic step below runs strictly afterwards, never throws, and only
+    // adds a separately-labeled, non-authoritative observation to the reply.
+    const semantic = await runSemanticShadowForDecision(supabase, credentialSecret, result.decisionId);
+
     return NextResponse.json({
       decisionId: result.decisionId,
       status: result.outcome,
@@ -122,9 +131,14 @@ export async function POST(request: NextRequest) {
       requiresClarification: result.outcome === "clarify",
       requiresReplan: result.outcome === "replan",
       wasReplayed: result.wasReplayed,
+      semantic,
     });
   } catch (error) {
     if (error instanceof AuthorizeToolCallError) {
+      // authorize_tool_call() raises on a bad/revoked credential, which rolls
+      // back the audit row it inserted first — so the failure is recorded by
+      // a separate call that returns normally (Part 5 fix for a Part 4 gap).
+      if (error.reason === "invalid_credential") await recordAgentAuthFailure(supabase, credentialSecret);
       return NextResponse.json(
         { error: { reason: error.reason, message: error.message } },
         { status: STATUS_FOR_FAILURE[error.reason] },
