@@ -92,7 +92,7 @@ export function ExecutionFlowGraph({ steps }: { steps: FlowStep[] }) {
       setPlaying(false);
       return;
     }
-    const t = setTimeout(() => setIndex((i) => i + 1), 700);
+    const t = setTimeout(() => setIndex((i) => i + 1), steps.length > 12 ? 250 : 700);
     return () => clearTimeout(t);
   }, [playing, index, steps.length]);
 
@@ -242,7 +242,7 @@ export function ExecutionFlowGraph({ steps }: { steps: FlowStep[] }) {
               style={{ background: i <= index ? COLOR[toneOf(s.phase)] : COLOR.idle }}
             />
             <span className="font-mono-code text-[11px]">{new Date(s.at).toISOString().slice(11, 19)}Z</span>
-            <span>{s.summary}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere]">{s.summary}</span>
           </li>
         ))}
       </ol>

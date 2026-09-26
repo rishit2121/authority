@@ -94,7 +94,7 @@ export default defineConfig({
     {
       name: "authenticated",
       testMatch:
-        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway)\.spec\.ts/,
+        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway|github-connector)\.spec\.ts/,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
@@ -107,5 +107,14 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
+    env: {
+      // The MOCK GitHub connector, for the e2e suite only. No real GitHub credential is involved,
+      // and the mock refuses to run in production unless explicitly allowed here.
+      GITHUB_EXECUTION_MODE: "mock",
+      AUTHORITY_ALLOW_MOCK_GITHUB: "1",
+      AUTHORITY_PUBLIC_URL: BASE_URL,
+      // `next start` here is a local production build against the dev project, without the pooler CA.
+      AUTHORITY_DEPLOYMENT: "local",
+    },
   },
 });

@@ -146,7 +146,7 @@ test.describe.serial("runtime authorization", () => {
     const allowedBody = await allowed.json();
     expect(allowedBody.status).toBe("allow_constrained");
     expect(allowedBody.wasReplayed).toBe(false);
-    expect(allowedBody.simulation).toBe(true);
+    expect(allowedBody.simulation).toBe(false); // github.* is executed by a real connector
     expect(allowedBody.capability.token).toMatch(/^authcap_v1_/);
     expect(allowedBody.capability.maxUses).toBe(1);
     expect(allowedBody).not.toHaveProperty("credential");

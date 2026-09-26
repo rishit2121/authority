@@ -50,7 +50,6 @@ export function normalizeRepositoryPath(value: unknown): Validated<string> {
     return { ok: false, code: "PATH_INVALID" };
   if (value.includes("%") || value.includes("\\") || value.includes("\0"))
     return { ok: false, code: "PATH_AMBIGUOUS" };
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f-￿]/.test(value)) return { ok: false, code: "PATH_AMBIGUOUS" };
   if (value.startsWith("/") || value.endsWith("/")) return { ok: false, code: "PATH_INVALID" };
   const segments = value.split("/");

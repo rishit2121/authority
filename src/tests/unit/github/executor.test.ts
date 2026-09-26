@@ -13,7 +13,7 @@ const reserved = (over: Partial<ReserveResult> = {}): ReserveResult => ({
   githubInstallationId: "9001", repository: "acme/widgets", defaultBranch: "main", leaseExpiresAt: null, previousStatus: null, previousReceipt: null, ...over,
 });
 
-function harness(options: Partial<ExecutorDeps> & { reserve?: ReserveResult; mock?: MockGithub } = {}) {
+function harness(options: Partial<Omit<ExecutorDeps, "reserve">> & { reserve?: ReserveResult; mock?: MockGithub } = {}) {
   const { reserve: reserveResult, mock: providedMock, ...over } = options;
   const mock = providedMock ?? new MockGithub();
   const finish = vi.fn(async (i: { category: string }) => ({ status: "ok", receiptId: "r1", finalStatus: i.category === "released" ? "released" : "consumed" }));

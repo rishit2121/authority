@@ -43,9 +43,9 @@ const shortSha = (s: string | null) => (s ? s.slice(0, 7) : "—");
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="font-label-caps text-[10px] uppercase tracking-wider text-outline">{label}</dt>
-      <dd className="mt-0.5 text-on-surface-variant">{children}</dd>
+      <dd className="mt-0.5 text-on-surface-variant [overflow-wrap:anywhere]">{children}</dd>
     </div>
   );
 }
@@ -116,7 +116,10 @@ export function GithubTaskPanel({ data }: { data: TaskGithubData }) {
           ) : (
             <ul className="mt-space-sm flex flex-col gap-1.5" data-testid="contract-github-actions">
               {data.actions.map((a) => (
-                <li key={a.tool} className="font-mono-code text-[12px] text-on-surface-variant">
+                <li
+                  key={a.tool}
+                  className="font-mono-code text-[12px] text-on-surface-variant [overflow-wrap:anywhere]"
+                >
                   <span className="text-on-surface">{a.tool}</span> on{" "}
                   <span className="text-primary">{data.bound?.fullName ?? "(no repository bound)"}</span>
                   {a.constraints.length
@@ -225,7 +228,7 @@ export function GithubTaskPanel({ data }: { data: TaskGithubData }) {
                               href={url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              data-testid="pr-link"
+                              data-testid={url.includes("/pull/") ? "pr-link" : "resource-link"}
                               className="font-mono-code text-[11px] text-primary underline"
                             >
                               {url.replace("https://github.com/", "")}

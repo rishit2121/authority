@@ -12,6 +12,12 @@ export const FORBIDDEN_IDENTIFIERS = [
   "GATEWAY_DATABASE_CA",
   "SEMANTIC_PROVIDER_API_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "GITHUB_APP_PRIVATE_KEY",
+  "GITHUB_APP_CLIENT_SECRET",
+  "GITHUB_WEBHOOK_SECRET",
+  "gateway.reserve_execution",
+  "gateway.finish_execution",
+  "gateway.github_complete_install",
   "gateway.commit_authorization",
   "gateway.prepare_authorization",
   "gateway.consume_capability",
@@ -53,6 +59,10 @@ export function secretValuesFromEnv(env) {
     "SUPABASE_DB_PASSWORD",
     "SUPABASE_ACCESS_TOKEN",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "GITHUB_APP_PRIVATE_KEY",
+    "GITHUB_APP_PRIVATE_KEY_BASE64",
+    "GITHUB_APP_CLIENT_SECRET",
+    "GITHUB_WEBHOOK_SECRET",
   ]) {
     if (env[name]) out.push({ label: name, value: env[name] });
   }

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { connectGithubAction } from "./actions";
 import { InstallationActions, RepositoryToggle } from "@/components/github/GithubControls";
 import { ModeBadge } from "@/components/github/ModeBadge";
 import { Icon } from "@/components/ui/Icon";
@@ -124,7 +123,7 @@ export default async function GithubIntegrationPage({
             confirms you can see it.
           </p>
           {canAdmin && readiness.mode !== "disabled" ? (
-            <form action={connectGithubAction} className="mt-space-md">
+            <form method="post" action="/api/github/connect" className="mt-space-md">
               <button
                 type="submit"
                 data-testid="github-connect"

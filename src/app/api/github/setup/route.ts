@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { publicBaseUrl } from "@/lib/github/config";
 import { requireIdentity } from "@/lib/auth/identity";
 import { handleSetupCallback, PKCE_COOKIE, STATE_COOKIE } from "@/lib/github/installation";
 
@@ -14,6 +15,9 @@ export const dynamic = "force-dynamic";
 
 const PAGE = "/app/integrations/github";
 
+/** Redirects stay on the configured public origin; `nextUrl.origin` can be the bind host (e.g. localhost). */
+const origin = (request: NextRequest) => publicBaseUrl() ?? request.nextUrl.origin;
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const identity = await requireIdentity(`${PAGE}`);
   const params = request.nextUrl.searchParams;
@@ -27,7 +31,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   });
   if (outcome.kind === "error") {
     return NextResponse.redirect(
-      new URL(`${PAGE}?error=${encodeURIComponent(outcome.code)}`, request.nextUrl.origin),
+      new URL(`${PAGE}?error=${encodeURIComponent(outcome.code)}`, origin(request)),
     );
   }
   return NextResponse.redirect(outcome.url);

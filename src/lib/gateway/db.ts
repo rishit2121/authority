@@ -83,6 +83,21 @@ export function isGatewayConfigured(): boolean {
   return Boolean(process.env.GATEWAY_DATABASE_URL?.trim());
 }
 
+/**
+ * Whether the gateway verifies the database server's certificate chain. Without
+ * GATEWAY_DATABASE_CA the connection is encrypted but the peer is not
+ * authenticated. Production readiness fails in that state rather than quietly
+ * running with a man-in-the-middle-able connection.
+ */
+export function gatewayTlsVerified(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(env.GATEWAY_DATABASE_CA?.trim());
+}
+
+/** True when this process is a production deployment that must not run with unverified TLS. */
+export function gatewayTlsRequired(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV === "production" && env.AUTHORITY_DEPLOYMENT !== "local";
+}
+
 /** Runs one parameterized statement. Parameters are never logged and never appear in errors. */
 export async function gatewayQuery<Row extends Record<string, unknown>>(
   text: string,

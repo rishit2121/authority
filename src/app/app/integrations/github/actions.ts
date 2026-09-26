@@ -1,18 +1,9 @@
 "use server";
 
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { bindTaskRepository, resolveIndeterminate, setRepositoryAllowed } from "@/lib/gateway/rpc-github";
-import {
-  COOKIE_MAX_AGE_SECONDS,
-  disconnect,
-  PKCE_COOKIE,
-  refreshInstallation,
-  startInstall,
-  STATE_COOKIE,
-} from "@/lib/github/installation";
+import { disconnect, refreshInstallation } from "@/lib/github/installation";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { safeLog } from "@/lib/semantic/scrub";
 
@@ -36,25 +27,6 @@ const FRIENDLY: Record<string, string> = {
   installation_unavailable: "The GitHub installation is not available.",
 };
 const friendly = (code: string) => FRIENDLY[code] ?? "The request could not be completed.";
-
-/** Starts the GitHub App installation: sets the single-use state cookies, then sends the browser to GitHub. */
-export async function connectGithubAction(): Promise<void> {
-  const { identity } = await createRepositoriesForCurrentTenant(PAGE);
-  const result = await startInstall({ tenantId: identity.tenant.tenantId, userId: identity.userId });
-  if (result.status !== "ok" || !result.started)
-    redirect(`${PAGE}?error=${encodeURIComponent(result.status)}`);
-  const jar = await cookies();
-  const options = {
-    httpOnly: true,
-    sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
-    path: "/api/github",
-    maxAge: COOKIE_MAX_AGE_SECONDS,
-  };
-  jar.set(STATE_COOKIE, result.started.nonce, options);
-  jar.set(PKCE_COOKIE, result.started.verifier, options);
-  redirect(result.started.installUrl);
-}
 
 export async function refreshGithubAction(
   installationRowId: string,

@@ -22,7 +22,10 @@ const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "";
 test.describe.serial("trusted gateway", () => {
   let fx: GatewayFixture;
   const ACTIONS =
-    '{"schemaVersion":1,"items":[{"tool":"github.get_issue","constraints":[]},{"tool":"github.create_branch","constraints":[{"key":"branch","matches":"fix-*"}]}]}';
+    '{"schemaVersion":1,"items":[{"tool":"github.get_issue","constraints":[]},{"tool":"github.create_branch","constraints":[{"key":"branch","matches":"fix-*"}]},{"tool":"gmail.send_email","constraints":[]}]}';
+  // github.* tools are executed by the real connector (see github-connector.spec.ts); simulated
+  // consumption is only for tools no connector runs, so these lifecycle tests use gmail.send_email.
+  const SIM = { tool: "gmail.send_email", operation: "send_email" };
 
   const authorize = (
     request: APIRequestContext,
@@ -109,7 +112,7 @@ test.describe.serial("trusted gateway", () => {
     expect((await request.get("/api/v1/health")).status()).toBe(200);
     const ready = await request.get("/api/v1/ready");
     expect(ready.status()).toBe(200);
-    expect(await ready.json()).toEqual({ status: "ready" });
+    expect(await ready.json()).toMatchObject({ status: "ready", github: "mock" });
   });
 
   test("authorize issues a short-lived capability once, with no-store caching", async ({ request }) => {
@@ -119,7 +122,7 @@ test.describe.serial("trusted gateway", () => {
     expect(response.headers()["x-request-id"]).toBeTruthy();
     const body = await response.json();
     expect(body.status).toBe("allow");
-    expect(body.simulation).toBe(true);
+    expect(body.simulation).toBe(false); // github.* is executed by a real connector
     expect(body.capability.token).toMatch(/^authcap_v1_/);
     const ttl = (new Date(body.capability.expiresAt).getTime() - Date.now()) / 1000;
     expect(ttl).toBeGreaterThan(0);
@@ -138,10 +141,10 @@ test.describe.serial("trusted gateway", () => {
   test("consume: accepted once (simulated), idempotent on retry, and a replay is rejected", async ({
     request,
   }) => {
-    const issued = await (await authorize(request, "gw-2")).json();
+    const issued = await (await authorize(request, "gw-2", { issue_number: "1" }, SIM)).json();
     const token = issued.capability.token as string;
 
-    const first = await consume(request, token, "use-1");
+    const first = await consume(request, token, "use-1", { issue_number: "1" }, SIM);
     expect(first.status()).toBe(200);
     expect(await first.json()).toMatchObject({
       result: "accepted",
@@ -150,15 +153,15 @@ test.describe.serial("trusted gateway", () => {
       replayed: false,
     });
 
-    const retry = await consume(request, token, "use-1");
+    const retry = await consume(request, token, "use-1", { issue_number: "1" }, SIM);
     expect(retry.status()).toBe(200);
     expect((await retry.json()).replayed).toBe(true);
 
-    const replay = await consume(request, token, "use-2");
+    const replay = await consume(request, token, "use-2", { issue_number: "1" }, SIM);
     expect(replay.status()).toBe(409);
     expect((await replay.json()).error.code).toBe("CAPABILITY_ALREADY_USED");
 
-    const conflict = await consume(request, token, "use-1", { issue_number: "2" });
+    const conflict = await consume(request, token, "use-1", { issue_number: "2" }, SIM);
     expect(conflict.status()).toBe(409);
     expect((await conflict.json()).error.code).toBe("IDEMPOTENCY_CONFLICT");
   });
@@ -166,10 +169,10 @@ test.describe.serial("trusted gateway", () => {
   test("a capability cannot authorize a different tool, resource or argument than it was issued for", async ({
     request,
   }) => {
-    const issued = await (await authorize(request, "gw-3")).json();
+    const issued = await (await authorize(request, "gw-3", { issue_number: "1" }, SIM)).json();
     const token = issued.capability.token as string;
 
-    const wrongArg = await consume(request, token, "x-1", { issue_number: "2" });
+    const wrongArg = await consume(request, token, "x-1", { issue_number: "2" }, SIM);
     expect(wrongArg.status()).toBe(403);
     expect((await wrongArg.json()).error.code).toBe("SCOPE_MISMATCH");
     const wrongTool = await consume(
@@ -180,10 +183,16 @@ test.describe.serial("trusted gateway", () => {
       { tool: "github.create_branch" },
     );
     expect(wrongTool.status()).toBe(403);
-    const wrongResource = await consume(request, token, "x-3", { issue_number: "1" }, { resource: "other" });
+    const wrongResource = await consume(
+      request,
+      token,
+      "x-3",
+      { issue_number: "1" },
+      { ...SIM, resource: "other" },
+    );
     expect(wrongResource.status()).toBe(403);
     // None of those attempts spent the capability.
-    expect((await consume(request, token, "x-ok")).status()).toBe(200);
+    expect((await consume(request, token, "x-ok", { issue_number: "1" }, SIM)).status()).toBe(200);
   });
 
   test("a malformed or unknown capability, and a missing key, get the stable error contract", async ({
@@ -210,7 +219,7 @@ test.describe.serial("trusted gateway", () => {
   });
 
   test("agents can revoke their own capability; a revoked capability is rejected", async ({ request }) => {
-    const issued = await (await authorize(request, "gw-5")).json();
+    const issued = await (await authorize(request, "gw-5", { issue_number: "1" }, SIM)).json();
     const revoke = await request.post("/api/v1/capabilities/revoke", {
       headers: { authorization: `Bearer ${fx.secret}` },
       data: { capabilityId: issued.capability.id, reason: "not needed" },
@@ -222,7 +231,7 @@ test.describe.serial("trusted gateway", () => {
       data: { capabilityId: issued.capability.id, reason: "again" },
     });
     expect((await again.json()).result).toBe("already_revoked");
-    const use = await consume(request, issued.capability.token, "r-1");
+    const use = await consume(request, issued.capability.token, "r-1", { issue_number: "1" }, SIM);
     expect(use.status()).toBe(409);
     expect((await use.json()).error.code).toBe("CAPABILITY_REVOKED");
   });
@@ -328,7 +337,7 @@ test.describe.serial("trusted gateway", () => {
   });
 
   test("an admin can revoke an active capability from the dashboard", async ({ page, request }) => {
-    const issued = await (await authorize(request, "gw-admin-revoke")).json();
+    const issued = await (await authorize(request, "gw-admin-revoke", { issue_number: "1" }, SIM)).json();
     await page.goto(`/app/runtime?agentId=${fx.agentId}&capability=active`);
     await page.getByRole("button", { name: "Revoke capability" }).first().click();
     await page.getByLabel("Revocation reason").fill("dashboard revoke");
@@ -341,7 +350,7 @@ test.describe.serial("trusted gateway", () => {
         return rows[0]?.status;
       })
       .toBe("revoked");
-    const use = await consume(request, issued.capability.token, "admin-1");
+    const use = await consume(request, issued.capability.token, "admin-1", { issue_number: "1" }, SIM);
     expect((await use.json()).error.code).toBe("CAPABILITY_REVOKED");
   });
 });

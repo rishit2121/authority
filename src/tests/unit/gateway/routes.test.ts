@@ -287,4 +287,25 @@ describe("health and readiness", () => {
     delete process.env.GATEWAY_DATABASE_URL;
     expect((await GET()).status).toBe(503);
   });
+
+  it("production readiness FAILS while the database certificate chain is not verified", async () => {
+    const { GET } = await import("@/app/api/v1/ready/route");
+    vi.stubEnv("GATEWAY_DATABASE_URL", "postgresql://u:p@h:6543/postgres");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("GATEWAY_DATABASE_CA", "");
+    vi.stubEnv("AUTHORITY_DEPLOYMENT", "");
+    gatewayPing.mockResolvedValue(true);
+    const bad = await GET();
+    expect(bad.status).toBe(503);
+    expect(await bad.json()).toEqual({ status: "not_ready", gateway: "tls_unverified" });
+    vi.stubEnv("GATEWAY_DATABASE_CA", "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----");
+    const ok = await GET();
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toMatchObject({ status: "ready", tls: "verified" });
+    // Only an explicit local-deployment marker (never set in production) relaxes it, and says so.
+    vi.stubEnv("GATEWAY_DATABASE_CA", "");
+    vi.stubEnv("AUTHORITY_DEPLOYMENT", "local");
+    expect(await (await GET()).json()).toMatchObject({ status: "ready", tls: "unverified_local" });
+    vi.unstubAllEnvs();
+  });
 });

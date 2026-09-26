@@ -10,6 +10,10 @@ const SECRET_ENV_NAMES = [
   "GATEWAY_DATABASE_URL",
   "GATEWAY_DATABASE_CA",
   "SUPABASE_SERVICE_ROLE_KEY",
+  "GITHUB_APP_PRIVATE_KEY",
+  "GITHUB_APP_PRIVATE_KEY_BASE64",
+  "GITHUB_APP_CLIENT_SECRET",
+  "GITHUB_WEBHOOK_SECRET",
 ] as const;
 
 function secretValues(env: Record<string, string | undefined>): string[] {
@@ -37,6 +41,7 @@ export function scrubKnownSecrets(
   for (const secret of secretValues(env)) out = out.split(secret).join("[REDACTED]");
   // Bearer material and runtime/capability tokens, whatever their source.
   return out
+    .replace(/\bgh[pousr]_[A-Za-z0-9]{20,255}\b/g, "[REDACTED]")
     .replace(/\bauthority_rk_[0-9a-f]{16,}\b/g, "[REDACTED]")
     .replace(/\bauthcap_v1_[A-Za-z0-9_-]{20,}\b/g, "[REDACTED]")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{12,}/g, "Bearer [REDACTED]");
