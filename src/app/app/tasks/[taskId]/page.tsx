@@ -5,7 +5,7 @@ import { SemanticShadowPanel, type SemanticPanelRow } from "@/components/semanti
 import { TaskInvestigationView } from "@/components/task/TaskInvestigationView";
 import { loadTaskInvestigation } from "@/lib/data/task";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
-import { EVIDENCE_COLUMNS, toEvidenceView } from "@/lib/semantic/read-model";
+import { EVIDENCE_COLUMNS, GATEWAY_EVIDENCE_COLUMNS, toEvidenceView } from "@/lib/semantic/read-model";
 
 export const metadata: Metadata = {
   title: "Task investigation",
@@ -30,8 +30,9 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
 
   // Semantic shadow observations, read through the caller's own RLS scope and
   // rendered beside — never merged into — the deterministic decisions.
-  const [{ data: evidenceRows }, { data: decisionRows }] = await Promise.all([
+  const [{ data: legacyRows }, { data: gatewayRows }, { data: decisionRows }] = await Promise.all([
     context.supabase.from("semantic_shadow_evaluations").select(EVIDENCE_COLUMNS).eq("task_id", taskId),
+    context.supabase.from("semantic_evaluations").select(GATEWAY_EVIDENCE_COLUMNS).eq("task_id", taskId),
     context.supabase
       .from("authorization_decisions")
       .select("id, outcome, tool_request_id, created_at")
@@ -45,7 +46,10 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
     : { data: [] };
   const toolById = new Map((requestRows ?? []).map((r) => [r.id, r.tool]));
   const evidenceByDecision = new Map(
-    (evidenceRows ?? []).map((r) => [r.authorization_decision_id, toEvidenceView(r)]),
+    [...(legacyRows ?? []), ...(gatewayRows ?? [])].map((r) => [
+      r.authorization_decision_id,
+      toEvidenceView(r),
+    ]),
   );
   const panelRows: SemanticPanelRow[] = (decisionRows ?? []).map((d) => ({
     decisionId: d.id,

@@ -1,36 +1,47 @@
-import { presentDecisionStatus } from "@/lib/authorization/decision-status";
-import type { DecisionStatus } from "@/lib/domain";
+import { RevokeCapabilityButton } from "@/components/runtime/RevokeCapabilityButton";
 import { SemanticEvidenceDetail } from "@/components/semantic/SemanticEvidenceDetail";
 import { SemanticShadowBadge } from "@/components/semantic/SemanticShadowBadge";
-import { summarizeReasonCodes } from "@/lib/runtime/reason-codes";
-import { EVIDENCE_COLUMNS, RISK_ORDER, toEvidenceView } from "@/lib/semantic/read-model";
+import { presentDecisionStatus } from "@/lib/authorization/decision-status";
+import type { DecisionStatus } from "@/lib/domain";
+import { buildRuntimeRows, decisionTrace, type RuntimeRow } from "@/lib/runtime/dashboard-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import {
+  EVIDENCE_COLUMNS,
+  GATEWAY_EVIDENCE_COLUMNS,
+  RISK_ORDER,
+  summarizeHealth,
+  toEvidenceView,
+} from "@/lib/semantic/read-model";
 
-interface RuntimeRow {
-  decisionId: string;
-  createdAt: string;
-  outcome: string;
-  reasonCodes: string[];
-  contractId: string | null;
-  contractVersion: number | null;
-  capabilityId: string | null;
-  tool: string;
-  operation: string;
-  resource: string | null;
-  taskId: string;
-  agentId: string;
-  agentName: string;
+const CAPABILITY_CLASSES: Record<string, string> = {
+  active: "border-allow/30 bg-allow/10 text-allow",
+  consumed: "border-outline-variant/40 bg-surface-container-high text-outline",
+  revoked: "border-deny/40 bg-deny/10 text-deny",
+  expired: "border-secondary/40 bg-secondary/10 text-secondary",
+};
+
+const MODE_LABEL: Record<string, string> = {
+  off: "semantic off",
+  shadow: "semantic shadow",
+  enforce: "semantic ENFORCE",
+};
+
+const select =
+  "rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface";
+
+function OutcomePill({ outcome }: { outcome: string }) {
+  const p = presentDecisionStatus(outcome as DecisionStatus);
+  return <span className="inline-flex rounded border px-2 py-0.5 font-mono-code text-[11px]">{p.label}</span>;
 }
 
 /**
- * Live view over runtime authorization decisions.
+ * Runtime authorization dashboard.
  *
- * Everything here is read directly from `authorization_decisions` and
- * `tool_requests` via RLS-scoped SELECTs — the same evidence
- * `authorize_tool_call()` itself wrote, not a simulation. Nothing on this
- * page ever executed a tool: Part 4 evaluates and records decisions, it
- * does not call external services, and every status pill below reflects
- * that boundary.
+ * Every row shows the three results separately — deterministic, semantic and
+ * final composed — plus which enforcement mode produced the decision and the
+ * capability's lifecycle. Everything is read through the caller's own RLS scope
+ * from what the gateway persisted. Part 6 executes no external tool: capability
+ * consumption is simulated, and every capability cell says so.
  */
 export default async function RuntimePage({
   searchParams,
@@ -39,88 +50,94 @@ export default async function RuntimePage({
 }) {
   const params = await searchParams;
   const { identity, repositories, context } = await createRepositoriesForCurrentTenant("/app/runtime");
+  const db = context.supabase;
 
   const [agents, decisionsResult] = await Promise.all([
     repositories.agents.listByTenant(identity.tenant.tenantId),
-    context.supabase
+    db
       .from("authorization_decisions")
-      .select(
-        "id, outcome, reason_codes, contract_id, contract_version, capability_id, tool_request_id, created_at",
-      )
+      .select("id, outcome, reason_codes, contract_id, contract_version, tool_request_id, created_at")
       .order("created_at", { ascending: false })
       .limit(200),
   ]);
+  const decisions = decisionsResult.data ?? [];
+  const decisionIds = decisions.map((d) => d.id);
+  const requestIds = decisions.map((d) => d.tool_request_id);
 
-  const decisionRows = decisionsResult.data ?? [];
-  if (decisionsResult.error) {
-    console.error("runtime dashboard: could not load decisions", decisionsResult.error.message);
-  }
+  const [requests, finals, gatewayEvidence, legacyEvidence] = decisionIds.length
+    ? await Promise.all([
+        db
+          .from("tool_requests")
+          .select("id, tool, operation, resource, task_id, agent_id, arguments_redacted")
+          .in("id", requestIds),
+        db
+          .from("final_decisions")
+          .select(
+            "id, authorization_decision_id, deterministic_outcome, final_outcome, semantic_mode, semantic_policy, risk_class, composition_reasons, degraded, degraded_reason, narrowed",
+          )
+          .in("authorization_decision_id", decisionIds),
+        db
+          .from("semantic_evaluations")
+          .select(GATEWAY_EVIDENCE_COLUMNS)
+          .in("authorization_decision_id", decisionIds),
+        db
+          .from("semantic_shadow_evaluations")
+          .select(EVIDENCE_COLUMNS)
+          .in("authorization_decision_id", decisionIds),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }];
 
-  const toolRequestIds = decisionRows.map((d) => d.tool_request_id);
-  const { data: toolRequestRows } = toolRequestIds.length
-    ? await context.supabase
-        .from("tool_requests")
-        .select("id, tool, operation, resource, task_id, agent_id")
-        .in("id", toolRequestIds)
+  const finalIds = (finals.data ?? []).map((f) => f.id);
+  const [tokens] = finalIds.length
+    ? await Promise.all([
+        db
+          .from("capability_tokens")
+          .select(
+            "id, final_decision_id, issued_at, expires_at, max_uses, uses, status, revoked_by, revocation_reason",
+          )
+          .in("final_decision_id", finalIds),
+      ])
+    : [{ data: [] }];
+  const tokenIds = (tokens.data ?? []).map((t) => t.id);
+  const consumptions = tokenIds.length
+    ? await db
+        .from("capability_consumptions")
+        .select("capability_id, result, reason_code")
+        .in("capability_id", tokenIds)
     : { data: [] };
 
-  const decisionIds = decisionRows.map((d) => d.id);
-  const { data: evidenceRows } = decisionIds.length
-    ? await context.supabase
-        .from("semantic_shadow_evaluations")
-        .select(EVIDENCE_COLUMNS)
-        .in("authorization_decision_id", decisionIds)
-    : { data: [] };
   const evidenceByDecision = new Map(
-    (evidenceRows ?? []).map((r) => [r.authorization_decision_id, toEvidenceView(r)]),
+    [...(legacyEvidence.data ?? []), ...(gatewayEvidence.data ?? [])].map((r) => [
+      r.authorization_decision_id,
+      toEvidenceView(r),
+    ]),
   );
 
-  const toolRequestById = new Map((toolRequestRows ?? []).map((r) => [r.id, r]));
-  const agentNameById = new Map(agents.map((a) => [a.id, a.name]));
+  const all = buildRuntimeRows({
+    decisions,
+    requests: requests.data ?? [],
+    finals: finals.data ?? [],
+    tokens: tokens.data ?? [],
+    consumptions: consumptions.data ?? [],
+    evidenceByDecision,
+    agentNames: new Map(agents.map((a) => [a.id, a.name])),
+  });
 
-  const rows: RuntimeRow[] = decisionRows
-    .map((decision): RuntimeRow | null => {
-      const request = toolRequestById.get(decision.tool_request_id);
-      if (!request) return null;
-      const reasonCodes = Array.isArray((decision.reason_codes as { items?: unknown })?.items)
-        ? (decision.reason_codes as { items: { code: string }[] }).items.map((item) => item.code)
-        : [];
-      return {
-        decisionId: decision.id,
-        createdAt: decision.created_at,
-        outcome: decision.outcome,
-        reasonCodes,
-        contractId: decision.contract_id,
-        contractVersion: decision.contract_version,
-        capabilityId: decision.capability_id,
-        tool: request.tool,
-        operation: request.operation,
-        resource: request.resource,
-        taskId: request.task_id,
-        agentId: request.agent_id,
-        agentName: agentNameById.get(request.agent_id) ?? "unknown",
-      };
-    })
-    .filter((row): row is RuntimeRow => row !== null)
-    .filter((row) => !params.agentId || row.agentId === params.agentId)
-    .filter((row) => !params.taskId || row.taskId === params.taskId)
-    .filter((row) => !params.tool || row.tool === params.tool)
-    .filter((row) => !params.outcome || row.outcome === params.outcome)
-    .filter(
-      (row) =>
-        !params.risk ||
-        (evidenceByDecision.get(row.decisionId)?.riskLevel ?? "not_evaluated") === params.risk,
-    )
-    .filter((row) => !params.provider || evidenceByDecision.get(row.decisionId)?.provider === params.provider)
-    .filter(
-      (row) =>
-        !params.disagreement || evidenceByDecision.get(row.decisionId)?.disagreement === params.disagreement,
-    );
+  const rows = all
+    .filter((r) => !params.agentId || r.agentId === params.agentId)
+    .filter((r) => !params.taskId || r.taskId === params.taskId)
+    .filter((r) => !params.tool || r.tool === params.tool)
+    .filter((r) => !params.outcome || r.final === params.outcome)
+    .filter((r) => !params.mode || r.semanticMode === params.mode)
+    .filter((r) => !params.capability || (r.capability?.state ?? "none") === params.capability)
+    .filter((r) => !params.degraded || r.degraded === (params.degraded === "yes"))
+    .filter((r) => !params.risk || (r.evidence?.riskLevel ?? "not_evaluated") === params.risk)
+    .filter((r) => !params.provider || r.evidence?.provider === params.provider)
+    .filter((r) => !params.disagreement || r.evidence?.disagreement === params.disagreement);
 
-  const providers = Array.from(new Set((evidenceRows ?? []).map((e) => e.provider))).sort();
-
-  const outcomes = Array.from(new Set(decisionRows.map((d) => d.outcome))).sort();
-  const tools = Array.from(new Set(rows.map((r) => r.tool))).sort();
+  const tools = Array.from(new Set(all.map((r) => r.tool))).sort();
+  const providers = Array.from(new Set([...evidenceByDecision.values()].map((e) => e.provider))).sort();
+  const health = summarizeHealth([...evidenceByDecision.values()]);
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -129,68 +146,105 @@ export default async function RuntimePage({
           Runtime authorization
         </h1>
         <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Live decisions from <code>POST /api/v1/authorize</code>. Part 4 evaluates and records these requests
-          deterministically — it never calls an external tool, so nothing below reflects real execution.
+          Decisions from <code>POST /api/v1/authorize</code>, shown as three separate results: deterministic,
+          semantic and the final composed decision.
         </p>
       </header>
 
       <p
+        data-testid="simulation-notice"
+        className="max-w-3xl rounded-lg border border-secondary/40 bg-secondary/10 p-space-md font-body-sm text-body-sm text-on-surface"
+      >
+        <strong>Simulation — no external tool was executed.</strong> Capabilities are issued and consumed
+        against a simulated endpoint; nothing here reflects a real GitHub, Stripe or other side effect.
+      </p>
+      <p
         data-testid="semantic-shadow-notice"
         className="max-w-3xl rounded-lg border border-outline-variant/30 bg-surface-container-low p-space-md font-body-sm text-body-sm text-on-surface-variant"
       >
-        Semantic risk is <strong>shadow only</strong>: it is recorded next to each decision but never changes
-        it, consumes budget, or grants anything. It is unattested evidence — direct callers of the
-        authorization RPC can bypass any check made outside the database, so semantic enforcement is
-        unavailable.
+        In <strong>shadow</strong> mode semantic risk is recorded but never changes a decision. In{" "}
+        <strong>enforce</strong> mode it can only narrow a deterministic allow. The mode that produced each
+        decision is shown on its row.
       </p>
 
-      <form className="flex flex-wrap items-center gap-2" method="get">
-        <select
-          name="agentId"
-          defaultValue={params.agentId ?? ""}
-          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+      {health.length > 0 ? (
+        <ul
+          data-testid="provider-health"
+          className="flex flex-wrap gap-3 font-mono-code text-[11px] text-on-surface-variant"
         >
+          {health.map((h) => (
+            <li
+              key={h.provider}
+              className="rounded border border-outline-variant/30 bg-surface-container px-2 py-1"
+            >
+              {h.provider}: {h.ok}/{h.total} ok · {h.timeout} timeout · {h.error} error · p95 {h.p95LatencyMs}{" "}
+              ms
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <form className="flex flex-wrap items-center gap-2" method="get">
+        <select name="agentId" defaultValue={params.agentId ?? ""} aria-label="Agent" className={select}>
           <option value="">All agents</option>
-          {agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>
-              {agent.name}
+          {agents.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
             </option>
           ))}
         </select>
-        <select
-          name="tool"
-          defaultValue={params.tool ?? ""}
-          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
-        >
+        <select name="tool" defaultValue={params.tool ?? ""} aria-label="Tool" className={select}>
           <option value="">All tools</option>
-          {tools.map((tool) => (
-            <option key={tool} value={tool}>
-              {tool}
+          {tools.map((t) => (
+            <option key={t} value={t}>
+              {t}
             </option>
           ))}
         </select>
         <select
           name="outcome"
           defaultValue={params.outcome ?? ""}
-          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+          aria-label="Final decision"
+          className={select}
         >
-          <option value="">All outcomes</option>
-          {outcomes.map((outcome) => (
-            <option key={outcome} value={outcome}>
-              {outcome}
+          <option value="">Any final decision</option>
+          {["allow", "allow_constrained", "clarify", "replan", "require_approval", "deny"].map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+        <select name="mode" defaultValue={params.mode ?? ""} aria-label="Enforcement mode" className={select}>
+          <option value="">Any mode</option>
+          {["off", "shadow", "enforce"].map((m) => (
+            <option key={m} value={m}>
+              semantic {m}
             </option>
           ))}
         </select>
         <select
-          name="risk"
-          defaultValue={params.risk ?? ""}
-          aria-label="Semantic risk"
-          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+          name="capability"
+          defaultValue={params.capability ?? ""}
+          aria-label="Capability state"
+          className={select}
         >
+          <option value="">Any capability state</option>
+          {["active", "consumed", "revoked", "expired", "none"].map((s) => (
+            <option key={s} value={s}>
+              capability {s}
+            </option>
+          ))}
+        </select>
+        <select name="degraded" defaultValue={params.degraded ?? ""} aria-label="Degraded" className={select}>
+          <option value="">Degraded or not</option>
+          <option value="yes">Degraded / fail-closed</option>
+          <option value="no">Not degraded</option>
+        </select>
+        <select name="risk" defaultValue={params.risk ?? ""} aria-label="Semantic risk" className={select}>
           <option value="">Any semantic risk</option>
-          {[...RISK_ORDER, "not_evaluated"].map((risk) => (
-            <option key={risk} value={risk}>
-              {risk.replace("_", " ")}
+          {[...RISK_ORDER, "not_evaluated"].map((r) => (
+            <option key={r} value={r}>
+              {r.replace("_", " ")}
             </option>
           ))}
         </select>
@@ -198,12 +252,12 @@ export default async function RuntimePage({
           name="provider"
           defaultValue={params.provider ?? ""}
           aria-label="Semantic provider"
-          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+          className={select}
         >
           <option value="">Any provider</option>
-          {providers.map((provider) => (
-            <option key={provider} value={provider}>
-              {provider}
+          {providers.map((p) => (
+            <option key={p} value={p}>
+              {p}
             </option>
           ))}
         </select>
@@ -211,7 +265,7 @@ export default async function RuntimePage({
           name="disagreement"
           defaultValue={params.disagreement ?? ""}
           aria-label="Disagreement"
-          className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+          className={select}
         >
           <option value="">Any disagreement</option>
           <option value="semantic_flags_permitted">Semantic flags a permitted request</option>
@@ -226,74 +280,138 @@ export default async function RuntimePage({
       </form>
 
       {rows.length === 0 ? (
-        <p className="font-body-sm text-body-sm text-outline">No runtime authorization requests yet.</p>
+        <p className="font-body-sm text-body-sm text-outline">No runtime authorization requests match.</p>
       ) : (
         <div className="overflow-auto rounded-xl border border-outline-variant/30 bg-surface-container">
-          <table className="w-full min-w-[1120px] border-collapse text-left">
+          <table className="w-full min-w-[1240px] border-collapse text-left">
             <caption className="sr-only">Recent runtime authorization decisions</caption>
             <thead>
               <tr className="border-b border-outline-variant/30">
-                {["Time", "Agent", "Tool", "Status", "Reason", "Semantic (shadow)", "Budget", "Contract"].map(
-                  (heading) => (
-                    <th
-                      key={heading}
-                      scope="col"
-                      className="whitespace-nowrap px-space-lg py-space-md font-label-caps text-label-caps uppercase tracking-widest text-outline"
-                    >
-                      {heading}
-                    </th>
-                  ),
-                )}
+                {[
+                  "Time",
+                  "Agent · tool",
+                  "Deterministic",
+                  "Semantic",
+                  "Final decision",
+                  "Capability (simulation)",
+                  "Trace",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    scope="col"
+                    className="whitespace-nowrap px-space-lg py-space-md font-label-caps text-label-caps uppercase tracking-widest text-outline"
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
-                const presentation = presentDecisionStatus(row.outcome as DecisionStatus);
-                return (
-                  <tr key={row.decisionId} className="border-b border-outline-variant/20 last:border-b-0">
-                    <td className="whitespace-nowrap px-space-lg py-space-md font-mono-code text-[11px] text-outline">
-                      {new Date(row.createdAt).toLocaleString()}
-                    </td>
-                    <td className="px-space-lg py-space-md font-body-sm text-body-sm text-on-surface-variant">
-                      {row.agentName}
-                    </td>
-                    <td className="px-space-lg py-space-md font-mono-code text-[12px] text-on-surface">
-                      {row.tool}
-                      {row.resource && <span className="ml-1 text-outline">· {row.resource}</span>}
-                    </td>
-                    <td className="px-space-lg py-space-md">
-                      <span className="inline-flex rounded border px-2 py-0.5 font-mono-code text-[11px]">
-                        {presentation.label}
-                      </span>
-                    </td>
-                    <td className="px-space-lg py-space-md font-body-sm text-body-sm text-on-surface-variant">
-                      {summarizeReasonCodes(row.reasonCodes)}
-                    </td>
-                    <td className="px-space-lg py-space-md" data-testid="semantic-cell">
-                      <SemanticShadowBadge evidence={evidenceByDecision.get(row.decisionId)} />
-                      {evidenceByDecision.get(row.decisionId)?.disagreement &&
-                      evidenceByDecision.get(row.decisionId)?.disagreement !== "none" ? (
-                        <span className="mt-1 block font-mono-code text-[10px] text-secondary">
-                          ⚠ disagrees with deterministic decision
-                        </span>
-                      ) : null}
-                      {evidenceByDecision.get(row.decisionId) ? (
-                        <SemanticEvidenceDetail evidence={evidenceByDecision.get(row.decisionId)!} />
-                      ) : null}
-                    </td>
-                    <td className="whitespace-nowrap px-space-lg py-space-md font-mono-code text-[11px] text-outline">
-                      {row.capabilityId ? "reserved" : "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-space-lg py-space-md font-mono-code text-[11px] text-outline">
-                      {row.contractId ? `v${row.contractVersion}` : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
+              {rows.map((row) => (
+                <Row key={row.decisionId} row={row} />
+              ))}
             </tbody>
           </table>
         </div>
       )}
     </div>
+  );
+}
+
+function Row({ row }: { row: RuntimeRow }) {
+  const cap = row.capability;
+  return (
+    <tr className="border-b border-outline-variant/20 align-top last:border-b-0" data-testid="runtime-row">
+      <td className="whitespace-nowrap px-space-lg py-space-md font-mono-code text-[11px] text-outline">
+        {new Date(row.createdAt).toLocaleString()}
+      </td>
+      <td className="px-space-lg py-space-md">
+        <span className="block font-body-sm text-body-sm text-on-surface-variant">{row.agentName}</span>
+        <span className="block font-mono-code text-[12px] text-on-surface">
+          {row.tool}
+          {row.resource ? <span className="ml-1 text-outline">· {row.resource}</span> : null}
+        </span>
+        <span className="block font-mono-code text-[10px] text-outline">
+          {row.argumentsRedacted ? "arguments redacted at rest" : "pre-Part-6 record"}
+        </span>
+      </td>
+      <td className="px-space-lg py-space-md" data-testid="deterministic-cell">
+        <OutcomePill outcome={row.deterministic} />
+      </td>
+      <td className="px-space-lg py-space-md" data-testid="semantic-cell">
+        <span className="mb-1 block font-mono-code text-[10px] uppercase tracking-wider text-outline">
+          {MODE_LABEL[row.semanticMode] ?? row.semanticMode}
+        </span>
+        <SemanticShadowBadge evidence={row.evidence} enforcing={row.semanticMode === "enforce"} />
+        {row.evidence && row.evidence.disagreement !== "none" ? (
+          <span className="mt-1 block font-mono-code text-[10px] text-secondary">
+            ⚠ disagrees with deterministic decision
+          </span>
+        ) : null}
+      </td>
+      <td className="px-space-lg py-space-md" data-testid="final-cell">
+        <OutcomePill outcome={row.final} />
+        <span className="mt-1 block font-mono-code text-[10px] text-outline">
+          {row.gateway ? MODE_LABEL[row.semanticMode] : "pre-gateway"}
+        </span>
+        {row.narrowed ? (
+          <span data-testid="narrowed" className="mt-1 block font-mono-code text-[10px] text-secondary">
+            narrowed from {row.deterministic}
+          </span>
+        ) : null}
+        {row.degraded ? (
+          <span data-testid="degraded" className="mt-1 block font-mono-code text-[10px] text-deny">
+            degraded: {row.degradedReason}
+            {row.final === "deny" ? " — failed closed" : " — deterministic result kept"}
+          </span>
+        ) : null}
+      </td>
+      <td className="px-space-lg py-space-md" data-testid="capability-cell">
+        {cap ? (
+          <div className="flex flex-col gap-1">
+            <span
+              className={`inline-flex w-fit rounded border px-2 py-0.5 font-mono-code text-[11px] ${CAPABILITY_CLASSES[cap.state]}`}
+            >
+              {cap.state}
+            </span>
+            <span className="font-mono-code text-[10px] text-outline">
+              {cap.remainingUses}/{cap.maxUses} uses left
+              {cap.state === "active" ? ` · ${cap.ttlRemainingSeconds}s left` : ""}
+            </span>
+            <span className="font-mono-code text-[10px] text-outline">
+              {cap.acceptedConsumptions} simulated use{cap.acceptedConsumptions === 1 ? "" : "s"}
+              {cap.replayAttempts > 0
+                ? ` · ${cap.replayAttempts} replay attempt${cap.replayAttempts === 1 ? "" : "s"}`
+                : ""}
+            </span>
+            {cap.state === "revoked" ? (
+              <span className="font-mono-code text-[10px] text-deny">by {cap.revokedBy}</span>
+            ) : null}
+            {cap.state === "active" ? <RevokeCapabilityButton capabilityId={cap.id} /> : null}
+          </div>
+        ) : (
+          <span className="font-mono-code text-[11px] text-outline">none</span>
+        )}
+      </td>
+      <td className="px-space-lg py-space-md">
+        <details>
+          <summary className="cursor-pointer font-label-sm text-label-sm text-on-surface-variant underline-offset-2 hover:underline">
+            Decision trace
+          </summary>
+          <ol className="mt-2 flex max-w-sm flex-col gap-1 font-mono-code text-[11px] text-on-surface-variant">
+            {decisionTrace(row).map((s) => (
+              <li key={s.step}>
+                <strong className="text-on-surface">{s.step}:</strong> {s.detail}
+              </li>
+            ))}
+          </ol>
+          {row.evidence ? (
+            <div className="mt-2">
+              <SemanticEvidenceDetail evidence={row.evidence} />
+            </div>
+          ) : null}
+        </details>
+      </td>
+    </tr>
   );
 }

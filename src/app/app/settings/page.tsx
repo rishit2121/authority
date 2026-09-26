@@ -10,7 +10,9 @@ export default async function SettingsPage() {
 
   const { data: settings } = await context.supabase
     .from("semantic_settings")
-    .select("mode, provider, model, timeout_ms")
+    .select(
+      "mode, provider, model, timeout_ms, semantic_required_classes, capability_ttl_seconds, enforcement_approved_at",
+    )
     .eq("tenant_id", identity.tenant.tenantId)
     .maybeSingle();
 
@@ -23,7 +25,7 @@ export default async function SettingsPage() {
   const health = summarizeHealth((evidenceRows ?? []).map(toEvidenceView));
   const breakers = snapshotBreakers();
   const canEdit = TENANT_ROLE_RANK[identity.role] >= TENANT_ROLE_RANK.security_admin;
-  const mode = settings?.mode === "shadow" ? "shadow" : "off";
+  const mode = settings?.mode === "shadow" || settings?.mode === "enforce" ? settings.mode : "off";
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -54,11 +56,16 @@ export default async function SettingsPage() {
         <SemanticSettingsForm
           canEdit={canEdit}
           apiKeyConfigured={getSemanticProviderEnv() !== null}
+          secondaryKeyConfigured={(getSemanticProviderEnv()?.apiKeys.length ?? 0) > 1}
+          environment={identity.tenant.environment}
           initial={{
             mode,
             provider: settings?.provider ?? "mock",
             model: settings?.model ?? "mock-heuristic",
             timeoutMs: settings?.timeout_ms ?? 800,
+            requiredClasses: (settings?.semantic_required_classes ?? []) as ("low" | "medium" | "high")[],
+            capabilityTtlSeconds: settings?.capability_ttl_seconds ?? 60,
+            enforcementApproved: Boolean(settings?.enforcement_approved_at),
           }}
         />
       </section>
