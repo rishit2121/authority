@@ -94,18 +94,37 @@ const label = (mode: "mock" | "live") => ({ mode, simulated: mode === "mock" });
  * request may have left, a failure is `failed` (definite refusal) or
  * `indeterminate` (outcome unknown) and is never retried automatically.
  */
-export async function executeGithubOperation(input: ExecuteInput, deps: ExecutorDeps = defaultExecutorDeps): Promise<ExecuteResult> {
+export async function executeGithubOperation(
+  input: ExecuteInput,
+  deps: ExecutorDeps = defaultExecutorDeps,
+): Promise<ExecuteResult> {
   const mode = deps.mode();
   if (mode === "disabled") {
-    return { http: 503, body: { error: { code: "CONNECTOR_DISABLED", message: "The GitHub connector is not enabled." } } };
+    return {
+      http: 503,
+      body: { error: { code: "CONNECTOR_DISABLED", message: "The GitHub connector is not enabled." } },
+    };
   }
   const readiness = deps.ready();
   if (!readiness.ready) {
-    return { http: 503, body: { error: { code: "CONNECTOR_NOT_CONFIGURED", message: "The GitHub connector is not configured." } } };
+    return {
+      http: 503,
+      body: {
+        error: { code: "CONNECTOR_NOT_CONFIGURED", message: "The GitHub connector is not configured." },
+      },
+    };
   }
   const spec = OPERATIONS.get(input.tool);
   if (!spec) {
-    return { http: 400, body: { error: { code: "OPERATION_NOT_SUPPORTED", message: "This operation is not supported by the GitHub connector." } } };
+    return {
+      http: 400,
+      body: {
+        error: {
+          code: "OPERATION_NOT_SUPPORTED",
+          message: "This operation is not supported by the GitHub connector.",
+        },
+      },
+    };
   }
 
   const reserved: ReserveResult = await deps.reserve({
@@ -125,7 +144,13 @@ export async function executeGithubOperation(input: ExecuteInput, deps: Executor
     return { http: c.http, body: { error: { code: c.code, message: c.message } } };
   }
   if (reserved.result === "in_progress") {
-    return { http: 409, body: { error: { code: "EXECUTION_IN_PROGRESS", message: "This execution is already in progress." }, executionId: reserved.executionId } };
+    return {
+      http: 409,
+      body: {
+        error: { code: "EXECUTION_IN_PROGRESS", message: "This execution is already in progress." },
+        executionId: reserved.executionId,
+      },
+    };
   }
   if (reserved.result === "replayed") {
     return {
@@ -140,9 +165,18 @@ export async function executeGithubOperation(input: ExecuteInput, deps: Executor
       },
     };
   }
-  if (reserved.result !== "reserved" || !reserved.executionId || !reserved.agentId || !reserved.repository || !reserved.githubInstallationId) {
+  if (
+    reserved.result !== "reserved" ||
+    !reserved.executionId ||
+    !reserved.agentId ||
+    !reserved.repository ||
+    !reserved.githubInstallationId
+  ) {
     const code = reserved.reasonCode ?? "CAPABILITY_REJECTED";
-    return { http: REJECTION_HTTP[code] ?? 409, body: { error: { code, message: "The capability could not be used." } } };
+    return {
+      http: REJECTION_HTTP[code] ?? 409,
+      body: { error: { code, message: "The capability could not be used." } },
+    };
   }
 
   const executionId = reserved.executionId;
@@ -178,7 +212,13 @@ export async function executeGithubOperation(input: ExecuteInput, deps: Executor
     const s = await settle("released", code);
     return {
       http,
-      body: { error: { code, message: "The request was not sent to GitHub." }, executionId, status: "released", receiptId: s?.receiptId ?? null, execution: label(mode) },
+      body: {
+        error: { code, message: "The request was not sent to GitHub." },
+        executionId,
+        status: "released",
+        receiptId: s?.receiptId ?? null,
+        execution: label(mode),
+      },
     };
   };
 
@@ -188,7 +228,10 @@ export async function executeGithubOperation(input: ExecuteInput, deps: Executor
   let args: Record<string, unknown>;
   try {
     args = spec.parse(input.args);
-    if (typeof args.repository === "string" && args.repository.toLowerCase() !== repo.value.fullName.toLowerCase()) {
+    if (
+      typeof args.repository === "string" &&
+      args.repository.toLowerCase() !== repo.value.fullName.toLowerCase()
+    ) {
       return released("REPOSITORY_MISMATCH", 403);
     }
     spec.precheck(args, { taskId: reserved.taskId!, defaultBranch: reserved.defaultBranch ?? "main" });
@@ -202,7 +245,11 @@ export async function executeGithubOperation(input: ExecuteInput, deps: Executor
   let token;
   try {
     client = deps.client();
-    token = await client.mintInstallationToken(reserved.githubInstallationId, repo.value.name, spec.permissions);
+    token = await client.mintInstallationToken(
+      reserved.githubInstallationId,
+      repo.value.name,
+      spec.permissions,
+    );
   } catch (error) {
     return released(error instanceof GithubDefiniteError ? error.code : "TOKEN_MINT_FAILED", 502);
   }
@@ -213,36 +260,49 @@ export async function executeGithubOperation(input: ExecuteInput, deps: Executor
     const code = dispatch.reason ?? dispatch.status.toUpperCase();
     return {
       http: dispatch.status === "blocked" ? 403 : 409,
-      body: { error: { code, message: "The execution could not be dispatched." }, executionId, execution: label(mode) },
+      body: {
+        error: { code, message: "The execution could not be dispatched." },
+        executionId,
+        execution: label(mode),
+      },
     };
   }
 
   const controller = new AbortController();
   let writeStarted = false;
   let timedOut = false;
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, deps.deadlineMs);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // Raced against the operation so a transport that ignores the abort signal still cannot hold the lease open.
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+      reject(new GithubDefiniteError("DEADLINE_EXCEEDED"));
+    }, deps.deadlineMs);
+  });
+  deadline.catch(() => undefined);
 
   let outcome: OperationResult | null = null;
   let failure: { category: ResultCategory; code: string; http: number } | null = null;
   try {
-    outcome = await spec.run(
-      {
-        client,
-        token,
-        owner: repo.value.owner,
-        repo: repo.value.name,
-        taskId: reserved.taskId!,
-        signal: controller.signal,
-        beforeWrite: () => {
-          writeStarted = true;
+    outcome = await Promise.race([
+      deadline,
+      spec.run(
+        {
+          client,
+          token,
+          owner: repo.value.owner,
+          repo: repo.value.name,
+          taskId: reserved.taskId!,
+          signal: controller.signal,
+          beforeWrite: () => {
+            writeStarted = true;
+          },
         },
-      },
-      args,
-      reserved.defaultBranch ?? "main",
-    );
+        args,
+        reserved.defaultBranch ?? "main",
+      ),
+    ]);
   } catch (error) {
     if (timedOut) {
       failure = { category: writeStarted ? "indeterminate" : "failed", code: "DEADLINE_EXCEEDED", http: 504 };
@@ -292,7 +352,10 @@ export async function executeGithubOperation(input: ExecuteInput, deps: Executor
     return {
       http: 503,
       body: {
-        error: { code: "EXECUTION_STATE_UNKNOWN", message: "The operation ran but its receipt could not be recorded; do not retry." },
+        error: {
+          code: "EXECUTION_STATE_UNKNOWN",
+          message: "The operation ran but its receipt could not be recorded; do not retry.",
+        },
         executionId,
         execution: label(mode),
       },

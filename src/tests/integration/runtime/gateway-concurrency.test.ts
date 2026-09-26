@@ -49,8 +49,17 @@ describe("gateway concurrency", () => {
   const settleSuccess = async (f: GatewayFixture, executionId: string) => {
     await markDispatched({ executionId, agentId: f.agentId });
     return finishExecution({
-      executionId, agentId: f.agentId, category: "succeeded", reasonCode: null, githubRequestId: "MOCK-1",
-      httpStatusClass: 2, resourceIds: {}, beforeSha: null, afterSha: null, startedAt: new Date(), redaction: {},
+      executionId,
+      agentId: f.agentId,
+      category: "succeeded",
+      reasonCode: null,
+      githubRequestId: "MOCK-1",
+      httpStatusClass: 2,
+      resourceIds: {},
+      beforeSha: null,
+      afterSha: null,
+      startedAt: new Date(),
+      redaction: {},
     });
   };
 

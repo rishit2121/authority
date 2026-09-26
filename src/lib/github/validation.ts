@@ -10,7 +10,9 @@ const OWNER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 const REPO_NAME = /^(?!\.{1,2}$)[A-Za-z0-9._-]{1,100}$/;
 const SHA = /^[0-9a-f]{40}$/;
 
-export function parseRepositoryFullName(value: unknown): Validated<{ owner: string; name: string; fullName: string }> {
+export function parseRepositoryFullName(
+  value: unknown,
+): Validated<{ owner: string; name: string; fullName: string }> {
   if (typeof value !== "string") return { ok: false, code: "REPOSITORY_INVALID" };
   const parts = value.split("/");
   if (parts.length !== 2 || !OWNER.test(parts[0]) || !REPO_NAME.test(parts[1])) {
@@ -24,7 +26,12 @@ export function isSha(value: unknown): value is string {
 }
 
 export function parsePositiveInt(value: unknown, max = 1_000_000_000): Validated<number> {
-  const n = typeof value === "number" ? value : typeof value === "string" && /^[0-9]{1,10}$/.test(value) ? Number(value) : NaN;
+  const n =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^[0-9]{1,10}$/.test(value)
+        ? Number(value)
+        : NaN;
   if (!Number.isSafeInteger(n) || n < 1 || n > max) return { ok: false, code: "NUMBER_INVALID" };
   return { ok: true, value: n };
 }
@@ -39,8 +46,10 @@ const PATH_SEGMENT = /^[A-Za-z0-9._@+=,-]{1,100}$/;
  * workflows needs a permission this App deliberately never holds).
  */
 export function normalizeRepositoryPath(value: unknown): Validated<string> {
-  if (typeof value !== "string" || value.length === 0 || value.length > 240) return { ok: false, code: "PATH_INVALID" };
-  if (value.includes("%") || value.includes("\\") || value.includes("\0")) return { ok: false, code: "PATH_AMBIGUOUS" };
+  if (typeof value !== "string" || value.length === 0 || value.length > 240)
+    return { ok: false, code: "PATH_INVALID" };
+  if (value.includes("%") || value.includes("\\") || value.includes("\0"))
+    return { ok: false, code: "PATH_AMBIGUOUS" };
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f-￿]/.test(value)) return { ok: false, code: "PATH_AMBIGUOUS" };
   if (value.startsWith("/") || value.endsWith("/")) return { ok: false, code: "PATH_INVALID" };
@@ -73,7 +82,13 @@ export function validateTaskBranch(value: unknown, taskId: string): Validated<st
   const prefix = taskBranchPrefix(taskId);
   if (!value.startsWith(prefix)) return { ok: false, code: "BRANCH_OUTSIDE_TASK_NAMESPACE" };
   const tail = value.slice(prefix.length);
-  if (!BRANCH_TAIL.test(tail) || tail.includes("..") || tail.endsWith(".") || tail.endsWith(".lock") || tail.includes("@{")) {
+  if (
+    !BRANCH_TAIL.test(tail) ||
+    tail.includes("..") ||
+    tail.endsWith(".") ||
+    tail.endsWith(".lock") ||
+    tail.includes("@{")
+  ) {
     return { ok: false, code: "BRANCH_INVALID" };
   }
   return { ok: true, value };
@@ -83,8 +98,15 @@ const REF_NAME = /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+){0,4}$/;
 
 /** A branch to READ from (base branch or read ref). Not writable; only its shape is checked. */
 export function validateReadRef(value: unknown): Validated<string> {
-  if (typeof value !== "string" || value.length === 0 || value.length > 200) return { ok: false, code: "REF_INVALID" };
-  if (!REF_NAME.test(value) || value.includes("..") || value.endsWith(".lock") || value.endsWith(".") || value.startsWith("-")) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 200)
+    return { ok: false, code: "REF_INVALID" };
+  if (
+    !REF_NAME.test(value) ||
+    value.includes("..") ||
+    value.endsWith(".lock") ||
+    value.endsWith(".") ||
+    value.startsWith("-")
+  ) {
     return { ok: false, code: "REF_INVALID" };
   }
   return { ok: true, value };

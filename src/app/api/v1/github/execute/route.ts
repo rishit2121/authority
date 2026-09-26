@@ -48,7 +48,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const parsed = requestSchema.safeParse(body.body);
   if (!parsed.success || !isWellFormedCapabilityToken(parsed.data.capability)) {
-    return jsonError({ http: 400, code: "INVALID_REQUEST", message: "Request failed validation." }, requestId);
+    return jsonError(
+      { http: 400, code: "INVALID_REQUEST", message: "Request failed validation." },
+      requestId,
+    );
   }
   const input = parsed.data;
 
@@ -62,8 +65,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       args: input.arguments,
       idempotencyKey: input.idempotencyKey,
     });
-    if (result.http >= 200 && result.http < 300) return jsonOk({ ...result.body, requestId }, requestId, result.http);
-    return NextResponse.json({ ...result.body, requestId }, { status: result.http, headers: { "cache-control": "no-store", "x-request-id": requestId } });
+    if (result.http >= 200 && result.http < 300)
+      return jsonOk({ ...result.body, requestId }, requestId, result.http);
+    return NextResponse.json(
+      { ...result.body, requestId },
+      { status: result.http, headers: { "cache-control": "no-store", "x-request-id": requestId } },
+    );
   } catch (error) {
     const contract = contractForError(error);
     if (contract.http >= 500 && contract.http !== 503) logHandlerFailure("github-execute", error);

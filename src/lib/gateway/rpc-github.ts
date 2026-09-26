@@ -128,7 +128,9 @@ export async function finishExecution(
 }
 
 export async function reconcileExpiredReservations(limit = 50): Promise<number> {
-  const rows = await gatewayQuery<Row>(`select gateway.reconcile_expired_reservations($1::int) as n`, [limit]);
+  const rows = await gatewayQuery<Row>(`select gateway.reconcile_expired_reservations($1::int) as n`, [
+    limit,
+  ]);
   return Number(rows[0]?.n ?? 0);
 }
 
@@ -333,14 +335,14 @@ export async function disconnectInstallation(input: {
   userId: string;
   installationRowId: string;
 }): Promise<{ status: string; githubInstallationId: string | null; revoked: number }> {
-  const rows = await gatewayQuery<Row>(`select * from gateway.github_disconnect($1::uuid, $2::uuid, $3::uuid)`, [
-    input.tenantId,
-    input.userId,
-    input.installationRowId,
-  ]);
+  const rows = await gatewayQuery<Row>(
+    `select * from gateway.github_disconnect($1::uuid, $2::uuid, $3::uuid)`,
+    [input.tenantId, input.userId, input.installationRowId],
+  );
   return {
     status: rows[0].d_status as string,
-    githubInstallationId: rows[0].d_github_installation_id == null ? null : String(rows[0].d_github_installation_id),
+    githubInstallationId:
+      rows[0].d_github_installation_id == null ? null : String(rows[0].d_github_installation_id),
     revoked: Number(rows[0].d_revoked ?? 0),
   };
 }
@@ -388,4 +390,30 @@ export async function resolveIndeterminate(input: {
     [input.tenantId, input.userId, input.executionId, input.outcome, input.note],
   );
   return rows[0].s as string;
+}
+
+export async function reportedInstallation(input: {
+  tenantId: string;
+  userId: string;
+  nonceHash: string;
+}): Promise<string | null> {
+  const rows = await gatewayQuery<Row>(
+    `select gateway.github_reported_installation($1::uuid, $2::uuid, $3) as id`,
+    [input.tenantId, input.userId, input.nonceHash],
+  );
+  return rows[0]?.id == null ? null : String(rows[0].id);
+}
+
+export async function rejectInstall(input: {
+  tenantId: string;
+  userId: string;
+  nonceHash: string;
+  reason: string;
+}): Promise<void> {
+  await gatewayQuery(`select gateway.github_reject_install($1::uuid, $2::uuid, $3, $4)`, [
+    input.tenantId,
+    input.userId,
+    input.nonceHash,
+    input.reason,
+  ]);
 }

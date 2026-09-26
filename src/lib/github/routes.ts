@@ -36,21 +36,100 @@ interface RouteDef {
 }
 
 export const ROUTES: Readonly<Record<RouteId, RouteDef>> = Object.freeze({
-  mintInstallationToken: { method: "POST", auth: "app_jwt", mutating: false, segments: ["app", "installations", ":installationId", "access_tokens"] },
-  getInstallation: { method: "GET", auth: "app_jwt", mutating: false, segments: ["app", "installations", ":installationId"] },
-  deleteInstallation: { method: "DELETE", auth: "app_jwt", mutating: true, segments: ["app", "installations", ":installationId"] },
-  listInstallationRepositories: { method: "GET", auth: "installation_token", mutating: false, segments: ["installation", "repositories"], query: ["per_page", "page"] },
-  getRepository: { method: "GET", auth: "installation_token", mutating: false, segments: ["repos", ":owner", ":repo"] },
-  getIssue: { method: "GET", auth: "installation_token", mutating: false, segments: ["repos", ":owner", ":repo", "issues", ":number"] },
-  getContents: { method: "GET", auth: "installation_token", mutating: false, segments: ["repos", ":owner", ":repo", "contents", ":path*"], query: ["ref"] },
-  getBranch: { method: "GET", auth: "installation_token", mutating: false, segments: ["repos", ":owner", ":repo", "branches", ":branch*"] },
-  getRef: { method: "GET", auth: "installation_token", mutating: false, segments: ["repos", ":owner", ":repo", "git", "ref", "heads", ":branch*"] },
-  createRef: { method: "POST", auth: "installation_token", mutating: true, segments: ["repos", ":owner", ":repo", "git", "refs"] },
-  putContents: { method: "PUT", auth: "installation_token", mutating: true, segments: ["repos", ":owner", ":repo", "contents", ":path*"] },
-  listPulls: { method: "GET", auth: "installation_token", mutating: false, segments: ["repos", ":owner", ":repo", "pulls"], query: ["head", "base", "state", "per_page"] },
-  createPull: { method: "POST", auth: "installation_token", mutating: true, segments: ["repos", ":owner", ":repo", "pulls"] },
-  getPull: { method: "GET", auth: "installation_token", mutating: false, segments: ["repos", ":owner", ":repo", "pulls", ":number"] },
-  getUserInstallations: { method: "GET", auth: "user_token", mutating: false, segments: ["user", "installations"], query: ["per_page", "page"] },
+  mintInstallationToken: {
+    method: "POST",
+    auth: "app_jwt",
+    mutating: false,
+    segments: ["app", "installations", ":installationId", "access_tokens"],
+  },
+  getInstallation: {
+    method: "GET",
+    auth: "app_jwt",
+    mutating: false,
+    segments: ["app", "installations", ":installationId"],
+  },
+  deleteInstallation: {
+    method: "DELETE",
+    auth: "app_jwt",
+    mutating: true,
+    segments: ["app", "installations", ":installationId"],
+  },
+  listInstallationRepositories: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["installation", "repositories"],
+    query: ["per_page", "page"],
+  },
+  getRepository: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["repos", ":owner", ":repo"],
+  },
+  getIssue: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["repos", ":owner", ":repo", "issues", ":number"],
+  },
+  getContents: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["repos", ":owner", ":repo", "contents", ":path*"],
+    query: ["ref"],
+  },
+  getBranch: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["repos", ":owner", ":repo", "branches", ":branch*"],
+  },
+  getRef: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["repos", ":owner", ":repo", "git", "ref", "heads", ":branch*"],
+  },
+  createRef: {
+    method: "POST",
+    auth: "installation_token",
+    mutating: true,
+    segments: ["repos", ":owner", ":repo", "git", "refs"],
+  },
+  putContents: {
+    method: "PUT",
+    auth: "installation_token",
+    mutating: true,
+    segments: ["repos", ":owner", ":repo", "contents", ":path*"],
+  },
+  listPulls: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["repos", ":owner", ":repo", "pulls"],
+    query: ["head", "base", "state", "per_page"],
+  },
+  createPull: {
+    method: "POST",
+    auth: "installation_token",
+    mutating: true,
+    segments: ["repos", ":owner", ":repo", "pulls"],
+  },
+  getPull: {
+    method: "GET",
+    auth: "installation_token",
+    mutating: false,
+    segments: ["repos", ":owner", ":repo", "pulls", ":number"],
+  },
+  getUserInstallations: {
+    method: "GET",
+    auth: "user_token",
+    mutating: false,
+    segments: ["user", "installations"],
+    query: ["per_page", "page"],
+  },
 });
 
 export interface RouteRequest {
@@ -70,7 +149,12 @@ export class RouteBuildError extends Error {
 }
 
 /** Builds and re-verifies the final URL. Throws RouteBuildError on anything unexpected. */
-export function buildUrl(req: RouteRequest): { url: URL; method: RouteDef["method"]; auth: AuthKind; mutating: boolean } {
+export function buildUrl(req: RouteRequest): {
+  url: URL;
+  method: RouteDef["method"];
+  auth: AuthKind;
+  mutating: boolean;
+} {
   const def = ROUTES[req.route];
   if (!def) throw new RouteBuildError("unknown route");
   const parts: string[] = [];
@@ -86,7 +170,8 @@ export function buildUrl(req: RouteRequest): { url: URL; method: RouteDef["metho
     const text = String(raw);
     const pieces = multi ? text.split("/") : [text];
     for (const piece of pieces) {
-      if (!SAFE_SEGMENT.test(piece) || piece === "." || piece === "..") throw new RouteBuildError(`unsafe route parameter ${name}`);
+      if (!SAFE_SEGMENT.test(piece) || piece === "." || piece === "..")
+        throw new RouteBuildError(`unsafe route parameter ${name}`);
       parts.push(encodeURIComponent(piece));
     }
   }
@@ -95,6 +180,7 @@ export function buildUrl(req: RouteRequest): { url: URL; method: RouteDef["metho
     if (!def.query?.includes(k)) throw new RouteBuildError(`query parameter ${k} not allowed`);
     url.searchParams.set(k, String(v));
   }
-  if (url.origin !== GITHUB_API_ORIGIN || url.protocol !== "https:") throw new RouteBuildError("egress origin violation");
+  if (url.origin !== GITHUB_API_ORIGIN || url.protocol !== "https:")
+    throw new RouteBuildError("egress origin violation");
   return { url, method: def.method, auth: def.auth, mutating: def.mutating };
 }

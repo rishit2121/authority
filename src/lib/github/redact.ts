@@ -32,7 +32,9 @@ export function redactValue<T>(value: T, counts: RedactionCounts = {}): T {
   if (typeof value === "string") return redactText(value, counts) as unknown as T;
   if (Array.isArray(value)) return value.map((v) => redactValue(v, counts)) as unknown as T;
   if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, redactValue(v, counts)])) as unknown as T;
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, redactValue(v, counts)]),
+    ) as unknown as T;
   }
   return value;
 }

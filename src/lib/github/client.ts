@@ -6,7 +6,12 @@ import { executionMode, liveConfig, type LiveConfig } from "./config";
 import { GithubDefiniteError, GithubIndeterminateError, TransportError } from "./errors";
 import { mockGithub } from "./mock";
 import { ROUTES, type RouteRequest } from "./routes";
-import { LiveGithubTransport, type GithubAuth, type GithubHttpResponse, type GithubTransport } from "./transport";
+import {
+  LiveGithubTransport,
+  type GithubAuth,
+  type GithubHttpResponse,
+  type GithubTransport,
+} from "./transport";
 
 /** A credential that refuses to be serialized, logged or interpolated. */
 export class SecretToken {
@@ -64,7 +69,10 @@ export class GithubClient {
     if (status >= 200 && status < 300) return response;
     if (opts.tolerate?.includes(status)) return response;
     if (status === 401) throw new GithubDefiniteError("AUTH_REJECTED", status);
-    if (status === 429 || (status === 403 && (response.rateLimitRemaining === 0 || response.retryAfterSeconds !== null))) {
+    if (
+      status === 429 ||
+      (status === 403 && (response.rateLimitRemaining === 0 || response.retryAfterSeconds !== null))
+    ) {
       throw new GithubDefiniteError("RATE_LIMITED", status);
     }
     if (status === 403) throw new GithubDefiniteError("FORBIDDEN", status);
@@ -90,7 +98,27 @@ export class GithubClient {
     opts: RequestOptions = {},
   ): Promise<SecretToken> {
     const response = await this.request(
-      { route: "mintInstallationToken", params: { installationId }, body: { repositories: [repositoryName], permissions } },
+      {
+        route: "mintInstallationToken",
+        params: { installationId },
+        body: { repositories: [repositoryName], permissions },
+      },
+      this.appAuth(),
+      opts,
+    );
+    const token = (response.body as { token?: unknown } | null)?.token;
+    if (typeof token !== "string" || token.length < 10) throw new GithubDefiniteError("TOKEN_MINT_FAILED");
+    return new SecretToken(token);
+  }
+
+  /** A metadata-read token for the whole installation, used only to list its repositories. */
+  async mintDiscoveryToken(installationId: string, opts: RequestOptions = {}): Promise<SecretToken> {
+    const response = await this.request(
+      {
+        route: "mintInstallationToken",
+        params: { installationId },
+        body: { permissions: { metadata: "read" } },
+      },
       this.appAuth(),
       opts,
     );
@@ -110,7 +138,11 @@ export function createGithubClient(): GithubClient {
   if (mode === "live") {
     const cfg = liveConfig();
     if (!cfg) throw new GithubDefiniteError("CONNECTOR_NOT_CONFIGURED");
-    return new GithubClient(new LiveGithubTransport(), () => signAppJwt({ issuer: cfg.clientId, privateKeyPem: cfg.privateKey }), "live");
+    return new GithubClient(
+      new LiveGithubTransport(),
+      () => signAppJwt({ issuer: cfg.clientId, privateKeyPem: cfg.privateKey }),
+      "live",
+    );
   }
   throw new GithubDefiniteError("CONNECTOR_DISABLED");
 }
@@ -120,7 +152,12 @@ export function createGithubClient(): GithubClient {
 // The user token is held in memory for one callback and discarded.
 // ---------------------------------------------------------------------------
 
-export function oauthAuthorizeUrl(cfg: LiveConfig, redirectUri: string, state: string, codeChallenge: string): string {
+export function oauthAuthorizeUrl(
+  cfg: LiveConfig,
+  redirectUri: string,
+  state: string,
+  codeChallenge: string,
+): string {
   const url = new URL(`${GITHUB_WEB_ORIGIN}/login/oauth/authorize`);
   url.searchParams.set("client_id", cfg.clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -130,7 +167,11 @@ export function oauthAuthorizeUrl(cfg: LiveConfig, redirectUri: string, state: s
   return url.toString();
 }
 
-export async function exchangeOAuthCode(code: string, redirectUri: string, codeVerifier: string): Promise<SecretToken> {
+export async function exchangeOAuthCode(
+  code: string,
+  redirectUri: string,
+  codeVerifier: string,
+): Promise<SecretToken> {
   const mode = executionMode();
   if (mode === "mock") {
     if (!/^mockcode-[A-Za-z0-9]{1,40}$/.test(code)) throw new GithubDefiniteError("OAUTH_CODE_REJECTED");
@@ -146,7 +187,11 @@ export async function exchangeOAuthCode(code: string, redirectUri: string, codeV
       redirect: "manual",
       cache: "no-store",
       signal: controller.signal,
-      headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": "authority-github-connector" },
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "authority-github-connector",
+      },
       body: JSON.stringify({
         client_id: cfg.clientId,
         client_secret: cfg.clientSecret,
@@ -170,7 +215,10 @@ export async function exchangeOAuthCode(code: string, redirectUri: string, codeV
 }
 
 /** Installation ids the user can see (pages capped: 5 x 100). */
-export async function listUserInstallationIds(client: GithubClient, userToken: SecretToken): Promise<Set<string>> {
+export async function listUserInstallationIds(
+  client: GithubClient,
+  userToken: SecretToken,
+): Promise<Set<string>> {
   const ids = new Set<string>();
   for (let page = 1; page <= 5; page++) {
     const response = await client.request(

@@ -1,3 +1,5 @@
+import { ApprovalPolicyForm, RuntimeApprovalsPanel } from "@/components/github/RuntimeApprovalsPanel";
+import { loadRuntimeApprovals } from "@/lib/github/read-model";
 import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
 import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
 import { ApprovalDecisionForm } from "@/components/dashboard/ApprovalDecisionForm";
@@ -14,8 +16,13 @@ const STATUS_CLASSES: Record<ApprovalStatus, string> = {
 };
 
 export default async function ApprovalsPage() {
-  const { identity, repositories } = await createRepositoriesForCurrentTenant("/app/approvals");
+  const { identity, repositories, context } = await createRepositoriesForCurrentTenant("/app/approvals");
 
+  const runtimeApprovals = await loadRuntimeApprovals(context.supabase);
+  const { data: policyRow } = await context.supabase
+    .from("semantic_settings")
+    .select("runtime_approval_classes")
+    .maybeSingle();
   const [allApprovals, principals, tasks] = await Promise.all([
     repositories.approvals.listByTenant(identity.tenant.tenantId),
     repositories.principals.listByTenant(identity.tenant.tenantId),
@@ -50,6 +57,9 @@ export default async function ApprovalsPage() {
           here records the decision only — it mints no capability and triggers no execution.
         </p>
       </header>
+
+      <RuntimeApprovalsPanel approvals={runtimeApprovals} canDecide={canDecide} />
+      <ApprovalPolicyForm initial={policyRow?.runtime_approval_classes ?? []} canEdit={canDecide} />
 
       {approvals.length === 0 ? (
         <EmptyWorkspace />

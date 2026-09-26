@@ -14,7 +14,8 @@ export type ExecutionMode = "mock" | "live" | "disabled";
 export function executionMode(env: NodeJS.ProcessEnv = process.env): ExecutionMode {
   const raw = env.GITHUB_EXECUTION_MODE?.trim().toLowerCase();
   // The mock GitHub can never be active in production, whatever the variable says.
-  if (raw === "mock") return env.NODE_ENV === "production" && env.AUTHORITY_ALLOW_MOCK_GITHUB !== "1" ? "disabled" : "mock";
+  if (raw === "mock")
+    return env.NODE_ENV === "production" && env.AUTHORITY_ALLOW_MOCK_GITHUB !== "1" ? "disabled" : "mock";
   if (raw === "live") return "live";
   return "disabled";
 }
@@ -28,7 +29,13 @@ export interface LiveConfig {
   webhookSecret: string;
 }
 
-const LIVE_VARS = ["GITHUB_APP_ID", "GITHUB_APP_CLIENT_ID", "GITHUB_APP_CLIENT_SECRET", "GITHUB_APP_SLUG", "GITHUB_WEBHOOK_SECRET"] as const;
+const LIVE_VARS = [
+  "GITHUB_APP_ID",
+  "GITHUB_APP_CLIENT_ID",
+  "GITHUB_APP_CLIENT_SECRET",
+  "GITHUB_APP_SLUG",
+  "GITHUB_WEBHOOK_SECRET",
+] as const;
 
 function loadPrivateKey(env: NodeJS.ProcessEnv): string | null {
   const inline = env.GITHUB_APP_PRIVATE_KEY?.trim();
@@ -67,7 +74,8 @@ export function liveConfig(env: NodeJS.ProcessEnv = process.env): LiveConfig | n
 }
 
 export function publicBaseUrl(env: NodeJS.ProcessEnv = process.env): string | null {
-  const raw = env.AUTHORITY_PUBLIC_URL?.trim() ?? (env.NODE_ENV !== "production" ? "http://localhost:3000" : "");
+  const raw =
+    env.AUTHORITY_PUBLIC_URL?.trim() ?? (env.NODE_ENV !== "production" ? "http://localhost:3000" : "");
   if (!raw) return null;
   try {
     const url = new URL(raw);

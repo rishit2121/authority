@@ -1,7 +1,16 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextResponse } from "next/server";
+import { type NextRequest } from "next/server";
 import { z } from "zod";
 
-import { UNAUTHENTICATED, contractForError, extractBearer, jsonError, jsonOk, logHandlerFailure, newRequestId } from "@/lib/gateway/http";
+import {
+  UNAUTHENTICATED,
+  contractForError,
+  extractBearer,
+  jsonError,
+  jsonOk,
+  logHandlerFailure,
+  newRequestId,
+} from "@/lib/gateway/http";
 import { failureContract } from "@/lib/gateway/response";
 import { approvalById } from "@/lib/gateway/rpc-github";
 
@@ -16,13 +25,19 @@ import { approvalById } from "@/lib/gateway/rpc-github";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
   const requestId = newRequestId();
   const credentialSecret = extractBearer(request);
   if (!credentialSecret) return jsonError(UNAUTHENTICATED, requestId);
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) {
-    return jsonError({ http: 400, code: "INVALID_REQUEST", message: "Request failed validation." }, requestId);
+    return jsonError(
+      { http: 400, code: "INVALID_REQUEST", message: "Request failed validation." },
+      requestId,
+    );
   }
   try {
     const r = await approvalById({ credentialSecret, approvalId: id });
@@ -31,7 +46,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return jsonError({ http: 404, code: "APPROVAL_NOT_FOUND", message: "No such approval." }, requestId);
     }
     return jsonOk(
-      { approvalId: r.approvalId, state: r.state, requiredApprovals: r.required, approvals: r.approved, expiresAt: r.expiresAt, reason: r.reason },
+      {
+        approvalId: r.approvalId,
+        state: r.state,
+        requiredApprovals: r.required,
+        approvals: r.approved,
+        expiresAt: r.expiresAt,
+        reason: r.reason,
+      },
       requestId,
     );
   } catch (error) {

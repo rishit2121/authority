@@ -68,7 +68,11 @@ const digits = z.union([z.string().regex(/^[0-9]{1,10}$/), z.number().int().posi
 
 const auth = (ctx: ExecutionContext) => ctx.client.installationAuth(ctx.token);
 const sig = (ctx: ExecutionContext) => ({ signal: ctx.signal });
-const params = (ctx: ExecutionContext, extra: Record<string, string | number> = {}) => ({ owner: ctx.owner, repo: ctx.repo, ...extra });
+const params = (ctx: ExecutionContext, extra: Record<string, string | number> = {}) => ({
+  owner: ctx.owner,
+  repo: ctx.repo,
+  ...extra,
+});
 const cls = (status: number) => Math.floor(status / 100);
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 
@@ -80,7 +84,10 @@ function need<T>(v: { ok: true; value: T } | { ok: false; code: string }): T {
   return v.value;
 }
 
-async function currentDefaultBranch(ctx: ExecutionContext, storedDefault: string): Promise<{ name: string; requestId: string | null }> {
+async function currentDefaultBranch(
+  ctx: ExecutionContext,
+  storedDefault: string,
+): Promise<{ name: string; requestId: string | null }> {
   const r = await ctx.client.request({ route: "getRepository", params: params(ctx) }, auth(ctx), sig(ctx));
   const body = r.body as { default_branch?: string; archived?: boolean } | null;
   if (body?.archived) reject("REPOSITORY_ARCHIVED");
@@ -91,8 +98,14 @@ async function currentDefaultBranch(ctx: ExecutionContext, storedDefault: string
   return { name: live, requestId: r.requestId };
 }
 
-async function branchSha(ctx: ExecutionContext, branch: string): Promise<{ sha: string | null; requestId: string | null }> {
-  const r = await ctx.client.request({ route: "getRef", params: params(ctx, { branch }) }, auth(ctx), { ...sig(ctx), tolerate: [404] });
+async function branchSha(
+  ctx: ExecutionContext,
+  branch: string,
+): Promise<{ sha: string | null; requestId: string | null }> {
+  const r = await ctx.client.request({ route: "getRef", params: params(ctx, { branch }) }, auth(ctx), {
+    ...sig(ctx),
+    tolerate: [404],
+  });
   if (r.status === 404) return { sha: null, requestId: r.requestId };
   const sha = (r.body as { object?: { sha?: string } } | null)?.object?.sha;
   if (!isSha(sha)) reject("REF_INVALID_RESPONSE");
@@ -110,7 +123,11 @@ const getIssue: OperationSpec = {
   },
   async run(ctx, args) {
     const n = need(parsePositiveInt(args.issue_number));
-    const r = await ctx.client.request({ route: "getIssue", params: params(ctx, { number: n }) }, auth(ctx), sig(ctx));
+    const r = await ctx.client.request(
+      { route: "getIssue", params: params(ctx, { number: n }) },
+      auth(ctx),
+      sig(ctx),
+    );
     const b = r.body as Record<string, unknown>;
     const counts: RedactionCounts = {};
     return {
@@ -121,7 +138,14 @@ const getIssue: OperationSpec = {
       githubRequestId: r.requestId,
       httpStatusClass: cls(r.status),
       agentPayload: redactValue(
-        { number: n, title: str(b.title), state: str(b.state), body: redactText(str(b.body).slice(0, 8000), counts), htmlUrl: b.html_url, isPullRequest: b.pull_request !== undefined },
+        {
+          number: n,
+          title: str(b.title),
+          state: str(b.state),
+          body: redactText(str(b.body).slice(0, 8000), counts),
+          htmlUrl: b.html_url,
+          isPullRequest: b.pull_request !== undefined,
+        },
         counts,
       ),
       redaction: counts,
@@ -133,16 +157,38 @@ const readRepository: OperationSpec = {
   tool: "github.read_repository",
   mutating: false,
   permissions: { contents: "read", metadata: "read" },
-  parse: (a) => z.object({ repository: ignoreRepository, path: z.string().max(240).optional(), ref: z.string().max(200).optional() }).strict().parse(a),
+  parse: (a) =>
+    z
+      .object({
+        repository: ignoreRepository,
+        path: z.string().max(240).optional(),
+        ref: z.string().max(200).optional(),
+      })
+      .strict()
+      .parse(a),
   precheck(args) {
     if (typeof args.path === "string") need(normalizeRepositoryPath(args.path));
     if (args.ref !== undefined) need(validateReadRef(args.ref));
   },
   async run(ctx, args, defaultBranch) {
-    const repo = await ctx.client.request({ route: "getRepository", params: params(ctx) }, auth(ctx), sig(ctx));
-    const meta = repo.body as { name?: string; default_branch?: string; private?: boolean; archived?: boolean };
+    const repo = await ctx.client.request(
+      { route: "getRepository", params: params(ctx) },
+      auth(ctx),
+      sig(ctx),
+    );
+    const meta = repo.body as {
+      name?: string;
+      default_branch?: string;
+      private?: boolean;
+      archived?: boolean;
+    };
     const counts: RedactionCounts = {};
-    const payload: Record<string, unknown> = { repository: `${ctx.owner}/${ctx.repo}`, defaultBranch: meta.default_branch ?? defaultBranch, private: Boolean(meta.private), archived: Boolean(meta.archived) };
+    const payload: Record<string, unknown> = {
+      repository: `${ctx.owner}/${ctx.repo}`,
+      defaultBranch: meta.default_branch ?? defaultBranch,
+      private: Boolean(meta.private),
+      archived: Boolean(meta.archived),
+    };
     let requestId = repo.requestId;
     if (typeof args.path === "string") {
       const path = need(normalizeRepositoryPath(args.path));
@@ -153,15 +199,25 @@ const readRepository: OperationSpec = {
         sig(ctx),
       );
       requestId = file.requestId ?? requestId;
-      const fb = file.body as { type?: string; sha?: string; size?: number; content?: string; encoding?: string } | unknown[];
+      const fb = file.body as
+        { type?: string; sha?: string; size?: number; content?: string; encoding?: string } | unknown[];
       if (Array.isArray(fb) || (fb as { type?: string }).type !== "file") reject("PATH_IS_DIRECTORY");
       const f = fb as { sha?: string; size?: number; content?: string; encoding?: string };
-      if ((f.size ?? 0) > MAX_FILE_RETURN_BYTES || f.encoding !== "base64" || typeof f.content !== "string") reject("FILE_TOO_LARGE");
-      payload.file = { path, sha: f.sha, size: f.size, content: redactText(Buffer.from(f.content, "base64").toString("utf8"), counts) };
+      if ((f.size ?? 0) > MAX_FILE_RETURN_BYTES || f.encoding !== "base64" || typeof f.content !== "string")
+        reject("FILE_TOO_LARGE");
+      payload.file = {
+        path,
+        sha: f.sha,
+        size: f.size,
+        content: redactText(Buffer.from(f.content, "base64").toString("utf8"), counts),
+      };
     }
     return {
       category: "succeeded",
-      resourceIds: { repository: `${ctx.owner}/${ctx.repo}`, ...(typeof args.path === "string" ? { path: args.path } : {}) },
+      resourceIds: {
+        repository: `${ctx.owner}/${ctx.repo}`,
+        ...(typeof args.path === "string" ? { path: args.path } : {}),
+      },
       beforeSha: null,
       afterSha: null,
       githubRequestId: requestId,
@@ -177,12 +233,21 @@ const createBranch: OperationSpec = {
   mutating: true,
   permissions: { contents: "write", metadata: "read" },
   parse: (a) =>
-    z.object({ repository: ignoreRepository, branch: z.string().max(120), base_branch: z.string().max(200).optional(), base_sha: z.string().length(40).optional() }).strict().parse(a),
+    z
+      .object({
+        repository: ignoreRepository,
+        branch: z.string().max(120),
+        base_branch: z.string().max(200).optional(),
+        base_sha: z.string().length(40).optional(),
+      })
+      .strict()
+      .parse(a),
   precheck(args, env) {
     need(validateTaskBranch(args.branch, env.taskId));
     if (args.base_branch !== undefined) {
       const base = need(validateReadRef(args.base_branch));
-      if (!isDefaultBranch(base, env.defaultBranch) && !validateTaskBranch(base, env.taskId).ok) reject("BASE_BRANCH_NOT_ALLOWED");
+      if (!isDefaultBranch(base, env.defaultBranch) && !validateTaskBranch(base, env.taskId).ok)
+        reject("BASE_BRANCH_NOT_ALLOWED");
     }
     if (args.base_sha !== undefined && !isSha(args.base_sha)) reject("SHA_INVALID");
   },
@@ -191,8 +256,10 @@ const createBranch: OperationSpec = {
     await currentDefaultBranch(ctx, defaultBranch);
     const baseName = args.base_branch === undefined ? defaultBranch : need(validateReadRef(args.base_branch));
     // The base must be the default branch or another branch in this task's own namespace.
-    if (!isDefaultBranch(baseName, defaultBranch) && !validateTaskBranch(baseName, ctx.taskId).ok) reject("BASE_BRANCH_NOT_ALLOWED");
-    const expectedBase = args.base_sha === undefined ? null : (isSha(args.base_sha) ? args.base_sha : reject("SHA_INVALID"));
+    if (!isDefaultBranch(baseName, defaultBranch) && !validateTaskBranch(baseName, ctx.taskId).ok)
+      reject("BASE_BRANCH_NOT_ALLOWED");
+    const expectedBase =
+      args.base_sha === undefined ? null : isSha(args.base_sha) ? args.base_sha : reject("SHA_INVALID");
 
     const base = await branchSha(ctx, baseName);
     if (!base.sha) reject("BASE_BRANCH_NOT_FOUND");
@@ -200,7 +267,11 @@ const createBranch: OperationSpec = {
 
     // Check-before-create: an existing branch at the base commit is an idempotent success.
     const existing = await branchSha(ctx, branch);
-    const done = (category: "succeeded" | "succeeded_noop", requestId: string | null, status: number): OperationResult => ({
+    const done = (
+      category: "succeeded" | "succeeded_noop",
+      requestId: string | null,
+      status: number,
+    ): OperationResult => ({
       category,
       resourceIds: { branch, base: baseName },
       beforeSha: category === "succeeded" ? null : base.sha,
@@ -217,7 +288,11 @@ const createBranch: OperationSpec = {
 
     ctx.beforeWrite();
     try {
-      const r = await ctx.client.request({ route: "createRef", params: params(ctx), body: { ref: `refs/heads/${branch}`, sha: base.sha } }, auth(ctx), sig(ctx));
+      const r = await ctx.client.request(
+        { route: "createRef", params: params(ctx), body: { ref: `refs/heads/${branch}`, sha: base.sha } },
+        auth(ctx),
+        sig(ctx),
+      );
       return done("succeeded", r.requestId, cls(r.status));
     } catch (error) {
       // 422 "already exists" can be a race with ourselves; re-read to decide, never assume.
@@ -250,26 +325,45 @@ const putFile: OperationSpec = {
     const branch = need(validateTaskBranch(args.branch, env.taskId));
     need(normalizeRepositoryPath(args.path));
     if (isDefaultBranch(branch, env.defaultBranch)) reject("DEFAULT_BRANCH_WRITE_FORBIDDEN");
-    if (!str(args.message).replace(/[\r\n]+/g, " ").trim()) reject("MESSAGE_INVALID");
+    if (
+      !str(args.message)
+        .replace(/[\r\n]+/g, " ")
+        .trim()
+    )
+      reject("MESSAGE_INVALID");
     if (args.expected_sha !== undefined && !isSha(args.expected_sha)) reject("SHA_INVALID");
   },
   async run(ctx, args, defaultBranch) {
     const branch = need(validateTaskBranch(args.branch, ctx.taskId));
     const path = need(normalizeRepositoryPath(args.path));
     const content = str(args.content);
-    const message = str(args.message).replace(/[\r\n]+/g, " ").trim();
+    const message = str(args.message)
+      .replace(/[\r\n]+/g, " ")
+      .trim();
     if (!message) reject("MESSAGE_INVALID");
     if (isDefaultBranch(branch, defaultBranch)) reject("DEFAULT_BRANCH_WRITE_FORBIDDEN");
-    const expectedSha = args.expected_sha === undefined ? null : (isSha(args.expected_sha) ? args.expected_sha : reject("SHA_INVALID"));
+    const expectedSha =
+      args.expected_sha === undefined
+        ? null
+        : isSha(args.expected_sha)
+          ? args.expected_sha
+          : reject("SHA_INVALID");
 
     await currentDefaultBranch(ctx, defaultBranch);
-    const b = await ctx.client.request({ route: "getBranch", params: params(ctx, { branch }) }, auth(ctx), { ...sig(ctx), tolerate: [404] });
+    const b = await ctx.client.request({ route: "getBranch", params: params(ctx, { branch }) }, auth(ctx), {
+      ...sig(ctx),
+      tolerate: [404],
+    });
     if (b.status === 404) reject("BRANCH_NOT_FOUND");
     const bb = b.body as { protected?: boolean; commit?: { sha?: string } };
     if (bb.protected) reject("PROTECTED_BRANCH_WRITE_FORBIDDEN");
     const before = isSha(bb.commit?.sha) ? bb.commit.sha : null;
 
-    const cur = await ctx.client.request({ route: "getContents", params: params(ctx, { path }), query: { ref: branch } }, auth(ctx), { ...sig(ctx), tolerate: [404] });
+    const cur = await ctx.client.request(
+      { route: "getContents", params: params(ctx, { path }), query: { ref: branch } },
+      auth(ctx),
+      { ...sig(ctx), tolerate: [404] },
+    );
     let existingSha: string | null = null;
     if (cur.status !== 404) {
       const cb = cur.body as { type?: string; sha?: string; content?: string; encoding?: string } | unknown[];
@@ -300,7 +394,12 @@ const putFile: OperationSpec = {
       {
         route: "putContents",
         params: params(ctx, { path }),
-        body: { message, content: Buffer.from(content, "utf8").toString("base64"), branch, ...(existingSha ? { sha: existingSha } : {}) },
+        body: {
+          message,
+          content: Buffer.from(content, "utf8").toString("base64"),
+          branch,
+          ...(existingSha ? { sha: existingSha } : {}),
+        },
       },
       auth(ctx),
       sig(ctx),
@@ -340,7 +439,8 @@ const createPullRequest: OperationSpec = {
       .parse(a),
   precheck(args, env) {
     need(validateTaskBranch(args.head ?? args.head_branch, env.taskId));
-    if ((args.base ?? args.target_branch ?? env.defaultBranch) !== env.defaultBranch) reject("PR_BASE_NOT_ALLOWED");
+    if ((args.base ?? args.target_branch ?? env.defaultBranch) !== env.defaultBranch)
+      reject("PR_BASE_NOT_ALLOWED");
   },
   async run(ctx, args, defaultBranch) {
     const headRaw = args.head ?? args.head_branch;
@@ -351,21 +451,37 @@ const createPullRequest: OperationSpec = {
     await currentDefaultBranch(ctx, defaultBranch);
 
     const listQuery = { head: `${ctx.owner}:${head}`, base: defaultBranch, state: "open", per_page: 5 };
-    const summarize = (p: Record<string, unknown>, category: "succeeded" | "succeeded_noop", requestId: string | null, status: number): OperationResult => {
+    const summarize = (
+      p: Record<string, unknown>,
+      category: "succeeded" | "succeeded_noop",
+      requestId: string | null,
+      status: number,
+    ): OperationResult => {
       const url = isGithubHtmlUrl(p.html_url) ? p.html_url : undefined;
       return {
         category,
         resourceIds: { pullNumber: p.number, htmlUrl: url, head, base: defaultBranch },
         beforeSha: null,
-        afterSha: isSha((p.head as { sha?: string } | undefined)?.sha) ? (p.head as { sha: string }).sha : null,
+        afterSha: isSha((p.head as { sha?: string } | undefined)?.sha)
+          ? (p.head as { sha: string }).sha
+          : null,
         githubRequestId: requestId,
         httpStatusClass: status,
-        agentPayload: { number: p.number, htmlUrl: url ?? null, state: p.state, created: category === "succeeded" },
+        agentPayload: {
+          number: p.number,
+          htmlUrl: url ?? null,
+          state: p.state,
+          created: category === "succeeded",
+        },
         redaction: {},
       };
     };
 
-    const existing = await ctx.client.request({ route: "listPulls", params: params(ctx), query: listQuery }, auth(ctx), sig(ctx));
+    const existing = await ctx.client.request(
+      { route: "listPulls", params: params(ctx), query: listQuery },
+      auth(ctx),
+      sig(ctx),
+    );
     const found = (existing.body as Array<Record<string, unknown>>)?.[0];
     if (found) return summarize(found, "succeeded_noop", existing.requestId, 2);
 
@@ -375,14 +491,28 @@ const createPullRequest: OperationSpec = {
     ctx.beforeWrite();
     try {
       const r = await ctx.client.request(
-        { route: "createPull", params: params(ctx), body: { title: str(args.title), head, base: defaultBranch, body: str(args.body), draft: Boolean(args.draft) } },
+        {
+          route: "createPull",
+          params: params(ctx),
+          body: {
+            title: str(args.title),
+            head,
+            base: defaultBranch,
+            body: str(args.body),
+            draft: Boolean(args.draft),
+          },
+        },
         auth(ctx),
         sig(ctx),
       );
       return summarize(r.body as Record<string, unknown>, "succeeded", r.requestId, cls(r.status));
     } catch (error) {
       if (error instanceof GithubDefiniteError && error.httpStatus === 422) {
-        const again = await ctx.client.request({ route: "listPulls", params: params(ctx), query: listQuery }, auth(ctx), sig(ctx));
+        const again = await ctx.client.request(
+          { route: "listPulls", params: params(ctx), query: listQuery },
+          auth(ctx),
+          sig(ctx),
+        );
         const f2 = (again.body as Array<Record<string, unknown>>)?.[0];
         if (f2) return summarize(f2, "succeeded_noop", again.requestId, 2);
       }
@@ -401,8 +531,15 @@ const getPullRequest: OperationSpec = {
   },
   async run(ctx, args) {
     const n = need(parsePositiveInt(args.pull_number));
-    const r = await ctx.client.request({ route: "getPull", params: params(ctx, { number: n }) }, auth(ctx), sig(ctx));
-    const b = r.body as Record<string, unknown> & { head?: { ref?: string; sha?: string }; base?: { ref?: string } };
+    const r = await ctx.client.request(
+      { route: "getPull", params: params(ctx, { number: n }) },
+      auth(ctx),
+      sig(ctx),
+    );
+    const b = r.body as Record<string, unknown> & {
+      head?: { ref?: string; sha?: string };
+      base?: { ref?: string };
+    };
     const counts: RedactionCounts = {};
     const url = isGithubHtmlUrl(b.html_url) ? b.html_url : undefined;
     return {
@@ -413,7 +550,16 @@ const getPullRequest: OperationSpec = {
       githubRequestId: r.requestId,
       httpStatusClass: cls(r.status),
       agentPayload: redactValue(
-        { number: n, state: str(b.state), title: str(b.title), merged: Boolean(b.merged), draft: Boolean(b.draft), head: b.head?.ref, base: b.base?.ref, htmlUrl: url ?? null },
+        {
+          number: n,
+          state: str(b.state),
+          title: str(b.title),
+          merged: Boolean(b.merged),
+          draft: Boolean(b.draft),
+          head: b.head?.ref,
+          base: b.base?.ref,
+          htmlUrl: url ?? null,
+        },
         counts,
       ),
       redaction: counts,

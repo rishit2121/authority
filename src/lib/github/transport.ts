@@ -17,7 +17,11 @@ export interface GithubAuth {
 }
 
 export interface GithubTransport {
-  send(req: RouteRequest, auth: GithubAuth, opts: { timeoutMs: number; signal?: AbortSignal }): Promise<GithubHttpResponse>;
+  send(
+    req: RouteRequest,
+    auth: GithubAuth,
+    opts: { timeoutMs: number; signal?: AbortSignal },
+  ): Promise<GithubHttpResponse>;
 }
 
 async function readCapped(response: Response): Promise<string> {
@@ -51,7 +55,11 @@ async function readCapped(response: Response): Promise<string> {
  *  - the credential is attached here and nowhere else.
  */
 export class LiveGithubTransport implements GithubTransport {
-  async send(req: RouteRequest, auth: GithubAuth, opts: { timeoutMs: number; signal?: AbortSignal }): Promise<GithubHttpResponse> {
+  async send(
+    req: RouteRequest,
+    auth: GithubAuth,
+    opts: { timeoutMs: number; signal?: AbortSignal },
+  ): Promise<GithubHttpResponse> {
     const { url, method, auth: required } = buildUrl(req);
     if (required !== auth.kind) throw new TransportError("aborted");
 

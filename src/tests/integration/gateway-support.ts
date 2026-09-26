@@ -165,7 +165,6 @@ export async function resetSemanticSettings(): Promise<void> {
   `);
 }
 
-
 /**
  * A `mock`-mode GitHub installation for tenant A with a few repositories. Idempotent and
  * non-destructive, so several fixtures can share it. Mirrors the mock GitHub's seed data.
@@ -188,7 +187,8 @@ export async function ensureMockInstallation(): Promise<{ installationRowId: str
     on conflict (github_installation_id) do nothing;
     select id from public.github_installations where tenant_id = '${TENANT_A_ID}' and github_installation_id = 9001 and status = 'active';
   `)) as Array<{ id: string }>;
-  if (!rows[0]) throw new Error("mock installation is not active for tenant A (a different installation is connected)");
+  if (!rows[0])
+    throw new Error("mock installation is not active for tenant A (a different installation is connected)");
   const row = rows[0].id;
   const values = Object.entries(MOCK_REPOS)
     .map(([full, id]) => {
