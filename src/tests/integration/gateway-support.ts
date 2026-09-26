@@ -67,11 +67,11 @@ export async function createGatewayFixture(options: {
   await managementQuery(`
     insert into public.agents (id, tenant_id, name, model_provider, model, framework, owner_principal_id, status)
     values ('${agentId}', '${TENANT_A_ID}', '${options.label}-${suffix}', 'openai', 'gpt', 'x',
-      (select id from public.principals where tenant_id = '${TENANT_A_ID}' and kind = 'human' limit 1), 'active');
+      (select id from public.principals where tenant_id = '${TENANT_A_ID}' and kind = 'human' and user_id is null order by created_at limit 1), 'active');
 
     insert into public.tasks (id, tenant_id, agent_id, principal_id, intent, status)
     values ('${taskId}', '${TENANT_A_ID}', '${agentId}',
-      (select id from public.principals where tenant_id = '${TENANT_A_ID}' and kind = 'human' limit 1),
+      (select id from public.principals where tenant_id = '${TENANT_A_ID}' and kind = 'human' and user_id is null order by created_at limit 1),
       'Read issue 1 in payments-api', 'contract_issued');
 
     insert into public.task_authority_contracts (
@@ -212,7 +212,7 @@ export async function bindTaskToMockRepo(taskId: string, fullName: string): Prom
   await managementQuery(`
     insert into public.task_repository_bindings (tenant_id, task_id, repository_id, bound_by_principal_id)
     select '${TENANT_A_ID}', '${taskId}', r.id,
-      (select id from public.principals where tenant_id = '${TENANT_A_ID}' and kind = 'human' limit 1)
+      (select id from public.principals where tenant_id = '${TENANT_A_ID}' and kind = 'human' and user_id is null order by created_at limit 1)
     from public.github_repositories r where r.tenant_id = '${TENANT_A_ID}' and r.owner = '${owner}' and r.name = '${name}';
   `);
 }
