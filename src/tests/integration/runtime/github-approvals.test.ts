@@ -283,7 +283,7 @@ describe("runtime approval -> capability", () => {
     const { approvalId } = await openApproval(fx);
     expect(await approvalById({ credentialSecret: fx.secret, approvalId })).toMatchObject({ state: "pending" });
     expect(await approvalById({ credentialSecret: other.secret, approvalId })).toMatchObject({ state: "not_found" });
-    expect((await approvalById({ credentialSecret: "authority_rk_" + "0".repeat(64), approvalId })).status).toBe("invalid_credential");
+    expect((await approvalById({ credentialSecret: "authority_rk_" + "e".repeat(64), approvalId })).status).toBe("invalid_credential");
     mockGithub().log.splice(0);
   });
 });
