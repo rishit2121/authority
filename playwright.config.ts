@@ -94,8 +94,20 @@ export default defineConfig({
     {
       name: "authenticated",
       testMatch:
-        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway|github-connector)\.spec\.ts/,
+        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway)\.spec\.ts/,
       dependencies: ["setup"],
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
+    },
+
+    /**
+     * The GitHub connector suite changes tenant-wide state (installation, repository allowlist,
+     * approval policy) and, by design, runtime approvals go stale when tenant policy changes — so it
+     * must not overlap with specs that also edit tenant settings. It runs after the authenticated project.
+     */
+    {
+      name: "github",
+      testMatch: /github-connector\.spec\.ts/,
+      dependencies: ["setup", "authenticated"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
 

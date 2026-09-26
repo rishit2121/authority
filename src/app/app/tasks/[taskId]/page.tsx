@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { GithubTaskPanel, type TaskGithubData } from "@/components/github/GithubTaskPanel";
 import type { FlowPhase, FlowStep } from "@/components/github/ExecutionFlowGraph";
+import { reconcileExpiredReservations } from "@/lib/gateway/rpc-github";
 import { loadRuntimeApprovals, loadTaskGithub } from "@/lib/github/read-model";
 import { SemanticShadowPanel, type SemanticPanelRow } from "@/components/semantic/SemanticShadowPanel";
 import { TaskInvestigationView } from "@/components/task/TaskInvestigationView";
@@ -64,6 +65,8 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
     evidence: evidenceByDecision.get(d.id),
   }));
 
+  // Settle any expired execution leases first (best effort) so the panel shows their true state.
+  await reconcileExpiredReservations(20).catch(() => undefined);
   // GitHub execution state, read through the caller's own RLS scope.
   const github = await loadTaskGithub(context.supabase, taskId);
   const approvals = await loadRuntimeApprovals(context.supabase, taskId);

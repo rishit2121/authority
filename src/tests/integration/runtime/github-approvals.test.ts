@@ -12,6 +12,7 @@ import {
   currentVersions,
   resetSemanticSettings,
   type GatewayFixture,
+  purgeGithubState,
 } from "../gateway-support";
 import {
   OWNER_A_EMAIL,
@@ -132,6 +133,7 @@ describe("runtime approval -> capability", () => {
 
   afterAll(async () => {
     for (const f of fixtures) await f.cleanup();
+    await purgeGithubState();
     await managementQuery(`
       set local role postgres;
       select set_config('authority.allow_demo_purge', 'on', true);

@@ -450,6 +450,11 @@ test.describe.serial("GitHub connector (mock GitHub)", () => {
     const again = await run(request, fx, "github.get_issue", { issue_number: "1" }, "recovered");
     expect(again.body.result).toBe("succeeded");
 
+    // GitHub's "redirect on update" for an already-connected installation just re-reads it.
+    await page.goto("/api/github/setup?installation_id=9001&setup_action=update");
+    await expect(page.getByTestId("github-updated")).toBeVisible();
+    await expect(page.getByTestId("installation-status")).toHaveText("active");
+
     // A capability issued before disconnect stops working the moment the installation is disconnected.
     const pending = await authorize(request, fx, "github.get_issue", { issue_number: "1" }, "pre-disc");
     await page.getByTestId("github-disconnect").click();

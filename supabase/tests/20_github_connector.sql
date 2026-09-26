@@ -6,6 +6,16 @@ select plan(104);
 
 set local role postgres;
 
+-- Independent of whatever GitHub state the shared dev project currently holds (rolled back with the suite).
+select set_config('authority.allow_demo_purge', 'on', true);
+delete from public.github_execution_receipts where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+delete from public.capability_reservations where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+delete from public.task_repository_bindings where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+delete from public.github_repositories where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+delete from public.github_install_states where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+delete from public.github_installations where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+select set_config('authority.allow_demo_purge', 'off', true);
+
 insert into public.principals (id, tenant_id, kind, display_name, user_id) values
   ('20000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'human', 'Task Owner (dev.a)', 'a0000000-0000-4000-8000-000000000003'),
   ('20000000-0000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111', 'human', 'Approver (owner.a)', 'a0000000-0000-4000-8000-000000000001'),

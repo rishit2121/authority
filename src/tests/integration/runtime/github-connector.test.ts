@@ -13,6 +13,7 @@ import {
   currentVersions,
   resetSemanticSettings,
   type GatewayFixture,
+  purgeGithubState,
 } from "../gateway-support";
 import { managementQuery } from "../support";
 
@@ -121,6 +122,7 @@ describe("GitHub connector (mock GitHub, real database)", () => {
 
   afterAll(async () => {
     for (const f of fixtures) await f.cleanup();
+    await purgeGithubState();
     await closeGatewayPool();
   }, 60_000);
 

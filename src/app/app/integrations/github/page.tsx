@@ -34,7 +34,7 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function GithubIntegrationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; connected?: string }>;
+  searchParams: Promise<{ error?: string; connected?: string; updated?: string }>;
 }) {
   const params = await searchParams;
   const { identity, context } = await createRepositoriesForCurrentTenant("/app/integrations/github");
@@ -68,6 +68,15 @@ export default async function GithubIntegrationPage({
           className="rounded-lg border border-deny/40 bg-deny/10 px-space-md py-2.5 font-body-md text-body-sm text-deny"
         >
           {errorMessage}
+        </div>
+      ) : null}
+      {params.updated ? (
+        <div
+          role="status"
+          data-testid="github-updated"
+          className="rounded-lg border border-allow/30 bg-allow/10 px-space-md py-2.5 font-body-md text-body-sm text-allow"
+        >
+          Installation changes were re-read from GitHub. New repositories still need to be allowed below.
         </div>
       ) : null}
       {params.connected ? (
