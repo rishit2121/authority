@@ -1,0 +1,31 @@
+# Render Blueprint for Authority. See docs/deploy/RENDER.md.
+# Secrets are `sync: false`: Render asks for them in the dashboard and they are never stored in git.
+services:
+  - type: web
+    name: authority
+    runtime: node
+    plan: free # free spins down after ~15 min idle (first request is slow); use "starter" for always-on
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npx next start -p $PORT
+    healthCheckPath: /api/v1/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # --- Supabase (public values, inlined into the browser bundle at build time) ---
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      # --- Gateway (server-only). Use the transaction pooler URL (port 6543). ---
+      - key: GATEWAY_DATABASE_URL
+        sync: false
+      - key: GATEWAY_DATABASE_CA_FILE
+        value: ./deploy/supabase-ca.crt # public Supabase root CA, committed; readiness fails without a CA
+      # --- GitHub connector: leave disabled until the GitHub App exists (docs/github/SETUP.md) ---
+      - key: GITHUB_EXECUTION_MODE
+        value: disabled
+      # AUTHORITY_PUBLIC_URL defaults to Render's own RENDER_EXTERNAL_URL; set it only for a custom domain.
+      # Live mode additionally needs: GITHUB_APP_ID, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET,
+      # GITHUB_APP_SLUG, GITHUB_WEBHOOK_SECRET, GITHUB_APP_PRIVATE_KEY_BASE64 (base64 of the .pem).

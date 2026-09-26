@@ -2,6 +2,8 @@ import "server-only";
 
 import { safeLog } from "@/lib/semantic/scrub";
 
+import { readFileSync } from "node:fs";
+
 import pg from "pg";
 
 /**
@@ -49,7 +51,7 @@ function createPool(): pg.Pool {
     throw new GatewayNotConfiguredError();
   }
 
-  const ca = process.env.GATEWAY_DATABASE_CA?.trim();
+  const ca = gatewayCa();
   const pool = new pg.Pool({
     host: url.hostname,
     port: Number(url.port || 5432),
@@ -90,7 +92,21 @@ export function isGatewayConfigured(): boolean {
  * running with a man-in-the-middle-able connection.
  */
 export function gatewayTlsVerified(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.GATEWAY_DATABASE_CA?.trim());
+  return gatewayCa(env) !== null;
+}
+
+/** The CA bundle (PEM) from GATEWAY_DATABASE_CA, or read from the file named by GATEWAY_DATABASE_CA_FILE. */
+export function gatewayCa(env: NodeJS.ProcessEnv = process.env): string | null {
+  const inline = env.GATEWAY_DATABASE_CA?.trim();
+  if (inline) return inline;
+  const file = env.GATEWAY_DATABASE_CA_FILE?.trim();
+  if (!file) return null;
+  try {
+    const pem = readFileSync(file, "utf8").trim();
+    return pem.includes("BEGIN CERTIFICATE") ? pem : null;
+  } catch {
+    return null;
+  }
 }
 
 /** True when this process is a production deployment that must not run with unverified TLS. */

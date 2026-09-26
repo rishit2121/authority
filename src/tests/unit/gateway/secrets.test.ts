@@ -216,3 +216,18 @@ describe("providerEnforcementGrade (mirrors gateway.provider_enforcement_grade)"
     expect(providerEnforcementGrade(provider, env)).toBe(expected);
   });
 });
+
+describe("gateway CA configuration", () => {
+  it("reads the CA inline or from a file, and treats anything else as unverified", async () => {
+    const { gatewayCa, gatewayTlsVerified } = await import("@/lib/gateway/db");
+    expect(gatewayCa({} as NodeJS.ProcessEnv)).toBeNull();
+    expect(
+      gatewayCa({
+        GATEWAY_DATABASE_CA: "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----",
+      } as never),
+    ).toContain("BEGIN CERTIFICATE");
+    expect(gatewayTlsVerified({ GATEWAY_DATABASE_CA_FILE: "./deploy/supabase-ca.crt" } as never)).toBe(true);
+    expect(gatewayTlsVerified({ GATEWAY_DATABASE_CA_FILE: "./does-not-exist.crt" } as never)).toBe(false);
+    expect(gatewayTlsVerified({ GATEWAY_DATABASE_CA_FILE: "./package.json" } as never)).toBe(false);
+  });
+});
