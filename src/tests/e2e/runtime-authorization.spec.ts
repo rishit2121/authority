@@ -48,6 +48,7 @@ test.describe.serial("runtime authorization", () => {
     await managementQuery(`
       begin;
       select set_config('authority.allow_demo_purge', 'on', true);
+      delete from public.semantic_shadow_evaluations where task_id = '${taskId}';
       delete from public.execution_events where task_id = '${taskId}';
       delete from public.authorization_decisions where task_id = '${taskId}';
       delete from public.capabilities where task_id = '${taskId}';
@@ -60,7 +61,13 @@ test.describe.serial("runtime authorization", () => {
       delete from public.plans where task_id = '${taskId}';
       delete from public.tasks where id = '${taskId}';
       delete from public.agents where id = '${agentId}';
-      delete from public.principals where id = '${FIXTURE_ID_PREFIX}1';
+      -- Conditional: activate_task_contract() attributes activation to whichever of the
+      -- user's principals it finds first, so a parallel spec's contract may reference
+      -- this fixture principal. Delete it only when nothing else does.
+      delete from public.principals p where p.id = '${FIXTURE_ID_PREFIX}1'
+        and not exists (select 1 from public.task_authority_contracts c
+          where p.id in (c.activated_by_principal_id, c.submitted_by_principal_id, c.rejected_by_principal_id, c.revoked_by_principal_id))
+        and not exists (select 1 from public.approvals a where a.responded_by_principal_id = p.id);
       commit;
     `);
   });

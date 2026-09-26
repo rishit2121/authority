@@ -11,6 +11,8 @@ const ROUTES = [
   "/app/policies",
   "/app/integrations",
   "/app/approvals",
+  "/app/runtime",
+  "/app/settings",
 ];
 
 const VIEWPORTS = [

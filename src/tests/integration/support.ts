@@ -108,7 +108,18 @@ export async function managementQuery(query: string, attempt = 1): Promise<unkno
     }
     // Deliberately generic: the response body can echo back query text, and
     // this must never surface a token even indirectly.
-    throw new Error(`managementQuery failed with status ${response.status} after ${maxAttempts} attempts`);
+    // Only the SQLSTATE and the first line of the database's own message are
+    // surfaced (enough to tell a lock timeout from a constraint violation);
+    // never the query text or anything from the request.
+    const message =
+      typeof (body as { message?: unknown })?.message === "string"
+        ? (body as { message: string }).message
+        : "";
+    const detail = /ERROR:\s+([0-9A-Z]{5}):\s*([^\n]{0,160})/.exec(message);
+    throw new Error(
+      `managementQuery failed with status ${response.status} after ${maxAttempts} attempts` +
+        (detail ? ` (sqlstate ${detail[1]}: ${detail[2]})` : ""),
+    );
   }
 
   return body;
