@@ -25,6 +25,7 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
       { label: "Overview", href: "/app", icon: "account_tree" },
       { label: "Tasks", href: "/app/tasks", icon: "data_object", badgeKey: "tasksActive" },
       { label: "Agents", href: "/app/agents", icon: "smart_toy" },
+      { label: "Runtime", href: "/app/runtime", icon: "bolt" },
     ],
   },
   {

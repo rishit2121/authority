@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
 import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
 import { Icon } from "@/components/ui/Icon";
@@ -69,10 +71,13 @@ export default async function AgentsPage() {
                     className="border-b border-outline-variant/20 last:border-b-0 hover:bg-surface-container-high"
                   >
                     <td className="px-space-lg py-space-md">
-                      <span className="flex items-center gap-2 font-mono-code text-[12px] text-on-surface">
+                      <Link
+                        href={`/app/agents/${agent.id}`}
+                        className="flex items-center gap-2 font-mono-code text-[12px] text-on-surface underline-offset-2 hover:underline"
+                      >
                         <Icon name="smart_toy" size={14} className="text-outline" />
                         {agent.name}
-                      </span>
+                      </Link>
                     </td>
                     <td className="px-space-lg py-space-md font-body-sm text-body-sm text-on-surface-variant">
                       {agent.model}
