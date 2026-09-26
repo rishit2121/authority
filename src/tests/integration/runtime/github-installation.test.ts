@@ -296,6 +296,74 @@ describe("GitHub installation flow (mock GitHub, real database)", () => {
     });
   });
 
+  describe("connecting an already-installed App", () => {
+    beforeEach(purgeGithubState);
+
+    const existing = async (userId = ADMIN_A, tenantId = TENANT_A_ID) => {
+      const started = await startInstall({ tenantId, userId, existing: true });
+      if (started.status !== "ok" || !started.started) return { started };
+      const { nonce, verifier, installUrl } = started.started;
+      const code = new URL(installUrl).searchParams.get("code");
+      const oauth = await handleOAuthCallback({
+        tenantId,
+        userId,
+        cookieNonce: nonce,
+        cookieVerifier: verifier,
+        state: nonce,
+        code,
+      });
+      return { started, oauth, nonce, verifier };
+    };
+
+    it("connects the single installation GitHub shows to this user, with no id claimed by a redirect", async () => {
+      mockGithub().userInstallationIds = new Set([9001]);
+      const r = await existing();
+      expect(r.oauth).toMatchObject({ ok: true, health: "active" });
+      expect(await installation()).toMatchObject({ github_installation_id: 9001, status: "active" });
+      expect((await repos()).length).toBe(5);
+    });
+
+    it("refuses when GitHub shows several installations or none", async () => {
+      expect((await existing()).oauth).toEqual({ ok: false, code: "multiple_installations" });
+      mockGithub().userInstallationIds = new Set();
+      expect((await existing()).oauth).toEqual({ ok: false, code: "no_installation_visible" });
+      expect(await installation()).toBeUndefined();
+    });
+
+    it("still requires the admin role and this browser's state", async () => {
+      mockGithub().userInstallationIds = new Set([9001]);
+      expect((await startInstall({ tenantId: TENANT_A_ID, userId: DEV_A, existing: true })).status).toBe(
+        "forbidden",
+      );
+      const started = await startInstall({ tenantId: TENANT_A_ID, userId: ADMIN_A, existing: true });
+      const { nonce, verifier } = started.started!;
+      const base = {
+        tenantId: TENANT_A_ID,
+        userId: ADMIN_A,
+        cookieVerifier: verifier,
+        code: "mockcode-verified",
+      };
+      expect(await handleOAuthCallback({ ...base, cookieNonce: undefined, state: nonce })).toEqual({
+        ok: false,
+        code: "invalid_state",
+      });
+      expect(await handleOAuthCallback({ ...base, userId: DEV_A, cookieNonce: nonce, state: nonce })).toEqual(
+        {
+          ok: false,
+          code: "invalid_state",
+        },
+      );
+      expect(await installation()).toBeUndefined();
+    });
+
+    it("cannot take an installation another workspace already owns", async () => {
+      mockGithub().userInstallationIds = new Set([9001]);
+      expect((await existing()).oauth).toMatchObject({ ok: true });
+      const b = await existing(OWNER_B, TENANT_B_ID);
+      expect(b.oauth).toEqual({ ok: false, code: "installation_unavailable" });
+    });
+  });
+
   describe("permission drift", () => {
     beforeEach(purgeGithubState);
 

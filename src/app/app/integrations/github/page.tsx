@@ -23,6 +23,10 @@ const ERRORS: Record<string, string> = {
   connector_disabled: "The GitHub connector is not enabled on this deployment.",
   not_configured: "The GitHub connector is not fully configured on this deployment.",
   rate_limited: "Too many installation attempts are pending. Wait a few minutes.",
+  no_installation_visible:
+    "GitHub shows no installation of this App to your account. Install the App first (Connect GitHub).",
+  multiple_installations:
+    "GitHub shows more than one installation of this App to your account, so it cannot tell which to connect. Use Connect GitHub and choose one.",
   verification_failed: "GitHub could not verify the installation.",
 };
 
@@ -134,15 +138,31 @@ export default async function GithubIntegrationPage({
             confirms you can see it.
           </p>
           {canAdmin && readiness.mode !== "disabled" ? (
-            <form method="post" action="/api/github/connect" className="mt-space-md">
-              <button
-                type="submit"
-                data-testid="github-connect"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-space-md py-2 font-headline-sm text-body-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed"
-              >
-                <Icon name="bolt" size={14} /> Connect GitHub
-              </button>
-            </form>
+            <>
+              <form method="post" action="/api/github/connect" className="mt-space-md">
+                <button
+                  type="submit"
+                  data-testid="github-connect"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-space-md py-2 font-headline-sm text-body-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+                >
+                  <Icon name="bolt" size={14} /> Connect GitHub
+                </button>
+              </form>
+              <form method="post" action="/api/github/connect" className="mt-space-sm">
+                <input type="hidden" name="mode" value="existing" />
+                <button
+                  type="submit"
+                  data-testid="github-connect-existing"
+                  className="rounded-lg border border-outline-variant/40 bg-surface-container-high px-space-md py-2 font-body-sm text-body-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
+                >
+                  I already installed the App: find it
+                </button>
+                <p className="mt-1 font-body-sm text-body-sm text-outline">
+                  Skips GitHub&apos;s install page. GitHub confirms which installation you can see, and it is
+                  connected only if there is exactly one.
+                </p>
+              </form>
+            </>
           ) : (
             <p className="mt-space-md font-body-sm text-body-sm text-outline">
               {readiness.mode === "disabled"

@@ -57,6 +57,8 @@ export interface StartedInstall {
 export async function startInstall(input: {
   tenantId: string;
   userId: string;
+  /** The App is already installed: skip GitHub's install page and go straight to the identity check. */
+  existing?: boolean;
 }): Promise<{ status: string; started?: StartedInstall }> {
   const mode = executionMode();
   if (mode === "disabled") return { status: "connector_disabled" };
@@ -73,6 +75,21 @@ export async function startInstall(input: {
     nonceHash: nonceHash(nonce),
   });
   if (r.status !== "ok") return { status: r.status };
+
+  if (input.existing) {
+    // No installation id is claimed by anyone here: after GitHub authenticates the user, the id is taken
+    // from GitHub's own list of installations that user can see (see handleOAuthCallback).
+    const installUrl =
+      mode === "live"
+        ? oauthAuthorizeUrl(
+            cfg!,
+            callbackUrl(base),
+            nonce,
+            b64url(createHash("sha256").update(verifier).digest()),
+          )
+        : `${callbackUrl(base)}?code=mockcode-verified&state=${nonce}`;
+    return { status: "ok", started: { installUrl, nonce, verifier } };
+  }
 
   const installUrl =
     mode === "live"
@@ -228,13 +245,27 @@ export async function handleOAuthCallback(input: {
   const hash = nonceHash(input.cookieNonce);
   const scope = { tenantId: input.tenantId, userId: input.userId, nonceHash: hash };
 
-  const reported = await reportedInstallation(scope);
-  if (!reported) return { ok: false, code: "invalid_state" };
+  let reported = await reportedInstallation(scope);
 
   try {
     const client = createGithubClient();
     const userToken = await exchangeOAuthCode(input.code, callbackUrl(base), input.cookieVerifier ?? "");
     const visible = await listUserInstallationIds(client, userToken);
+    if (!reported) {
+      // The "I already installed the App" path: nothing was claimed by a redirect. Only an installation GitHub
+      // itself lists for this authenticated user can be connected, and only when it is unambiguous.
+      if (visible.size !== 1) {
+        await rejectInstall({
+          ...scope,
+          reason: visible.size === 0 ? "NO_INSTALLATION_VISIBLE" : "MULTIPLE_INSTALLATIONS",
+        });
+        return { ok: false, code: visible.size === 0 ? "no_installation_visible" : "multiple_installations" };
+      }
+      const only = [...visible][0];
+      const status = await reportInstall({ ...scope, installationId: only });
+      if (status !== "ok") return { ok: false, code: status === "invalid_state" ? "invalid_state" : status };
+      reported = only;
+    }
     // The reported id must be one THIS GitHub user can actually see: substituting another id fails here.
     if (!visible.has(reported)) {
       await rejectInstall({ ...scope, reason: "INSTALLATION_NOT_VISIBLE_TO_USER" });

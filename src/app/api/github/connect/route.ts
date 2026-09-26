@@ -23,7 +23,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (sent && sent !== base) return fail("forbidden");
 
   const identity = await requireIdentity(PAGE);
-  const result = await startInstall({ tenantId: identity.tenant.tenantId, userId: identity.userId });
+  const form = await request.formData().catch(() => null);
+  const existing = form?.get("mode") === "existing";
+  const result = await startInstall({
+    tenantId: identity.tenant.tenantId,
+    userId: identity.userId,
+    existing,
+  });
   if (result.status !== "ok" || !result.started) return fail(result.status);
 
   const response = NextResponse.redirect(result.started.installUrl, 303);
