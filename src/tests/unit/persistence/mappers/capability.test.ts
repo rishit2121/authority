@@ -20,6 +20,7 @@ const ROW: Tables<"capabilities"> = {
   revoked_at: null,
   revocation_reason: null,
   demo_key: "demo:cap:991:3",
+  contract_id: null,
 };
 
 describe("capabilityRowToDomain", () => {

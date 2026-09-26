@@ -25,6 +25,7 @@ const ROW: Tables<"authorization_decisions"> = {
   latency_ms: 5,
   demo_key: "demo:dec:991:3",
   created_at: "2026-01-01T00:00:00.000Z",
+  capability_id: null,
 };
 
 const SEMANTIC_ROW: Tables<"semantic_decisions"> = {
@@ -112,7 +113,7 @@ describe("decisionInputToInsertRow", () => {
       tenantId: ROW.tenant_id,
       taskId: ROW.task_id,
       toolRequestId: ROW.tool_request_id,
-      contractId: ROW.contract_id,
+      contractId: ROW.contract_id!,
       contractVersion: 1,
       status: "allow",
       reasons: [{ code: "WITHIN_CONTRACT", detail: "ok", source: "contract" }],
