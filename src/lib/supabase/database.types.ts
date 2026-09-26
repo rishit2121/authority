@@ -1098,6 +1098,210 @@ export type Database = {
           },
         ];
       };
+      semantic_settings: {
+        Row: {
+          mode: Database["public"]["Enums"]["semantic_mode"];
+          model: string;
+          provider: string;
+          tenant_id: string;
+          timeout_ms: number;
+          updated_at: string;
+          updated_by_principal_id: string | null;
+        };
+        Insert: {
+          mode?: Database["public"]["Enums"]["semantic_mode"];
+          model?: string;
+          provider?: string;
+          tenant_id: string;
+          timeout_ms?: number;
+          updated_at?: string;
+          updated_by_principal_id?: string | null;
+        };
+        Update: {
+          mode?: Database["public"]["Enums"]["semantic_mode"];
+          model?: string;
+          provider?: string;
+          tenant_id?: string;
+          timeout_ms?: number;
+          updated_at?: string;
+          updated_by_principal_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "semantic_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "semantic_settings_updated_by_principal_id_tenant_id_fkey";
+            columns: ["updated_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      semantic_settings_audit: {
+        Row: {
+          actor_principal_id: string | null;
+          created_at: string;
+          id: string;
+          new_settings: Json;
+          previous_settings: Json | null;
+          tenant_id: string;
+        };
+        Insert: {
+          actor_principal_id?: string | null;
+          created_at?: string;
+          id?: string;
+          new_settings: Json;
+          previous_settings?: Json | null;
+          tenant_id: string;
+        };
+        Update: {
+          actor_principal_id?: string | null;
+          created_at?: string;
+          id?: string;
+          new_settings?: Json;
+          previous_settings?: Json | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "semantic_settings_audit_actor_principal_id_tenant_id_fkey";
+            columns: ["actor_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "semantic_settings_audit_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      semantic_shadow_evaluations: {
+        Row: {
+          agent_id: string;
+          attestation: string;
+          authoritative: boolean;
+          authorization_decision_id: string;
+          confidence: number;
+          created_at: string;
+          disagreement: Database["public"]["Enums"]["semantic_disagreement"];
+          error_category: string | null;
+          evidence_schema_version: number;
+          id: string;
+          indicators: string[];
+          input_hash: string;
+          latency_ms: number;
+          mode: Database["public"]["Enums"]["semantic_mode"];
+          model: string;
+          model_version: string;
+          provider: string;
+          redaction_summary: Json;
+          risk_level: Database["public"]["Enums"]["semantic_risk_level"];
+          signals: Json | null;
+          state: Database["public"]["Enums"]["semantic_evidence_state"];
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Insert: {
+          agent_id: string;
+          attestation?: string;
+          authoritative?: boolean;
+          authorization_decision_id: string;
+          confidence: number;
+          created_at?: string;
+          disagreement?: Database["public"]["Enums"]["semantic_disagreement"];
+          error_category?: string | null;
+          evidence_schema_version?: number;
+          id?: string;
+          indicators?: string[];
+          input_hash: string;
+          latency_ms: number;
+          mode?: Database["public"]["Enums"]["semantic_mode"];
+          model: string;
+          model_version: string;
+          provider: string;
+          redaction_summary?: Json;
+          risk_level: Database["public"]["Enums"]["semantic_risk_level"];
+          signals?: Json | null;
+          state: Database["public"]["Enums"]["semantic_evidence_state"];
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Update: {
+          agent_id?: string;
+          attestation?: string;
+          authoritative?: boolean;
+          authorization_decision_id?: string;
+          confidence?: number;
+          created_at?: string;
+          disagreement?: Database["public"]["Enums"]["semantic_disagreement"];
+          error_category?: string | null;
+          evidence_schema_version?: number;
+          id?: string;
+          indicators?: string[];
+          input_hash?: string;
+          latency_ms?: number;
+          mode?: Database["public"]["Enums"]["semantic_mode"];
+          model?: string;
+          model_version?: string;
+          provider?: string;
+          redaction_summary?: Json;
+          risk_level?: Database["public"]["Enums"]["semantic_risk_level"];
+          signals?: Json | null;
+          state?: Database["public"]["Enums"]["semantic_evidence_state"];
+          task_id?: string;
+          tenant_id?: string;
+          tool_request_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "semantic_shadow_evaluations_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "semantic_shadow_evaluations_authorization_decision_id_tena_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "semantic_shadow_evaluations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "semantic_shadow_evaluations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "semantic_shadow_evaluations_tool_request_id_tenant_id_fkey";
+            columns: ["tool_request_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tool_requests";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
       task_authority_contracts: {
         Row: {
           activated_at: string | null;
@@ -1587,6 +1791,24 @@ export type Database = {
           was_created: boolean;
         }[];
       };
+      get_semantic_evaluation_context: {
+        Args: { p_credential_secret: string; p_decision_id: string };
+        Returns: {
+          ctx_allowed_tools: string[];
+          ctx_arguments: Json;
+          ctx_decision_outcome: Database["public"]["Enums"]["authorization_outcome"];
+          ctx_existing_evaluation_id: string;
+          ctx_mode: Database["public"]["Enums"]["semantic_mode"];
+          ctx_model: string;
+          ctx_operation: string;
+          ctx_prior_calls: Json;
+          ctx_provider: string;
+          ctx_resource: string;
+          ctx_task_intent: string;
+          ctx_timeout_ms: number;
+          ctx_tool: string;
+        }[];
+      };
       install_demo_workspace: {
         Args: { p_tenant_id: string };
         Returns: {
@@ -1618,6 +1840,33 @@ export type Database = {
         }[];
       };
       reconcile_expired_contracts: { Args: never; Returns: number };
+      record_agent_auth_failure: {
+        Args: { p_credential_secret: string };
+        Returns: undefined;
+      };
+      record_semantic_shadow: {
+        Args: {
+          p_confidence: number;
+          p_credential_secret: string;
+          p_decision_id: string;
+          p_error_category: string;
+          p_indicators: string[];
+          p_input_hash: string;
+          p_latency_ms: number;
+          p_model: string;
+          p_model_version: string;
+          p_provider: string;
+          p_redaction_summary: Json;
+          p_risk_level: Database["public"]["Enums"]["semantic_risk_level"];
+          p_signals: Json;
+          p_state: Database["public"]["Enums"]["semantic_evidence_state"];
+        };
+        Returns: {
+          rec_disagreement: Database["public"]["Enums"]["semantic_disagreement"];
+          rec_evaluation_id: string;
+          rec_replayed: boolean;
+        }[];
+      };
       reject_contract: {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
@@ -1632,6 +1881,16 @@ export type Database = {
       };
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
+        Returns: undefined;
+      };
+      set_semantic_settings: {
+        Args: {
+          p_mode: Database["public"]["Enums"]["semantic_mode"];
+          p_model: string;
+          p_provider: string;
+          p_tenant_id: string;
+          p_timeout_ms: number;
+        };
         Returns: undefined;
       };
       submit_contract_for_approval: {
@@ -1683,6 +1942,10 @@ export type Database = {
       policy_status: "draft" | "active" | "archived";
       principal_kind: "human" | "service";
       semantic_decision_state: "ok" | "timeout" | "error";
+      semantic_disagreement: "none" | "semantic_flags_permitted" | "semantic_clears_denied";
+      semantic_evidence_state: "ok" | "timeout" | "error" | "unavailable" | "circuit_open";
+      semantic_mode: "off" | "shadow" | "enforce";
+      semantic_risk_level: "low" | "medium" | "high" | "critical" | "unknown";
       task_status:
         | "pending"
         | "contract_issued"
@@ -1855,6 +2118,10 @@ export const Constants = {
       policy_status: ["draft", "active", "archived"],
       principal_kind: ["human", "service"],
       semantic_decision_state: ["ok", "timeout", "error"],
+      semantic_disagreement: ["none", "semantic_flags_permitted", "semantic_clears_denied"],
+      semantic_evidence_state: ["ok", "timeout", "error", "unavailable", "circuit_open"],
+      semantic_mode: ["off", "shadow", "enforce"],
+      semantic_risk_level: ["low", "medium", "high", "critical", "unknown"],
       task_status: [
         "pending",
         "contract_issued",
