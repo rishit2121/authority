@@ -8,6 +8,132 @@ export type Database = {
   };
   public: {
     Tables: {
+      agent_auth_events: {
+        Row: {
+          agent_id: string | null;
+          attempted_key_prefix: string | null;
+          created_at: string;
+          credential_id: string | null;
+          id: string;
+          outcome: Database["public"]["Enums"]["agent_auth_outcome"];
+          tenant_id: string | null;
+        };
+        Insert: {
+          agent_id?: string | null;
+          attempted_key_prefix?: string | null;
+          created_at?: string;
+          credential_id?: string | null;
+          id?: string;
+          outcome: Database["public"]["Enums"]["agent_auth_outcome"];
+          tenant_id?: string | null;
+        };
+        Update: {
+          agent_id?: string | null;
+          attempted_key_prefix?: string | null;
+          created_at?: string;
+          credential_id?: string | null;
+          id?: string;
+          outcome?: Database["public"]["Enums"]["agent_auth_outcome"];
+          tenant_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_auth_events_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "agent_auth_events_credential_id_tenant_id_fkey";
+            columns: ["credential_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_credentials";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "agent_auth_events_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      agent_credentials: {
+        Row: {
+          agent_id: string;
+          created_at: string;
+          created_by_principal_id: string | null;
+          id: string;
+          key_hash: string;
+          key_prefix: string;
+          last_used_at: string | null;
+          revocation_reason: string | null;
+          revoked_at: string | null;
+          revoked_by_principal_id: string | null;
+          status: Database["public"]["Enums"]["agent_credential_status"];
+          tenant_id: string;
+        };
+        Insert: {
+          agent_id: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          id?: string;
+          key_hash: string;
+          key_prefix: string;
+          last_used_at?: string | null;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          revoked_by_principal_id?: string | null;
+          status?: Database["public"]["Enums"]["agent_credential_status"];
+          tenant_id: string;
+        };
+        Update: {
+          agent_id?: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          id?: string;
+          key_hash?: string;
+          key_prefix?: string;
+          last_used_at?: string | null;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          revoked_by_principal_id?: string | null;
+          status?: Database["public"]["Enums"]["agent_credential_status"];
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "agent_credentials_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "agent_credentials_created_by_principal_id_tenant_id_fkey";
+            columns: ["created_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "agent_credentials_revoked_by_principal_id_tenant_id_fkey";
+            columns: ["revoked_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "agent_credentials_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       agents: {
         Row: {
           created_at: string;
@@ -224,8 +350,9 @@ export type Database = {
       authorization_decisions: {
         Row: {
           applied_constraints: Json;
-          contract_id: string;
-          contract_version: number;
+          capability_id: string | null;
+          contract_id: string | null;
+          contract_version: number | null;
           created_at: string;
           demo_key: string | null;
           evidence_references: Json | null;
@@ -241,8 +368,9 @@ export type Database = {
         };
         Insert: {
           applied_constraints?: Json;
-          contract_id: string;
-          contract_version: number;
+          capability_id?: string | null;
+          contract_id?: string | null;
+          contract_version?: number | null;
           created_at?: string;
           demo_key?: string | null;
           evidence_references?: Json | null;
@@ -258,8 +386,9 @@ export type Database = {
         };
         Update: {
           applied_constraints?: Json;
-          contract_id?: string;
-          contract_version?: number;
+          capability_id?: string | null;
+          contract_id?: string | null;
+          contract_version?: number | null;
           created_at?: string;
           demo_key?: string | null;
           evidence_references?: Json | null;
@@ -274,6 +403,13 @@ export type Database = {
           tool_request_id?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "authorization_decisions_capability_fk";
+            columns: ["capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capabilities";
+            referencedColumns: ["id", "tenant_id"];
+          },
           {
             foreignKeyName: "authorization_decisions_contract_id_tenant_id_fkey";
             columns: ["contract_id", "tenant_id"];
@@ -317,6 +453,7 @@ export type Database = {
           argument_constraints: Json | null;
           authorization_decision_id: string;
           consumed_uses: number;
+          contract_id: string | null;
           demo_key: string | null;
           expires_at: string;
           id: string;
@@ -335,6 +472,7 @@ export type Database = {
           argument_constraints?: Json | null;
           authorization_decision_id: string;
           consumed_uses?: number;
+          contract_id?: string | null;
           demo_key?: string | null;
           expires_at: string;
           id?: string;
@@ -353,6 +491,7 @@ export type Database = {
           argument_constraints?: Json | null;
           authorization_decision_id?: string;
           consumed_uses?: number;
+          contract_id?: string | null;
           demo_key?: string | null;
           expires_at?: string;
           id?: string;
@@ -379,6 +518,13 @@ export type Database = {
             columns: ["authorization_decision_id", "tenant_id"];
             isOneToOne: false;
             referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capabilities_contract_fk";
+            columns: ["contract_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "task_authority_contracts";
             referencedColumns: ["id", "tenant_id"];
           },
           {
@@ -1274,6 +1420,7 @@ export type Database = {
           plan_id: string | null;
           plan_node_id: string | null;
           provenance: string;
+          request_hash: string | null;
           requested_at: string;
           resource: string | null;
           task_id: string;
@@ -1292,6 +1439,7 @@ export type Database = {
           plan_id?: string | null;
           plan_node_id?: string | null;
           provenance?: string;
+          request_hash?: string | null;
           requested_at?: string;
           resource?: string | null;
           task_id: string;
@@ -1310,6 +1458,7 @@ export type Database = {
           plan_id?: string | null;
           plan_node_id?: string | null;
           provenance?: string;
+          request_hash?: string | null;
           requested_at?: string;
           resource?: string | null;
           task_id?: string;
@@ -1362,6 +1511,39 @@ export type Database = {
       activate_task_contract: {
         Args: { p_contract_id: string };
         Returns: undefined;
+      };
+      authorize_tool_call: {
+        Args: {
+          p_arguments: Json;
+          p_credential_secret: string;
+          p_current_compiler_version: string;
+          p_current_registry_version: string;
+          p_execution_context: Json;
+          p_idempotency_key: string;
+          p_operation: string;
+          p_plan_node_id: string;
+          p_resource: string;
+          p_task_id: string;
+          p_tool: string;
+        };
+        Returns: {
+          contract_id: string;
+          contract_version: number;
+          decision_id: string;
+          outcome: Database["public"]["Enums"]["authorization_outcome"];
+          reason_codes: string[];
+          remaining_invocations: number;
+          tool_request_id: string;
+          was_replayed: boolean;
+        }[];
+      };
+      create_agent_credential: {
+        Args: { p_agent_id: string };
+        Returns: {
+          credential_id: string;
+          key_prefix: string;
+          plaintext_secret: string;
+        }[];
       };
       create_candidate_plan: {
         Args: {
@@ -1444,6 +1626,10 @@ export type Database = {
         Args: { p_tenant_id: string };
         Returns: undefined;
       };
+      revoke_agent_credential: {
+        Args: { p_credential_id: string; p_reason: string };
+        Returns: undefined;
+      };
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
@@ -1455,6 +1641,8 @@ export type Database = {
       terminate_task: { Args: { p_task_id: string }; Returns: undefined };
     };
     Enums: {
+      agent_auth_outcome: "success" | "invalid_credential" | "revoked_credential" | "rate_limited";
+      agent_credential_status: "active" | "revoked";
       agent_risk_tier: "low" | "medium" | "high";
       agent_status: "active" | "paused" | "revoked";
       approval_requirement_kind: "task_owner" | "role";
@@ -1625,6 +1813,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      agent_auth_outcome: ["success", "invalid_credential", "revoked_credential", "rate_limited"],
+      agent_credential_status: ["active", "revoked"],
       agent_risk_tier: ["low", "medium", "high"],
       agent_status: ["active", "paused", "revoked"],
       approval_requirement_kind: ["task_owner", "role"],
