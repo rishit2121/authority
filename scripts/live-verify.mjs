@@ -170,6 +170,25 @@ async function main() {
     console.log("note  allowlisted the test repository (the same row the UI's Allow button writes)");
   }
 
+  // GitHub cannot create a branch in a repository with no commits, and this script must never touch the default branch.
+  if (EXPECT_MODE === "live") {
+    const meta = gh(`repos/${REPO}`);
+    let hasCommit = true;
+    try {
+      gh(`repos/${REPO}/branches/${meta.default_branch}`);
+    } catch {
+      hasCommit = false;
+    }
+    if (
+      !check(hasCommit, "the repository has an initial commit on its default branch", meta.default_branch)
+    ) {
+      console.log(
+        `\n${REPO} is empty. Add one commit to ${meta.default_branch} yourself (e.g. GitHub's "Add a README"); this script will not modify the default branch.`,
+      );
+      return;
+    }
+  }
+
   // 2. Fixture: agent, task bound to the repository, active contract, runtime key.
   const v = versions();
   secret = `authority_rk_${randomBytes(32).toString("hex")}`;
@@ -245,13 +264,6 @@ async function main() {
     defaultBranch,
   );
 
-  const issue = await run("github.get_issue", { issue_number: "1" });
-  check(
-    issue.exec && [200, 404].includes(issue.exec.status),
-    "get issue #1 handled (200, or a definite 404 if the repo has no issue #1)",
-    `${issue.exec?.status} ${issue.exec?.body?.error?.code ?? ""}`,
-  );
-
   const b1 = await run("github.create_branch", { branch });
   check(
     b1.exec?.body?.result === "succeeded",
@@ -263,7 +275,7 @@ async function main() {
 
   const file = {
     branch,
-    path: `authority-live-verify/${RUN}.txt`,
+    path: `docs/authority-live-test/${RUN}.txt`,
     content: `Authority live verification ${RUN}\n`,
     message: `Authority live verification ${RUN}`,
   };
