@@ -25,8 +25,8 @@ jobs:
     timeout-minutes: 20
     env:
       # Public, non-secret placeholders: the build only needs the variables to exist.
-      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-public-key
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.example
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder_not_a_real_key
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
