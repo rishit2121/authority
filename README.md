@@ -579,11 +579,15 @@ indistinguishability rather than a specific banner.
 
 ## Tests
 
-| Suite                   | Count | Command            |
-| ----------------------- | ----- | ------------------ |
-| Unit (Vitest)           | 117   | `npm run test`     |
-| Database (pgTAP)        | 39    | `npm run db:test`  |
-| End-to-end (Playwright) | 96    | `npm run test:e2e` |
+| Suite                   | Count               | Command                    |
+| ----------------------- | ------------------- | -------------------------- |
+| Unit (Vitest)           | 938 (1 skipped)     | `npm run test`             |
+| Integration (Vitest)    | 118                 | `npm run test:integration` |
+| Database (pgTAP)        | 589 in 21 suites    | `npm run db:test`          |
+| End-to-end (Playwright) | 181                 | `npm run test:e2e`         |
+| Scenario pack (CLI)     | 28 attack scenarios | `npm run -s validate`      |
+
+Counts are as of Part 8. The suites below were described as of Part 2A and have grown since.
 
 **Unit** — domain schema validation against every fixture; the deterministic
 evaluator's full decision matrix including semantic narrowing; environment
