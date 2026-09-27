@@ -14,6 +14,18 @@ Verified locally: a production start with `GATEWAY_DATABASE_CA_FILE=./deploy/sup
 4. **Supabase → Authentication → URL Configuration**: set Site URL to that URL and add `https://<your-url>/**` to Redirect URLs, otherwise sign-in and email links point at localhost.
 5. **Check**: `https://<your-url>/api/v1/ready` → `{"status":"ready",…,"tls":"verified"}`; sign in with a seeded or real account.
 
+## Before you send traffic: readiness and maintenance
+
+- `npm run check:production -- --url https://<your-url>` checks the deployment's configuration (database TLS verified, `https` public
+  URL, no service-role key, mock GitHub off, complete live GitHub settings) and probes `/api/v1/health` and `/api/v1/ready`.
+  `/api/v1/ready` also reports `schema: current`; a `schema: mismatch` (503) means migrations have not been applied.
+- Reconciliation (expired leases, sandboxes, webhook retries, GitHub re-verification, retention) runs in-process every 5 minutes while the
+  service is awake. On the free plan it sleeps, so also set `MAINTENANCE_TOKEN` (24+ random characters) in Render and add the repository
+  secrets `AUTHORITY_URL` and `MAINTENANCE_TOKEN` so `.github/workflows/maintenance.yml` calls the endpoint every 15 minutes.
+  Details: `docs/ops/OPERATIONS.md`.
+- Validation Lab campaigns run inside the web process. On `starter` or above that is fine; on the free plan a campaign is lost if the
+  service sleeps mid-run (the sweep marks it failed).
+
 ## Then, to enable real GitHub
 
 Follow `docs/github/SETUP.md` using your Render URL for the callback/setup/webhook URLs, then in Render → Environment set

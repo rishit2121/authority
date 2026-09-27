@@ -123,7 +123,7 @@ export async function runMaintenance(
             githubInstallationId: inst.githubInstallationId,
           });
           r.checked += 1;
-          if (health.status !== "active" && health.health !== "active") r.drifted += 1;
+          if (health.health !== null && health.health !== "active") r.drifted += 1;
         } catch {
           r.failed += 1;
         }

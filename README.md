@@ -43,6 +43,21 @@ authentication and tenant membership.** What that means precisely:
 Part 2B replaces the mocked product data with Supabase-backed
 `AuthorityRepositories`. See [Part 2B scope](#part-2b-scope).
 
+## Validation Lab and launch hardening (Part 8)
+
+Authority now also **attacks its own controls in safe simulations**: 28 versioned attack scenarios (prompt injection, secret
+exfiltration, recipient/repository/resource substitution, amount escalation, capability theft/replay/races, stale contracts and
+approvals, semantic-provider faults, schema drift, obfuscation, benign false-positive controls) run against the real
+authorization gateway in throwaway sandbox tenants with mock integrations. Failures become findings with narrowing-only
+remediation proposals; accepting one pins a regression test and reruns the attack with the fix. Everything is synthetic and
+labeled as such.
+
+- Start here: [`docs/QUICKSTART.md`](docs/QUICKSTART.md) (ten minutes) and [`docs/validation/OVERVIEW.md`](docs/validation/OVERVIEW.md)
+- Scenario catalog: [`docs/validation/SCENARIOS.md`](docs/validation/SCENARIOS.md) (generated: `npm run docs:scenarios`)
+- CLI and CI gate: [`docs/validation/CI.md`](docs/validation/CI.md) (`npm run -s validate -- --pack starter`)
+- Operations, maintenance, retention, health: [`docs/ops/OPERATIONS.md`](docs/ops/OPERATIONS.md); production check: `npm run check:production`
+- Agent integration example: [`examples/agent/`](examples/agent)
+
 ## Architecture overview
 
 ```

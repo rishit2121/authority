@@ -94,7 +94,7 @@ export default defineConfig({
     {
       name: "authenticated",
       testMatch:
-        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway|validation-lab)\.spec\.ts/,
+        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway)\.spec\.ts/,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
@@ -108,6 +108,17 @@ export default defineConfig({
       name: "github",
       testMatch: /github-connector\.spec\.ts/,
       dependencies: ["setup", "authenticated"],
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
+    },
+
+    /**
+     * The Validation Lab runs real attack campaigns (dozens of database round trips per scenario), which would slow the
+     * timing-sensitive specs above if it overlapped them, so it runs last, on its own.
+     */
+    {
+      name: "validation",
+      testMatch: /validation-lab\.spec\.ts/,
+      dependencies: ["setup", "authenticated", "github"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
 

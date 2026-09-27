@@ -113,8 +113,9 @@ Administrators revoke from the dashboard (`revoke_capability()`, security_admin+
 ## Health
 
 - `GET /health` — liveness: `{"status":"ok"}`, touches nothing.
-- `GET /ready` — readiness: `200 {"status":"ready"}` only if the gateway can reach its database with its credential;
-  otherwise `503 {"status":"not_ready","gateway":"not_configured|unreachable"}`. No host, role, version or error detail.
+- `GET /ready` — readiness: `200 {"status":"ready","github":…,"tls":…,"schema":"current"}` only if the gateway can reach its database
+  with its credential and the database schema matches this build; otherwise `503 {"status":"not_ready","gateway":"not_configured|unreachable|tls_unverified"}`
+  or `{"schema":"mismatch"}`. No host, role, version or error detail.
 
 ## Error envelope and rate limits
 

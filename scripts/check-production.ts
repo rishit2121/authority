@@ -39,7 +39,8 @@ async function main(): Promise<number> {
   const { githubReadiness } = await import("../src/lib/github/config");
 
   for (const k of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"])
-    has(k) ? add("ok", k, "set") : add("fail", k, "missing");
+    if (has(k)) add("ok", k, "set");
+    else add("fail", k, "missing");
   for (const k of ["SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY"])
     if (has(k)) add("fail", k, "a service-role/secret key must not be present: nothing here uses one");
 
@@ -63,9 +64,8 @@ async function main(): Promise<number> {
         "looks like the postgres/owner login; use the dedicated authority_gateway role",
       );
   }
-  gatewayTlsVerified()
-    ? add("ok", "database TLS", "certificate chain is verified")
-    : add("fail", "database TLS", "set GATEWAY_DATABASE_CA or _CA_FILE so the chain is verified");
+  if (gatewayTlsVerified()) add("ok", "database TLS", "certificate chain is verified");
+  else add("fail", "database TLS", "set GATEWAY_DATABASE_CA or _CA_FILE so the chain is verified");
   if (env.GATEWAY_DATABASE_SSL === "disable")
     add("fail", "GATEWAY_DATABASE_SSL", "plaintext database connections are for local CI only");
   void gatewayPlaintextAllowed;

@@ -28,7 +28,8 @@
     "gateway:provision": "node scripts/provision-gateway-role.mjs",
     "test:github-live": "vitest run --config vitest.live.config.mts",
     "validate": "node --conditions=react-server --import tsx scripts/validate.ts",
-    "check:production": "node --conditions=react-server --import tsx scripts/check-production.ts"
+    "check:production": "node --conditions=react-server --import tsx scripts/check-production.ts",
+    "docs:scenarios": "node --conditions=react-server --import tsx scripts/gen-scenario-docs.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

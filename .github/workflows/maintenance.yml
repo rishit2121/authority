@@ -1,0 +1,32 @@
+name: Maintenance trigger (optional)
+
+# Calls your deployment's reconciliation endpoint on a schedule. Useful on hosts that sleep when idle (Render free plan):
+# the request wakes the service and runs the work. Does nothing unless both repository secrets are set.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /api/internal/maintenance
+        env:
+          AUTHORITY_URL: ${{ secrets.AUTHORITY_URL }}
+          MAINTENANCE_TOKEN: ${{ secrets.MAINTENANCE_TOKEN }}
+        run: |
+          if [ -z "$AUTHORITY_URL" ] || [ -z "$MAINTENANCE_TOKEN" ]; then
+            echo "AUTHORITY_URL / MAINTENANCE_TOKEN not set; skipping."
+            exit 0
+          fi
+          code=$(curl -sS -o response.json -w '%{http_code}' --max-time 120 --retry 3 --retry-delay 20 --retry-all-errors \
+            -X POST "$AUTHORITY_URL/api/internal/maintenance" -H "authorization: Bearer $MAINTENANCE_TOKEN")
+          echo "HTTP $code"
+          cat response.json
+          [ "$code" = "200" ] || [ "$code" = "207" ]
