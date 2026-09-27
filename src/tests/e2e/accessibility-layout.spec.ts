@@ -65,7 +65,7 @@ test.describe("layout: no console errors", () => {
 test.describe("keyboard access and focus visibility", () => {
   test("the primary CTA on the homepage is reachable and shows a visible focus ring", async ({ page }) => {
     await page.goto("/");
-    const cta = page.getByRole("link", { name: "Request early access" }).first();
+    const cta = page.getByRole("link", { name: "Start free" }).first();
     await cta.focus();
     await expect(cta).toBeFocused();
 
