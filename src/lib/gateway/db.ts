@@ -61,7 +61,11 @@ function createPool(): pg.Pool {
     // With GATEWAY_DATABASE_CA set the server certificate is verified. Without
     // it the connection is encrypted but the pooler's certificate chain is not
     // checked — a documented gap (docs/gateway/TRUST_MODEL.md).
-    ssl: ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: false },
+    ssl: gatewayPlaintextAllowed()
+      ? false
+      : ca
+        ? { ca, rejectUnauthorized: true }
+        : { rejectUnauthorized: false },
     max: Number(process.env.GATEWAY_DATABASE_POOL_MAX ?? 5),
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,
@@ -107,6 +111,17 @@ export function gatewayCa(env: NodeJS.ProcessEnv = process.env): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Plaintext is for a throwaway local database only (CI's `supabase start`). It needs an explicit opt-in AND a
+ * non-production process; a production deployment ignores the flag.
+ */
+export function gatewayPlaintextAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return (
+    env.GATEWAY_DATABASE_SSL === "disable" &&
+    (env.NODE_ENV !== "production" || env.AUTHORITY_DEPLOYMENT === "local")
+  );
 }
 
 /** True when this process is a production deployment that must not run with unverified TLS. */

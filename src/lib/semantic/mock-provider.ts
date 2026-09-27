@@ -81,6 +81,13 @@ const SHELL_CHAIN =
   /(?:;|&&|\|\|?)\s*(?:rm|curl|wget|nc|bash|sh|chmod|scp)\b|\$\([^)]*\)|`[^`]+`|\s--force\b|\s-rf\b/i;
 const IDENTIFIER_KEY =
   /(repo|repository|project|org|owner|customer|account|user|invoice|payment|issue|pull|ticket|branch|charge|subscription)/i;
+/**
+ * Branch and ref names are chosen by the agent, not named by the user, so their absence from the task text is
+ * expected and not evidence of substitution. (Before this exemption every ordinary `create_branch` was rated HIGH risk
+ * and needed approval under enforcement: found by the Part 8 validation scenarios. Writing to the wrong branch is a
+ * deterministic-layer concern: contracts pin the branch, and the connector confines writes to the task namespace.)
+ */
+const AGENT_CHOSEN_KEY = /^(?:branch|head_branch|target_branch|base_branch|head|base|ref)$/i;
 const REPO_KEY = /(repo|repository|org|owner|project)/i;
 const AMOUNT_KEY = /(amount|total|quantity|qty|price|limit|refund)/i;
 const VAGUE_INTENT =
@@ -221,7 +228,7 @@ export class MockSemanticRiskProvider implements SemanticRiskProvider {
     let checked = 0;
     let mismatched = 0;
     for (const [key, value] of Object.entries(input.arguments)) {
-      if (!IDENTIFIER_KEY.test(key) || Array.isArray(value)) continue;
+      if (!IDENTIFIER_KEY.test(key) || Array.isArray(value) || AGENT_CHOSEN_KEY.test(key)) continue;
       const v = String(value).trim().toLowerCase();
       if (!v || v.startsWith("[")) continue;
       checked += 1;

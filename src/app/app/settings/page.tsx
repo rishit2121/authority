@@ -1,8 +1,10 @@
+import { RetentionForm } from "@/components/settings/RetentionForm";
 import { SemanticSettingsForm } from "@/components/semantic/SemanticSettingsForm";
 import { TENANT_ROLE_RANK } from "@/lib/domain";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { snapshotBreakers } from "@/lib/semantic/circuit-breaker";
 import { getSemanticProviderEnv } from "@/lib/semantic/openai-compatible-provider";
+import { lastMaintenance } from "@/lib/maintenance";
 import { EVIDENCE_COLUMNS, summarizeHealth, toEvidenceView } from "@/lib/semantic/read-model";
 
 export default async function SettingsPage() {
@@ -22,6 +24,30 @@ export default async function SettingsPage() {
     .order("created_at", { ascending: false })
     .limit(200);
 
+  const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+  const canSeeAuthEvents = TENANT_ROLE_RANK[identity.role] >= TENANT_ROLE_RANK.security_admin;
+  const authCounts = canSeeAuthEvents
+    ? await Promise.all(
+        (["success", "invalid_credential", "revoked_credential", "rate_limited"] as const).map(
+          async (outcome) => {
+            const { count } = await context.supabase
+              .from("agent_auth_events")
+              .select("id", { count: "exact", head: true })
+              .eq("outcome", outcome)
+              .gte("created_at", since);
+            return [outcome, count ?? 0] as const;
+          },
+        ),
+      )
+    : null;
+  const { data: retention } = await context.supabase
+    .from("tenant_retention_settings")
+    .select("validation_days")
+    .eq("tenant_id", identity.tenant.tenantId)
+    .maybeSingle();
+  const maintenance = lastMaintenance();
+  const canEditRetention = TENANT_ROLE_RANK[identity.role] >= TENANT_ROLE_RANK.admin;
+
   const health = summarizeHealth((evidenceRows ?? []).map(toEvidenceView));
   const breakers = snapshotBreakers();
   const canEdit = TENANT_ROLE_RANK[identity.role] >= TENANT_ROLE_RANK.security_admin;
@@ -34,8 +60,8 @@ export default async function SettingsPage() {
           Settings
         </h1>
         <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Tenant configuration for semantic risk evaluation. Retention windows and audit export are not yet
-          available.
+          Tenant configuration for semantic risk evaluation, rate-limit visibility and validation data
+          retention. Audit export is not yet available.
         </p>
       </header>
 
@@ -141,6 +167,66 @@ export default async function SettingsPage() {
             ))}
           </ul>
         ) : null}
+      </section>
+
+      <section
+        aria-labelledby="operations-heading"
+        className="rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg"
+      >
+        <h2
+          id="operations-heading"
+          className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+        >
+          Rate limits, retention and operations
+        </h2>
+        <div className="mt-space-md grid gap-space-lg lg:grid-cols-2">
+          <div>
+            <h3 className="font-body-md text-body-md text-on-surface">Rate limits</h3>
+            <p className="font-body-sm text-body-sm text-on-surface-variant">
+              Agent credentials: after 20 failed attempts within 60 seconds from one key prefix, further
+              attempts are refused with <code className="font-mono-code">RATE_LIMITED</code> until the window
+              clears. Successful calls are not throttled by this limit.
+            </p>
+            {authCounts ? (
+              <table className="mt-2 font-mono-code text-[12px] text-on-surface">
+                <caption className="sr-only">Agent authentication outcomes in the last 24 hours</caption>
+                <tbody>
+                  {authCounts.map(([outcome, n]) => (
+                    <tr key={outcome}>
+                      <th scope="row" className="pr-4 text-left font-normal text-on-surface-variant">
+                        {outcome.replace("_", " ")} (24h)
+                      </th>
+                      <td>{n}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="mt-2 font-body-sm text-body-sm text-outline">
+                Authentication counts are visible to security admins and above.
+              </p>
+            )}
+            <p className="mt-2 font-mono-code text-[11px] text-outline">
+              Attempts with an unknown key are recorded without a tenant and are not counted here.
+            </p>
+          </div>
+          <div>
+            <h3 className="font-body-md text-body-md text-on-surface">Retention</h3>
+            <RetentionForm initialDays={retention?.validation_days ?? 30} canEdit={canEditRetention} />
+            <p className="mt-2 font-body-sm text-body-sm text-on-surface-variant">
+              Applies to Validation Lab campaigns (synthetic, reproducible from immutable scenario versions).
+              Decisions, approvals, receipts and authentication events are append-only audit records and are
+              kept; automatic deletion of those is not offered.
+            </p>
+            <p className="mt-2 font-mono-code text-[11px] text-outline">
+              {maintenance
+                ? `Last maintenance run ${maintenance.ranAt} (${maintenance.durationMs} ms${
+                    maintenance.errors.length ? `, issues: ${maintenance.errors.join(", ")}` : ", no issues"
+                  }) — this server process only.`
+                : "Maintenance has not run in this server process yet (it runs every 5 minutes in production)."}
+            </p>
+          </div>
+        </div>
       </section>
     </div>
   );

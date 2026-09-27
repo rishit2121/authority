@@ -28,7 +28,15 @@ describe("direct RPC bypass attempts with the anonymous key", () => {
   }, 30_000);
 
   it("cannot authorize a call directly, even with a valid runtime key", async () => {
-    const { data, error } = await anon().rpc("authorize_tool_call", {
+    // The legacy function was dropped in Part 7; a stale client still calling it must get an error, not a decision.
+    const { data, error } = await (
+      anon() as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: unknown; error: { code?: string } | null }>;
+      }
+    ).rpc("authorize_tool_call", {
       p_credential_secret: fx.secret,
       p_task_id: fx.taskId,
       p_tool: "github.get_issue",

@@ -111,6 +111,17 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
 
+    /**
+     * The Validation Lab runs real attack campaigns (dozens of database round trips per scenario), which would slow the
+     * timing-sensitive specs above if it overlapped them, so it runs last, on its own.
+     */
+    {
+      name: "validation",
+      testMatch: /validation-lab\.spec\.ts/,
+      dependencies: ["setup", "authenticated", "github"],
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
+    },
+
     ...externalProjects,
   ],
   // Runs against a production build so the e2e suite exercises what ships.

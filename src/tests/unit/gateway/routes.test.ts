@@ -5,9 +5,11 @@ const authorizeThroughGateway = vi.fn();
 const consumeCapability = vi.fn();
 const revokeCapabilityViaGateway = vi.fn();
 const gatewayPing = vi.fn();
+const schemaVersion = vi.fn();
 
 vi.mock("@/lib/gateway/pipeline", () => ({ authorizeThroughGateway }));
 vi.mock("@/lib/gateway/rpc", () => ({ consumeCapability, revokeCapabilityViaGateway, gatewayPing }));
+vi.mock("@/lib/maintenance/db", () => ({ schemaVersion }));
 
 const TASK = "00000000-0000-4000-8000-000000000001";
 const KEY = "authority_rk_" + "ab".repeat(32);
@@ -269,6 +271,10 @@ describe("POST /api/v1/capabilities/revoke", () => {
 });
 
 describe("health and readiness", () => {
+  beforeEach(() => {
+    schemaVersion.mockResolvedValue("20260930000016");
+  });
+
   it("liveness touches no dependency", async () => {
     const { GET } = await import("@/app/api/v1/health/route");
     expect(await (await GET()).json()).toEqual({ status: "ok" });
@@ -286,6 +292,21 @@ describe("health and readiness", () => {
     expect(await down.text()).not.toMatch(/postgresql|down|@h/);
     delete process.env.GATEWAY_DATABASE_URL;
     expect((await GET()).status).toBe(503);
+  });
+
+  it("readiness is 503 when the database schema is not the version this build expects", async () => {
+    const { GET } = await import("@/app/api/v1/ready/route");
+    process.env.GATEWAY_DATABASE_URL = "postgresql://u:p@h:6543/postgres";
+    gatewayPing.mockResolvedValue(true);
+    schemaVersion.mockResolvedValue("20260101000000");
+    const stale = await GET();
+    expect(stale.status).toBe(503);
+    expect(await stale.json()).toEqual({ status: "not_ready", gateway: "ok", schema: "mismatch" });
+    schemaVersion.mockRejectedValue(new Error("no such function"));
+    expect((await GET()).status).toBe(503);
+    schemaVersion.mockResolvedValue("20260930000016");
+    expect(await (await GET()).json()).toMatchObject({ status: "ready", schema: "current" });
+    delete process.env.GATEWAY_DATABASE_URL;
   });
 
   it("production readiness FAILS while the database certificate chain is not verified", async () => {

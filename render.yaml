@@ -29,3 +29,8 @@ services:
       # AUTHORITY_PUBLIC_URL defaults to Render's own RENDER_EXTERNAL_URL; set it only for a custom domain.
       # Live mode additionally needs: GITHUB_APP_ID, GITHUB_APP_CLIENT_ID, GITHUB_APP_CLIENT_SECRET,
       # GITHUB_APP_SLUG, GITHUB_WEBHOOK_SECRET, GITHUB_APP_PRIVATE_KEY_BASE64 (base64 of the .pem).
+      # --- Reconciliation (docs/ops/OPERATIONS.md). The in-process scheduler runs every 5 minutes while awake.
+      # Set a 24+ character random token to enable POST /api/internal/maintenance for an external cron (recommended on
+      # the free plan, which sleeps); see .github/workflows/maintenance.yml.
+      - key: MAINTENANCE_TOKEN
+        sync: false

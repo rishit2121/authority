@@ -26,7 +26,10 @@
     "semantic:eval": "SEMANTIC_EVAL_WRITE=1 vitest run src/tests/unit/semantic/eval.test.ts",
     "verify:bundle": "node scripts/check-bundle-secrets.mjs",
     "gateway:provision": "node scripts/provision-gateway-role.mjs",
-    "test:github-live": "vitest run --config vitest.live.config.mts"
+    "test:github-live": "vitest run --config vitest.live.config.mts",
+    "validate": "node --conditions=react-server --import tsx scripts/validate.ts",
+    "check:production": "node --conditions=react-server --import tsx scripts/check-production.ts",
+    "docs:scenarios": "node --conditions=react-server --import tsx scripts/gen-scenario-docs.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -61,6 +64,7 @@
     "prettier": "^3.9.8",
     "supabase": "^2.117.0",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.2",
     "vitest": "^5.0.1"
   },

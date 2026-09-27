@@ -9,6 +9,9 @@ const PATTERNS: Array<[string, RegExp]> = [
   ["github_pat", /\bgithub_pat_[A-Za-z0-9_]{20,255}\b/g],
   ["private_key", /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g],
   ["bearer", /\b[Bb]earer\s+[A-Za-z0-9._~+/=-]{16,}/g],
+  ["capability_token", /\bauthcap_v1_[A-Za-z0-9_-]{16,}/g],
+  ["runtime_key", /\bauthority_rk_[0-9a-f]{16,}/g],
+  ["supabase_secret", /\b(?:sb_secret_|sbp_)[A-Za-z0-9_-]{16,}/g],
   ["jwt", /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g],
 ];
 

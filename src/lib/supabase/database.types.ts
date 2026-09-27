@@ -1556,6 +1556,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      github_webhook_retries: {
+        Row: {
+          action: string | null;
+          attempts: number;
+          created_at: string;
+          delivery_id: string;
+          event: string;
+          github_installation_id: number;
+          id: string;
+          last_error_category: string | null;
+          next_attempt_at: string;
+          removed_repository_ids: number[];
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          action?: string | null;
+          attempts?: number;
+          created_at?: string;
+          delivery_id: string;
+          event: string;
+          github_installation_id: number;
+          id?: string;
+          last_error_category?: string | null;
+          next_attempt_at?: string;
+          removed_repository_ids?: number[];
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          action?: string | null;
+          attempts?: number;
+          created_at?: string;
+          delivery_id?: string;
+          event?: string;
+          github_installation_id?: number;
+          id?: string;
+          last_error_category?: string | null;
+          next_attempt_at?: string;
+          removed_repository_ids?: number[];
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       integrations: {
         Row: {
           configured_scopes_metadata: Json | null;
@@ -2824,6 +2869,35 @@ export type Database = {
           },
         ];
       };
+      tenant_retention_settings: {
+        Row: {
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          validation_days: number;
+        };
+        Insert: {
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          validation_days?: number;
+        };
+        Update: {
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          validation_days?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_retention_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenants: {
         Row: {
           created_at: string;
@@ -2833,6 +2907,9 @@ export type Database = {
           name: string;
           slug: string;
           updated_at: string;
+          validation_expires_at: string | null;
+          validation_owner_tenant_id: string | null;
+          validation_sandbox: boolean;
         };
         Insert: {
           created_at?: string;
@@ -2842,6 +2919,9 @@ export type Database = {
           name: string;
           slug: string;
           updated_at?: string;
+          validation_expires_at?: string | null;
+          validation_owner_tenant_id?: string | null;
+          validation_sandbox?: boolean;
         };
         Update: {
           created_at?: string;
@@ -2851,8 +2931,19 @@ export type Database = {
           name?: string;
           slug?: string;
           updated_at?: string;
+          validation_expires_at?: string | null;
+          validation_owner_tenant_id?: string | null;
+          validation_sandbox?: boolean;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "tenants_validation_owner_tenant_id_fkey";
+            columns: ["validation_owner_tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tool_requests: {
         Row: {
@@ -2959,6 +3050,520 @@ export type Database = {
           },
         ];
       };
+      validation_campaigns: {
+        Row: {
+          cancel_requested: boolean;
+          config: Json;
+          created_at: string;
+          created_by: string | null;
+          environment_id: string;
+          finished_at: string | null;
+          id: string;
+          name: string;
+          pack_key: string | null;
+          progress: Json;
+          seed: number;
+          started_at: string | null;
+          status: string;
+          summary: Json | null;
+          synthetic: boolean;
+          tenant_id: string;
+        };
+        Insert: {
+          cancel_requested?: boolean;
+          config: Json;
+          created_at?: string;
+          created_by?: string | null;
+          environment_id: string;
+          finished_at?: string | null;
+          id?: string;
+          name: string;
+          pack_key?: string | null;
+          progress?: Json;
+          seed: number;
+          started_at?: string | null;
+          status?: string;
+          summary?: Json | null;
+          synthetic?: boolean;
+          tenant_id: string;
+        };
+        Update: {
+          cancel_requested?: boolean;
+          config?: Json;
+          created_at?: string;
+          created_by?: string | null;
+          environment_id?: string;
+          finished_at?: string | null;
+          id?: string;
+          name?: string;
+          pack_key?: string | null;
+          progress?: Json;
+          seed?: number;
+          started_at?: string | null;
+          status?: string;
+          summary?: Json | null;
+          synthetic?: boolean;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_campaigns_environment_id_tenant_id_fkey";
+            columns: ["environment_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_environments";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_campaigns_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      validation_environments: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          description: string | null;
+          expires_at: string;
+          id: string;
+          name: string;
+          spec: Json;
+          status: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          expires_at: string;
+          id?: string;
+          name: string;
+          spec: Json;
+          status?: string;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          description?: string | null;
+          expires_at?: string;
+          id?: string;
+          name?: string;
+          spec?: Json;
+          status?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_environments_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      validation_findings: {
+        Row: {
+          campaign_id: string;
+          category: string;
+          cause: string;
+          created_at: string;
+          evidence: Json;
+          id: string;
+          run_id: string;
+          scenario_key: string;
+          severity: string;
+          status: string;
+          step_id: string | null;
+          summary: string;
+          tenant_id: string;
+          title: string;
+        };
+        Insert: {
+          campaign_id: string;
+          category: string;
+          cause: string;
+          created_at?: string;
+          evidence?: Json;
+          id?: string;
+          run_id: string;
+          scenario_key: string;
+          severity: string;
+          status?: string;
+          step_id?: string | null;
+          summary: string;
+          tenant_id: string;
+          title: string;
+        };
+        Update: {
+          campaign_id?: string;
+          category?: string;
+          cause?: string;
+          created_at?: string;
+          evidence?: Json;
+          id?: string;
+          run_id?: string;
+          scenario_key?: string;
+          severity?: string;
+          status?: string;
+          step_id?: string | null;
+          summary?: string;
+          tenant_id?: string;
+          title?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_findings_campaign_id_tenant_id_fkey";
+            columns: ["campaign_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_campaigns";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_findings_run_id_tenant_id_fkey";
+            columns: ["run_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_runs";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_findings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      validation_regressions: {
+        Row: {
+          created_at: string;
+          description: string;
+          id: string;
+          last_run_at: string | null;
+          last_run_id: string | null;
+          last_status: string | null;
+          origin_remediation_id: string | null;
+          scenario_key: string;
+          scenario_version_id: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          description: string;
+          id?: string;
+          last_run_at?: string | null;
+          last_run_id?: string | null;
+          last_status?: string | null;
+          origin_remediation_id?: string | null;
+          scenario_key: string;
+          scenario_version_id: string;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          description?: string;
+          id?: string;
+          last_run_at?: string | null;
+          last_run_id?: string | null;
+          last_status?: string | null;
+          origin_remediation_id?: string | null;
+          scenario_key?: string;
+          scenario_version_id?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_regressions_scenario_version_id_tenant_id_fkey";
+            columns: ["scenario_version_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_scenario_versions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_regressions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      validation_remediations: {
+        Row: {
+          after_run_id: string | null;
+          before_run_id: string | null;
+          created_at: string;
+          decided_at: string | null;
+          decided_by: string | null;
+          decision_note: string | null;
+          finding_id: string;
+          id: string;
+          kind: string;
+          proposal: Json;
+          regression_scenario_version_id: string | null;
+          status: string;
+          tenant_id: string;
+          verification: Json | null;
+        };
+        Insert: {
+          after_run_id?: string | null;
+          before_run_id?: string | null;
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_note?: string | null;
+          finding_id: string;
+          id?: string;
+          kind: string;
+          proposal: Json;
+          regression_scenario_version_id?: string | null;
+          status?: string;
+          tenant_id: string;
+          verification?: Json | null;
+        };
+        Update: {
+          after_run_id?: string | null;
+          before_run_id?: string | null;
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          decision_note?: string | null;
+          finding_id?: string;
+          id?: string;
+          kind?: string;
+          proposal?: Json;
+          regression_scenario_version_id?: string | null;
+          status?: string;
+          tenant_id?: string;
+          verification?: Json | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_remediations_finding_id_tenant_id_fkey";
+            columns: ["finding_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_findings";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_remediations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      validation_runs: {
+        Row: {
+          campaign_id: string;
+          effects: Json | null;
+          error_category: string | null;
+          finished_at: string | null;
+          id: string;
+          metrics: Json | null;
+          regression_id: string | null;
+          repetition: number;
+          sandbox_tenant_id: string | null;
+          scenario_key: string;
+          scenario_version: number;
+          scenario_version_id: string;
+          seed: number;
+          started_at: string;
+          status: string;
+          tenant_id: string;
+          variant: string;
+          verdict: string | null;
+        };
+        Insert: {
+          campaign_id: string;
+          effects?: Json | null;
+          error_category?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          metrics?: Json | null;
+          regression_id?: string | null;
+          repetition?: number;
+          sandbox_tenant_id?: string | null;
+          scenario_key: string;
+          scenario_version: number;
+          scenario_version_id: string;
+          seed: number;
+          started_at?: string;
+          status?: string;
+          tenant_id: string;
+          variant?: string;
+          verdict?: string | null;
+        };
+        Update: {
+          campaign_id?: string;
+          effects?: Json | null;
+          error_category?: string | null;
+          finished_at?: string | null;
+          id?: string;
+          metrics?: Json | null;
+          regression_id?: string | null;
+          repetition?: number;
+          sandbox_tenant_id?: string | null;
+          scenario_key?: string;
+          scenario_version?: number;
+          scenario_version_id?: string;
+          seed?: number;
+          started_at?: string;
+          status?: string;
+          tenant_id?: string;
+          variant?: string;
+          verdict?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_runs_campaign_id_tenant_id_fkey";
+            columns: ["campaign_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_campaigns";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_runs_regression_fk";
+            columns: ["regression_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_regressions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_runs_scenario_version_id_tenant_id_fkey";
+            columns: ["scenario_version_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_scenario_versions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_runs_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      validation_scenario_versions: {
+        Row: {
+          created_at: string;
+          definition: Json;
+          definition_hash: string;
+          id: string;
+          scenario_key: string;
+          source: string;
+          tenant_id: string;
+          version: number;
+        };
+        Insert: {
+          created_at?: string;
+          definition: Json;
+          definition_hash: string;
+          id?: string;
+          scenario_key: string;
+          source: string;
+          tenant_id: string;
+          version: number;
+        };
+        Update: {
+          created_at?: string;
+          definition?: Json;
+          definition_hash?: string;
+          id?: string;
+          scenario_key?: string;
+          source?: string;
+          tenant_id?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_scenario_versions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      validation_steps: {
+        Row: {
+          action: string;
+          actual: Json | null;
+          control: string | null;
+          evidence: Json | null;
+          expected: Json | null;
+          id: string;
+          kind: string;
+          label: string;
+          latency_ms: number | null;
+          occurred_at: string;
+          request: Json | null;
+          run_id: string;
+          seq: number;
+          step_key: string;
+          tenant_id: string;
+          verdict: string;
+        };
+        Insert: {
+          action: string;
+          actual?: Json | null;
+          control?: string | null;
+          evidence?: Json | null;
+          expected?: Json | null;
+          id?: string;
+          kind: string;
+          label: string;
+          latency_ms?: number | null;
+          occurred_at?: string;
+          request?: Json | null;
+          run_id: string;
+          seq: number;
+          step_key: string;
+          tenant_id: string;
+          verdict: string;
+        };
+        Update: {
+          action?: string;
+          actual?: Json | null;
+          control?: string | null;
+          evidence?: Json | null;
+          expected?: Json | null;
+          id?: string;
+          kind?: string;
+          label?: string;
+          latency_ms?: number | null;
+          occurred_at?: string;
+          request?: Json | null;
+          run_id?: string;
+          seq?: number;
+          step_key?: string;
+          tenant_id?: string;
+          verdict?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "validation_steps_run_id_tenant_id_fkey";
+            columns: ["run_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "validation_runs";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "validation_steps_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -2967,31 +3572,6 @@ export type Database = {
       activate_task_contract: {
         Args: { p_contract_id: string };
         Returns: undefined;
-      };
-      authorize_tool_call: {
-        Args: {
-          p_arguments: Json;
-          p_credential_secret: string;
-          p_current_compiler_version: string;
-          p_current_registry_version: string;
-          p_execution_context: Json;
-          p_idempotency_key: string;
-          p_operation: string;
-          p_plan_node_id: string;
-          p_resource: string;
-          p_task_id: string;
-          p_tool: string;
-        };
-        Returns: {
-          contract_id: string;
-          contract_version: number;
-          decision_id: string;
-          outcome: Database["public"]["Enums"]["authorization_outcome"];
-          reason_codes: string[];
-          remaining_invocations: number;
-          tool_request_id: string;
-          was_replayed: boolean;
-        }[];
       };
       create_agent_credential: {
         Args: { p_agent_id: string };
@@ -3038,6 +3618,10 @@ export type Database = {
       };
       decide_runtime_approval: {
         Args: { p_decision: string; p_note: string; p_request_id: string };
+        Returns: string;
+      };
+      decide_validation_remediation: {
+        Args: { p_decision: string; p_id: string; p_note: string };
         Returns: string;
       };
       ensure_onboarded: {
@@ -3142,6 +3726,10 @@ export type Database = {
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
+      };
+      set_retention_settings: {
+        Args: { p_tenant_id: string; p_validation_days: number };
+        Returns: number;
       };
       set_runtime_approval_classes: {
         Args: { p_classes: string[]; p_tenant_id: string };

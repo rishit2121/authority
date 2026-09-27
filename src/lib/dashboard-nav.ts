@@ -43,6 +43,10 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
     ],
   },
   {
+    label: "Validate",
+    items: [{ label: "Validation Lab", href: "/app/validation", icon: "science" }],
+  },
+  {
     label: "System",
     items: [{ label: "Settings", href: "/app/settings", icon: "lock" }],
   },

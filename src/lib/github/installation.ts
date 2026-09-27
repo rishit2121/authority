@@ -28,6 +28,7 @@ import { executionMode, liveConfig, publicBaseUrl } from "./config";
 import { EXPECTED_PERMISSIONS, GITHUB_WEB_ORIGIN } from "./constants";
 import { GithubDefiniteError } from "./errors";
 import { parseWebhook, verifyWebhookSignature } from "./webhook";
+import { enqueueWebhookRetry } from "@/lib/maintenance/db";
 
 /**
  * GitHub App installation lifecycle: connect (state-bound, OAuth-verified),
@@ -407,12 +408,30 @@ export async function processWebhook(input: {
   const parsed = parseWebhook(input.event, input.rawBody);
   if (!parsed || !parsed.installationId) return { http: 400, body: { error: "invalid_payload" } };
 
-  const outcome = await applyWebhook({
+  const delivery = {
     deliveryId: input.deliveryId,
     event: parsed.event,
     action: parsed.action,
     githubInstallationId: parsed.installationId,
     removedRepositoryIds: parsed.removedRepositoryIds,
-  });
-  return { http: 200, body: { status: outcome } };
+  };
+  try {
+    return { http: 200, body: { status: await applyWebhook(delivery) } };
+  } catch (error) {
+    // The signature is already verified, so the delivery is genuine. GitHub does not retry failed deliveries on its own:
+    // queue it (idempotent on the delivery id) and let the scheduled retry apply it. If even queueing fails, surface a
+    // 5xx so the operator can redeliver from the GitHub App's delivery log.
+    try {
+      await enqueueWebhookRetry({
+        deliveryId: input.deliveryId,
+        event: parsed.event,
+        action: parsed.action,
+        installationId: parsed.installationId,
+        removedRepositoryIds: parsed.removedRepositoryIds,
+      });
+      return { http: 202, body: { status: "queued_for_retry" } };
+    } catch {
+      throw error;
+    }
+  }
 }

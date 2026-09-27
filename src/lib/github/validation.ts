@@ -111,6 +111,18 @@ export function validateReadRef(value: unknown): Validated<string> {
   return { ok: true, value };
 }
 
+/**
+ * Well-known secret-bearing files. The connector refuses to read or write them regardless of what a capability
+ * says: a contract that allows `read_repository` on a repository must not be a way to exfiltrate `.env`.
+ */
+const SENSITIVE_NAME =
+  /^(?:\.env(?:\..*)?|\.npmrc|\.netrc|\.pgpass|id_(?:rsa|dsa|ecdsa|ed25519)(?:\.pub)?|credentials(?:\.json)?|secrets?\.(?:json|ya?ml|toml)|.*\.(?:pem|key|p12|pfx|jks|keystore))$/i;
+export function isSensitiveRepositoryPath(path: string): boolean {
+  const segments = path.split("/");
+  const name = segments[segments.length - 1] ?? "";
+  return SENSITIVE_NAME.test(name) || segments.some((s) => /^\.(?:ssh|aws|gnupg)$/i.test(s));
+}
+
 export function isDefaultBranch(branch: string, defaultBranch: string): boolean {
   return branch === defaultBranch;
 }

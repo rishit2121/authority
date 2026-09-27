@@ -113,8 +113,9 @@ Administrators revoke from the dashboard (`revoke_capability()`, security_admin+
 ## Health
 
 - `GET /health` — liveness: `{"status":"ok"}`, touches nothing.
-- `GET /ready` — readiness: `200 {"status":"ready"}` only if the gateway can reach its database with its credential;
-  otherwise `503 {"status":"not_ready","gateway":"not_configured|unreachable"}`. No host, role, version or error detail.
+- `GET /ready` — readiness: `200 {"status":"ready","github":…,"tls":…,"schema":"current"}` only if the gateway can reach its database
+  with its credential and the database schema matches this build; otherwise `503 {"status":"not_ready","gateway":"not_configured|unreachable|tls_unverified"}`
+  or `{"schema":"mismatch"}`. No host, role, version or error detail.
 
 ## Error envelope and rate limits
 
@@ -161,3 +162,10 @@ idempotency key and arguments to receive the capability.
 
 `POST /api/github/connect`, `GET /api/github/setup`, `GET /api/github/oauth/callback`, `POST /api/github/webhook`
 (HMAC-SHA256 `X-Hub-Signature-256`, delivery-id de-duplication).
+
+### Recovery guidance (`guidance`)
+
+Every `/api/v1/authorize` response carries `guidance: { nextStep, message }` where `nextStep` is one of `proceed | replan |
+clarify | request_approval | retry_later | stop`. It tells the agent how to recover from a refusal (replan with an authorized
+operation, ask the user, wait for approval, or stop) without revealing thresholds, indicators or policy text. Guidance can only
+advise seeking or waiting for more human-granted authority; it never grants any.

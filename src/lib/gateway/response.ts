@@ -1,4 +1,5 @@
 import type { CommitResult, GatewayStatus } from "./rpc";
+import { agentGuidance, type AgentGuidance } from "./guidance";
 import type { ApprovalStatus } from "./rpc-github";
 
 /**
@@ -86,6 +87,8 @@ export interface AgentAuthorizeResponse {
     expiresAt: string | null;
     statusUrl: string;
   };
+  /** What to do next after this decision (deliberately coarse; see guidance.ts). */
+  guidance: AgentGuidance;
   /** True only for tools no connector executes (Part 6 behavior). */
   simulation: boolean;
 }
@@ -139,6 +142,7 @@ export function toAgentResponse(input: {
             statusUrl: `/api/v1/approvals/${input.approval.approvalId}`,
           }
         : null,
+    guidance: agentGuidance(final, codes),
     simulation: !CONNECTOR_TOOLS.has(input.tool),
   };
 }

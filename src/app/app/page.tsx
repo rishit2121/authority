@@ -2,15 +2,42 @@ import Link from "next/link";
 
 import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
 import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { OnboardingChecklist, type OnboardingProgress } from "@/components/dashboard/OnboardingChecklist";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TaskTraceTable } from "@/components/dashboard/TaskTraceTable";
 import { Icon } from "@/components/ui/Icon";
 import { TENANT_ENVIRONMENT_LABELS, TENANT_ROLE_LABELS } from "@/lib/auth/tenant-context";
 import { loadDashboardOverview } from "@/lib/data/dashboard";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import type { Database } from "@/lib/supabase/database.types";
+
+type Db = SupabaseClient<Database>;
+
+async function loadOnboardingProgress(db: Db): Promise<OnboardingProgress> {
+  const head = { count: "exact", head: true } as const;
+  const [agents, tasks, decisions, github, validation, contracts] = await Promise.all([
+    db.from("agents").select("id", head),
+    db.from("tasks").select("id", head),
+    db.from("authorization_decisions").select("id", head),
+    db.from("github_installations").select("id", head).neq("status", "disconnected"),
+    db.from("validation_campaigns").select("id", head),
+    db.from("task_authority_contracts").select("id", head).eq("contract_status", "active"),
+  ]);
+  return {
+    agent: (agents.count ?? 0) > 0,
+    task: (tasks.count ?? 0) > 0,
+    activeContract: (contracts.count ?? 0) > 0,
+    runtimeCall: (decisions.count ?? 0) > 0,
+    githubConnected: (github.count ?? 0) > 0,
+    validationRun: (validation.count ?? 0) > 0,
+  };
+}
 
 export default async function OverviewPage() {
-  const { identity, repositories } = await createRepositoriesForCurrentTenant("/app");
+  const { identity, repositories, context } = await createRepositoriesForCurrentTenant("/app");
+  const onboarding = await loadOnboardingProgress(context.supabase);
   const { metrics, traces, hasAnyProductData } = await loadDashboardOverview(
     repositories,
     identity.tenant.tenantId,
@@ -36,6 +63,8 @@ export default async function OverviewPage() {
           Runtime authorization activity across every registered agent.
         </p>
       </header>
+
+      <OnboardingChecklist progress={onboarding} />
 
       {!hasAnyProductData ? (
         <EmptyWorkspace />

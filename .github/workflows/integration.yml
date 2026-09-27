@@ -1,0 +1,35 @@
+name: Integration (optional, needs credentials)
+
+# NOT a required check and never run on pull requests. It exercises the database integration suite, pgTAP and
+# Playwright against a dedicated DEVELOPMENT Supabase project. Run it manually when you have that project configured as
+# repository secrets. It must never point at production data.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: integration
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DEV_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.DEV_SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.DEV_SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.DEV_SUPABASE_PROJECT_REF }}
+      GATEWAY_DATABASE_URL: ${{ secrets.DEV_GATEWAY_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:integration
+      - run: npm run db:test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
