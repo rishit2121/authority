@@ -275,10 +275,17 @@ describe("health and readiness", () => {
     schemaVersion.mockResolvedValue("20260930000016");
   });
 
-  it("liveness touches no dependency", async () => {
+  it("liveness touches no dependency and reports no commit when Render's variable is unset", async () => {
+    delete process.env.RENDER_GIT_COMMIT;
     const { GET } = await import("@/app/api/v1/health/route");
     expect(await (await GET()).json()).toEqual({ status: "ok" });
     expect(gatewayPing).not.toHaveBeenCalled();
+  });
+
+  it("reports a truncated, non-secret build commit when deployed on Render", async () => {
+    vi.stubEnv("RENDER_GIT_COMMIT", "abcdef0123456789fullshahere");
+    const { GET } = await import("@/app/api/v1/health/route");
+    expect(await (await GET()).json()).toEqual({ status: "ok", commit: "abcdef012345" });
   });
 
   it("readiness is 503 when the gateway is unreachable and 200 when it is not", async () => {
