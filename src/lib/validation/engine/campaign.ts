@@ -89,7 +89,7 @@ export function stripForStorage(step: StepResult): Record<string, unknown> {
     verdict: step.verdict,
     control: step.control,
     latencyMs: step.latencyMs,
-    evidence: step.evidence,
+    evidence: { ...(step.evidence ?? {}), mismatches: step.mismatches },
     occurredAt: step.occurredAt,
   };
 }

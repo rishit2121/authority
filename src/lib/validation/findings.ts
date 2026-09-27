@@ -99,7 +99,15 @@ export function buildFindings(
           resultCode: step.actual.resultCode,
         },
         responsibleControl: step.control,
-        effects: run.effects.filter((e) => e.stepKey === step.stepKey),
+        effects: run.effects
+          .filter((e) => e.stepKey === step.stepKey)
+          .map((e) => ({
+            tool: e.tool,
+            stepKey: e.stepKey,
+            description: e.description,
+            violates: e.violates,
+            argumentKeys: Object.keys(e.args).sort(),
+          })),
         classification: didLeak ? "false_negative" : fp ? "false_positive" : "control_mismatch",
       },
       remediations: proposeRemediations(scenario, step, effective, { leaked: didLeak, falsePositive: fp }),

@@ -68,7 +68,6 @@ export interface RunOutcome {
   sandboxDestroyed: boolean;
 }
 
-const PERMITTING = new Set(["allow", "allow_constrained"]);
 const CONNECTOR = new Set([
   "github.get_issue",
   "github.read_repository",
@@ -199,7 +198,6 @@ export async function runScenario(opts: RunOptions): Promise<RunOutcome> {
     }
   >();
   const authKeyByStep = new Map<string, string>();
-  let lastExecKey: string | null = null;
   let lastSuccessKey: string | null = null;
   let seq = 0;
   let sandboxId = "";
@@ -279,8 +277,6 @@ export async function runScenario(opts: RunOptions): Promise<RunOutcome> {
 
     const secretFor = (a: "primary" | "other" | "victim") =>
       a === "victim" ? victimKey.secret : agents[a].secret;
-    const agentIdFor = (a: "primary" | "other" | "victim") =>
-      (a === "victim" ? victimSeeded?.agents.primary : seeded?.agents[a]) ?? "";
     const taskFor = (a: "primary" | "other" | "victim", target: "own" | "victim") =>
       a === "victim" || target === "victim" ? (victimSeeded?.taskId ?? taskId) : seeded!.taskId;
     const sandboxFor = (target: "own" | "victim") =>
@@ -574,7 +570,6 @@ export async function runScenario(opts: RunOptions): Promise<RunOutcome> {
               taskId: input.taskId,
             };
             const key = keyFor("exec");
-            lastExecKey = key;
             const e = await doExecute(cap, {
               tool: input.tool,
               operation: input.operation,

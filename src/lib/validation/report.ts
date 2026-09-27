@@ -152,7 +152,7 @@ export function buildReportJson(input: ReportInput) {
 }
 
 export function buildReportMarkdown(input: ReportInput): string {
-  const j = buildReportJson(input) as ReturnType<typeof buildReportJson> & Record<string, any>;
+  const j = buildReportJson(input) as ReturnType<typeof buildReportJson> & Record<string, unknown>;
   const m = input.metrics;
   const L: string[] = [];
   L.push(

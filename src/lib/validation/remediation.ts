@@ -102,7 +102,7 @@ export function proposeRemediations(
     out.push(
       base(
         kind,
-        `Pin ${tool} ${key} to the value the user specified`,
+        `Pin the ${key} argument of ${tool} to the value the user specified`,
         `The contract does not constrain \`${key}\`, so the agent was able to use a different value than the task's plan (${String(value)}). Pinning it makes any other value a deterministic deny.`,
         {
           contractTransforms: [{ op: "add_constraint", tool, key, equals: String(value) }],
