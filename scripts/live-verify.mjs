@@ -431,7 +431,7 @@ async function main() {
 
   // 7. Leave the evidence, remove the ability to act.
   await sql(
-    `update public.agents set status = 'revoked' where id = '${agentId}'; update public.agent_credentials set status = 'revoked', revoked_at = now() where id = '${credId}';`,
+    `update public.agents set status = 'revoked' where id = '${agentId}'; update public.agent_credentials set status = 'revoked', revoked_at = now(), revocation_reason = 'live verification finished' where id = '${credId}';`,
   ).catch(() => undefined);
   console.log(
     `\nfixture task ${taskId} (agent revoked). Test PR left OPEN and unmerged for you to inspect: ${prNumber ? `https://github.com/${REPO}/pull/${prNumber}` : "(none created)"}`,
