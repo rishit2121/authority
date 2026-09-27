@@ -73,3 +73,23 @@ export async function updateSemanticSettingsAction(input: {
     return { ok: false, error: "Settings could not be saved." };
   }
 }
+
+export async function setRetentionAction(days: number): Promise<SettingsActionResult> {
+  if (!Number.isInteger(days) || days < 7 || days > 365)
+    return { ok: false, error: "Retention must be a whole number of days between 7 and 365." };
+  try {
+    const { identity, context } = await createRepositoriesForCurrentTenant("/app/settings");
+    const { error } = await context.supabase.rpc("set_retention_settings", {
+      p_tenant_id: identity.tenant.tenantId,
+      p_validation_days: days,
+    });
+    if (error) {
+      if (error.code === "42501") return { ok: false, error: "Only admins and owners can change retention." };
+      return { ok: false, error: "Retention could not be saved." };
+    }
+    revalidatePath("/app/settings");
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Retention could not be saved." };
+  }
+}

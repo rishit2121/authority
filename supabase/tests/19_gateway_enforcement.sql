@@ -241,7 +241,7 @@ select t(is((select status from public.capability_tokens where token_hash = enco
 select t(is((select replayed::text || result from public.t19c('c-1', 'g-1', 'github.get_issue', '{"note":"SENTINEL-RAW-VALUE-123","issue_number":"991"}')), 'trueaccepted', 'retrying with the same idempotency key replays the original result'));
 select t(is((select uses from public.capability_tokens where token_hash = encode(extensions.digest('authcap_v1_g-1', 'sha256'), 'hex')), 1, 'the idempotent retry did not consume a second use'));
 select t(is((select reason from public.t19c('c-2', 'g-1', 'github.get_issue', '{"note":"SENTINEL-RAW-VALUE-123","issue_number":"991"}')), 'CAPABILITY_ALREADY_USED', 'replay with a new key is rejected as already used'));
-select t(is((select count(*)::int from public.capability_consumptions where reason_code = 'CAPABILITY_ALREADY_USED'), 1, 'the replay attempt is recorded for audit'));
+select t(is((select count(*)::int from public.capability_consumptions where reason_code = 'CAPABILITY_ALREADY_USED' and tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222')), 1, 'the replay attempt is recorded for audit'));
 select t(is((select reason from public.t19c('c-1', 'g-1', 'github.get_issue', '{"different":"args"}')), 'IDEMPOTENCY_CONFLICT', 'reusing a consumption key with a different call is a conflict'));
 
 select t(is((select reason from public.t19c('c-3', 'g-4', 'github.create_branch', '{"branch":"fix-2"}')), 'SCOPE_MISMATCH', 'a capability cannot authorize different arguments than the decision was made for'));

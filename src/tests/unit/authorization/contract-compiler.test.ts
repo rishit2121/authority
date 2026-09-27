@@ -83,6 +83,41 @@ describe("compileContract", () => {
     ]);
   });
 
+  it("pins numeric plan arguments as canonical text, so an amount cannot be escalated at runtime", () => {
+    const plan: CandidatePlan = {
+      schemaVersion: 1,
+      taskId: "task_refund",
+      nodes: [
+        {
+          id: "refund",
+          sequence: 0,
+          tool: "stripe.issue_refund",
+          arguments: { payment_id: "pi_4821", amount_cents: 4900 },
+          dependencies: [],
+          declaredOutputs: [],
+          dataFlowRefs: [],
+          expectedSideEffect: "write_create",
+          maxInvocations: 1,
+        },
+      ],
+    };
+    const validation = validateCandidatePlan(plan, { registry, activePolicies: [] });
+    const solverOutcome = solveMinimumAuthority({
+      requiredOperations: validation.requiredOperations,
+      registry,
+      forbiddenPermissionIds: new Set(),
+    });
+    if (solverOutcome.status !== "solved") throw new Error(solverOutcome.status);
+    const contract = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
+    const action = contract.allowedActions.find((a) => a.tool === "stripe.issue_refund")!;
+    expect(action.constraints).toEqual(
+      expect.arrayContaining([
+        { key: "amount_cents", equals: "4900" },
+        { key: "payment_id", equals: "pi_4821" },
+      ]),
+    );
+  });
+
   it("sums per-tool invocation counts across nodes calling the same tool", () => {
     const { contract } = compileIssue991();
     const pushCommit = contract.allowedActions.find((a) => a.tool === "github.push_commit")!;

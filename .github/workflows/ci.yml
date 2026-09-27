@@ -1,0 +1,93 @@
+name: CI
+
+# Required, secret-free gates. Nothing here uses a production credential or a hosted Supabase project:
+#  - `quality` runs format/lint/types/unit tests/build/bundle scan with placeholder PUBLIC values.
+#  - `scenario-packs` starts a throwaway LOCAL Supabase (Docker), applies the repo's migrations, and runs the
+#    adversarial starter pack through the real authorization gateway with mock integrations. It fails the pull request
+#    if any attack that was contained in validation/baseline.starter.json is no longer contained.
+# Optional suites that need real credentials live in integration.yml and are never required.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Public, non-secret placeholders: the build only needs the variables to exist.
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder-public-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run verify:bundle
+
+  scenario-packs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GATEWAY_DATABASE_URL: postgresql://authority_gateway:ci-only-gateway-password@127.0.0.1:54322/postgres
+      # The throwaway local database has no TLS; the flag is ignored by any production process.
+      GATEWAY_DATABASE_SSL: disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start a local Supabase and apply the migrations
+        run: supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector
+      - name: Provision the restricted gateway login (local, throwaway password)
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 \
+            -c "alter role authority_gateway with login password 'ci-only-gateway-password'"
+      - name: Run the starter scenario pack
+        run: |
+          set -o pipefail
+          npm run -s validate -- --pack starter \
+            --baseline validation/baseline.starter.json \
+            --out validation-report.json | tee validation-summary.txt
+      - name: Publish the summary
+        if: always()
+        run: |
+          {
+            echo '### Authority scenario pack (synthetic)'
+            echo '```'
+            cat validation-summary.txt 2>/dev/null || echo 'no summary produced'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-report
+          path: |
+            validation-report.json
+            validation-summary.txt
+          if-no-files-found: ignore
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { gatewayPing } from "@/lib/gateway/rpc";
 import { gatewayTlsRequired, gatewayTlsVerified, isGatewayConfigured } from "@/lib/gateway/db";
 import { githubReadiness } from "@/lib/github/config";
+import { EXPECTED_SCHEMA_VERSION } from "@/lib/gateway/schema-version";
+import { schemaVersion } from "@/lib/maintenance/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +25,13 @@ export async function GET(): Promise<NextResponse> {
   }
   try {
     const ok = await gatewayPing();
+    // A deploy ahead of its database migrations must not be routed traffic.
+    if (ok && (await schemaVersion().catch(() => null)) !== EXPECTED_SCHEMA_VERSION) {
+      return NextResponse.json(
+        { status: "not_ready", gateway: "ok", schema: "mismatch" },
+        { status: 503, headers },
+      );
+    }
     // The GitHub connector is optional: its state is reported, and only a HALF-configured live
     // connector (live mode with missing settings) makes the deployment not ready.
     const gh = githubReadiness();
@@ -32,7 +41,9 @@ export async function GET(): Promise<NextResponse> {
     }
     const tls = gatewayTlsVerified() ? "verified" : "unverified_local";
     return NextResponse.json(
-      ok ? { status: "ready", github, tls } : { status: "not_ready", gateway: "unreachable" },
+      ok
+        ? { status: "ready", github, tls, schema: "current" }
+        : { status: "not_ready", gateway: "unreachable" },
       {
         status: ok ? 200 : 503,
         headers,

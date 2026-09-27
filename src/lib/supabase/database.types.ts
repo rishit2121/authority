@@ -1556,6 +1556,51 @@ export type Database = {
         };
         Relationships: [];
       };
+      github_webhook_retries: {
+        Row: {
+          action: string | null;
+          attempts: number;
+          created_at: string;
+          delivery_id: string;
+          event: string;
+          github_installation_id: number;
+          id: string;
+          last_error_category: string | null;
+          next_attempt_at: string;
+          removed_repository_ids: number[];
+          status: string;
+          updated_at: string;
+        };
+        Insert: {
+          action?: string | null;
+          attempts?: number;
+          created_at?: string;
+          delivery_id: string;
+          event: string;
+          github_installation_id: number;
+          id?: string;
+          last_error_category?: string | null;
+          next_attempt_at?: string;
+          removed_repository_ids?: number[];
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          action?: string | null;
+          attempts?: number;
+          created_at?: string;
+          delivery_id?: string;
+          event?: string;
+          github_installation_id?: number;
+          id?: string;
+          last_error_category?: string | null;
+          next_attempt_at?: string;
+          removed_repository_ids?: number[];
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       integrations: {
         Row: {
           configured_scopes_metadata: Json | null;
@@ -2824,6 +2869,35 @@ export type Database = {
           },
         ];
       };
+      tenant_retention_settings: {
+        Row: {
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+          validation_days: number;
+        };
+        Insert: {
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          validation_days?: number;
+        };
+        Update: {
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+          validation_days?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "tenant_retention_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tenants: {
         Row: {
           created_at: string;
@@ -3652,6 +3726,10 @@ export type Database = {
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
+      };
+      set_retention_settings: {
+        Args: { p_tenant_id: string; p_validation_days: number };
+        Returns: number;
       };
       set_runtime_approval_classes: {
         Args: { p_classes: string[]; p_tenant_id: string };
