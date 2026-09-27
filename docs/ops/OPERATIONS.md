@@ -2,7 +2,7 @@
 
 ## Health and readiness
 
-- `GET /api/v1/health` liveness (touches nothing). Use as the platform health check.
+- `GET /api/v1/health` liveness (touches nothing) — `{"status":"ok","commit":"<short sha>"}` on Render, so a deploy can be checked against the commit that was supposed to ship. Use as the platform health check.
 - `GET /api/v1/ready` readiness. `200 {"status":"ready","github":"disabled|mock|live","tls":"verified","schema":"current"}` only when
   the gateway reaches its database with its own login, the certificate chain is verified (production), the database
   schema is the version this build expects (`gateway.schema_version()`), and a live GitHub connector is fully configured.
