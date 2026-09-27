@@ -45,7 +45,7 @@ export function packByKey(key: string): Pack | undefined {
 
 /** Content hash of a scenario definition: the identity of an immutable scenario version. */
 export function scenarioHash(s: Scenario): string {
-  return canonicalHash(s);
+  return canonicalHash(JSON.parse(JSON.stringify(s)) as unknown);
 }
 
 export const CATEGORY_COUNT = new Set(SCENARIOS.map((s) => s.category)).size;
