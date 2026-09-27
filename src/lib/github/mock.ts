@@ -79,8 +79,9 @@ export class MockGithub implements GithubTransport {
   log: MockRequestLog[] = [];
   private seq = 0;
 
-  constructor() {
-    this.reset();
+  /** `empty: true` gives an isolated world with no seeded repositories (validation sandboxes register their own). */
+  constructor(options: { empty?: boolean } = {}) {
+    if (!options.empty) this.reset();
   }
 
   reset(): void {
@@ -142,6 +143,45 @@ export class MockGithub implements GithubTransport {
       suspended: false,
       repoIds: [],
     });
+  }
+
+  /** Registers an isolated installation (used by validation sandboxes) with fresh repositories. Returns the repos by full name. */
+  registerInstallation(
+    installationId: number,
+    repos: Array<{
+      owner: string;
+      name: string;
+      issues?: Array<{ number: number; title: string; body: string }>;
+      files?: Array<{ path: string; content: string }>;
+    }>,
+  ): Map<string, MockRepo> {
+    const out = new Map<string, MockRepo>();
+    const ids: number[] = [];
+    for (const r of repos) {
+      const id = 500_000 + this.repos.size + 1;
+      const repo = this.addRepo(id, r.owner, r.name);
+      for (const i of r.issues ?? [])
+        repo.issues.set(i.number, { title: i.title, body: i.body, state: "open" });
+      for (const f of r.files ?? [])
+        repo.files.set(`main\0${f.path}`, {
+          sha: sha(`seed:${id}:${f.path}`),
+          content: Buffer.from(f.content).toString("base64"),
+        });
+      ids.push(id);
+      out.set(`${r.owner}/${r.name}`.toLowerCase(), repo);
+    }
+    this.installations.set(installationId, {
+      id: installationId,
+      accountLogin: "validation-org",
+      accountType: "Organization",
+      accountId: 1,
+      selection: "selected",
+      permissions: { ...EXPECTED_PERMISSIONS },
+      events: [],
+      suspended: false,
+      repoIds: ids,
+    });
+    return out;
   }
 
   addRepo(id: number, owner: string, name: string): MockRepo {

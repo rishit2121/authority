@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isSensitiveRepositoryPath,
   normalizeRepositoryPath,
   parsePositiveInt,
   parseRepositoryFullName,
@@ -131,5 +132,33 @@ describe("read refs and numbers", () => {
     expect(parsePositiveInt(12)).toEqual({ ok: true, value: 12 });
     for (const bad of ["0", "-1", "1.5", "1e3", "abc", "12345678901", "", null, 1.5, Number.NaN])
       expect(parsePositiveInt(bad as never).ok, String(bad)).toBe(false);
+  });
+});
+
+describe("sensitive files", () => {
+  it("recognizes secret-bearing files anywhere in the tree, and nothing ordinary", () => {
+    for (const p of [
+      ".env",
+      "app/.env.production",
+      "deploy/server.pem",
+      "keys/id_rsa",
+      "x/.ssh/config",
+      ".aws/credentials",
+      "certs/site.key",
+      ".npmrc",
+      "config/secrets.yml",
+    ]) {
+      expect(isSensitiveRepositoryPath(p), p).toBe(true);
+    }
+    for (const p of [
+      "README.md",
+      "docs/environment.md",
+      "src/env.ts",
+      "src/keys.ts",
+      "docs/authority-live-test/x.txt",
+      "package.json",
+    ]) {
+      expect(isSensitiveRepositoryPath(p), p).toBe(false);
+    }
   });
 });

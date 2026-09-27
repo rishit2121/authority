@@ -161,3 +161,10 @@ idempotency key and arguments to receive the capability.
 
 `POST /api/github/connect`, `GET /api/github/setup`, `GET /api/github/oauth/callback`, `POST /api/github/webhook`
 (HMAC-SHA256 `X-Hub-Signature-256`, delivery-id de-duplication).
+
+### Recovery guidance (`guidance`)
+
+Every `/api/v1/authorize` response carries `guidance: { nextStep, message }` where `nextStep` is one of `proceed | replan |
+clarify | request_approval | retry_later | stop`. It tells the agent how to recover from a refusal (replan with an authorized
+operation, ask the user, wait for approval, or stop) without revealing thresholds, indicators or policy text. Guidance can only
+advise seeking or waiting for more human-granted authority; it never grants any.

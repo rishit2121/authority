@@ -39,7 +39,7 @@ import type { SolverOutcome } from "./solver";
  * excluded exactly as before, unconditionally, with no path to reconsideration.
  */
 
-export const COMPILER_VERSION = "authority-compiler-2026-09-25-3b";
+export const COMPILER_VERSION = "authority-compiler-2026-09-30-8";
 export const DEFAULT_CONTRACT_EXPIRY_SECONDS = 3600;
 export const SPEC_VERSION = "v1";
 
@@ -94,7 +94,12 @@ function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction
       // bound argument is never turned into a constraint here at all; it is
       // recorded in `dataFlowBindings` instead, since its concrete value
       // does not exist until runtime.
+      // Numbers and booleans are pinned too, as their canonical text (the runtime compares argument text). Before
+      // this, a plan step that fixed `amount_cents: 4900` left the amount unconstrained at runtime, so a refund could
+      // be escalated to any amount (found by the Part 8 refund-escalation scenario).
       if (typeof value === "string") entry.constraintKeys.set(key, value);
+      else if (typeof value === "number" || typeof value === "boolean")
+        entry.constraintKeys.set(key, String(value));
     }
     byTool.set(node.tool, entry);
   }

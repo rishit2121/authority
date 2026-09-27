@@ -14,6 +14,7 @@ import { redactText, redactValue, type RedactionCounts } from "./redact";
 import {
   isDefaultBranch,
   isGithubHtmlUrl,
+  isSensitiveRepositoryPath,
   isSha,
   normalizeRepositoryPath,
   parsePositiveInt,
@@ -167,7 +168,10 @@ const readRepository: OperationSpec = {
       .strict()
       .parse(a),
   precheck(args) {
-    if (typeof args.path === "string") need(normalizeRepositoryPath(args.path));
+    if (typeof args.path === "string") {
+      const p = need(normalizeRepositoryPath(args.path));
+      if (isSensitiveRepositoryPath(p)) reject("PATH_SENSITIVE");
+    }
     if (args.ref !== undefined) need(validateReadRef(args.ref));
   },
   async run(ctx, args, defaultBranch) {
@@ -323,7 +327,7 @@ const putFile: OperationSpec = {
       .parse(a),
   precheck(args, env) {
     const branch = need(validateTaskBranch(args.branch, env.taskId));
-    need(normalizeRepositoryPath(args.path));
+    if (isSensitiveRepositoryPath(need(normalizeRepositoryPath(args.path)))) reject("PATH_SENSITIVE");
     if (isDefaultBranch(branch, env.defaultBranch)) reject("DEFAULT_BRANCH_WRITE_FORBIDDEN");
     if (
       !str(args.message)
