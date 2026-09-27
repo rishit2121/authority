@@ -25,7 +25,8 @@
     "db:reset": "supabase db reset",
     "semantic:eval": "SEMANTIC_EVAL_WRITE=1 vitest run src/tests/unit/semantic/eval.test.ts",
     "verify:bundle": "node scripts/check-bundle-secrets.mjs",
-    "gateway:provision": "node scripts/provision-gateway-role.mjs"
+    "gateway:provision": "node scripts/provision-gateway-role.mjs",
+    "test:github-live": "vitest run --config vitest.live.config.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -37,6 +38,7 @@
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "server-only": "^0.0.1",
+    "sharp": "^0.35.4",
     "zod": "^4.6.5"
   },
   "devDependencies": {

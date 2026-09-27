@@ -607,12 +607,148 @@ export type Database = {
           },
         ];
       };
+      capability_reservations: {
+        Row: {
+          agent_id: string;
+          capability_id: string;
+          created_at: string;
+          dispatched_at: string | null;
+          execution_mode: string;
+          finished_at: string | null;
+          github_installation_id: number | null;
+          id: string;
+          idempotency_key: string;
+          installation_row_id: string | null;
+          lease_expires_at: string;
+          operation: string;
+          reason_code: string | null;
+          repository_full_name: string | null;
+          repository_id: string | null;
+          request_hash: string;
+          reserved_at: string;
+          resolution_note: string | null;
+          resolved_at: string | null;
+          resolved_by_principal_id: string | null;
+          resolved_outcome: string | null;
+          status: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Insert: {
+          agent_id: string;
+          capability_id: string;
+          created_at?: string;
+          dispatched_at?: string | null;
+          execution_mode: string;
+          finished_at?: string | null;
+          github_installation_id?: number | null;
+          id?: string;
+          idempotency_key: string;
+          installation_row_id?: string | null;
+          lease_expires_at: string;
+          operation: string;
+          reason_code?: string | null;
+          repository_full_name?: string | null;
+          repository_id?: string | null;
+          request_hash: string;
+          reserved_at?: string;
+          resolution_note?: string | null;
+          resolved_at?: string | null;
+          resolved_by_principal_id?: string | null;
+          resolved_outcome?: string | null;
+          status?: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Update: {
+          agent_id?: string;
+          capability_id?: string;
+          created_at?: string;
+          dispatched_at?: string | null;
+          execution_mode?: string;
+          finished_at?: string | null;
+          github_installation_id?: number | null;
+          id?: string;
+          idempotency_key?: string;
+          installation_row_id?: string | null;
+          lease_expires_at?: string;
+          operation?: string;
+          reason_code?: string | null;
+          repository_full_name?: string | null;
+          repository_id?: string | null;
+          request_hash?: string;
+          reserved_at?: string;
+          resolution_note?: string | null;
+          resolved_at?: string | null;
+          resolved_by_principal_id?: string | null;
+          resolved_outcome?: string | null;
+          status?: string;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "capability_reservations_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_reservations_capability_id_tenant_id_fkey";
+            columns: ["capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capability_tokens";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_reservations_installation_row_id_tenant_id_fkey";
+            columns: ["installation_row_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "github_installations";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_reservations_repository_id_tenant_id_fkey";
+            columns: ["repository_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "github_repositories";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_reservations_resolved_by_principal_id_tenant_id_fkey";
+            columns: ["resolved_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_reservations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_reservations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       capability_tokens: {
         Row: {
           agent_id: string;
+          approval_request_id: string | null;
           arguments_hash: string;
           authorization_decision_id: string;
           budget_capability_id: string;
+          budget_released_uses: number;
           contract_id: string;
           contract_version: number;
           credential_id: string;
@@ -623,6 +759,7 @@ export type Database = {
           issued_at: string;
           max_uses: number;
           operation: string;
+          reserved_uses: number;
           resource: string | null;
           resource_constraints: Json;
           revocation_reason: string | null;
@@ -638,9 +775,11 @@ export type Database = {
         };
         Insert: {
           agent_id: string;
+          approval_request_id?: string | null;
           arguments_hash: string;
           authorization_decision_id: string;
           budget_capability_id: string;
+          budget_released_uses?: number;
           contract_id: string;
           contract_version: number;
           credential_id: string;
@@ -651,6 +790,7 @@ export type Database = {
           issued_at?: string;
           max_uses: number;
           operation: string;
+          reserved_uses?: number;
           resource?: string | null;
           resource_constraints: Json;
           revocation_reason?: string | null;
@@ -666,9 +806,11 @@ export type Database = {
         };
         Update: {
           agent_id?: string;
+          approval_request_id?: string | null;
           arguments_hash?: string;
           authorization_decision_id?: string;
           budget_capability_id?: string;
+          budget_released_uses?: number;
           contract_id?: string;
           contract_version?: number;
           credential_id?: string;
@@ -679,6 +821,7 @@ export type Database = {
           issued_at?: string;
           max_uses?: number;
           operation?: string;
+          reserved_uses?: number;
           resource?: string | null;
           resource_constraints?: Json;
           revocation_reason?: string | null;
@@ -698,6 +841,13 @@ export type Database = {
             columns: ["agent_id", "tenant_id"];
             isOneToOne: false;
             referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "capability_tokens_approval_fk";
+            columns: ["approval_request_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "runtime_approval_requests";
             referencedColumns: ["id", "tenant_id"];
           },
           {
@@ -1014,6 +1164,397 @@ export type Database = {
             referencedColumns: ["id", "tenant_id"];
           },
         ];
+      };
+      github_execution_receipts: {
+        Row: {
+          after_sha: string | null;
+          agent_id: string;
+          authorization_decision_id: string;
+          before_sha: string | null;
+          capability_id: string;
+          created_at: string;
+          execution_id: string;
+          execution_mode: string;
+          finished_at: string;
+          github_installation_id: number | null;
+          github_request_id: string | null;
+          http_status_class: number | null;
+          id: string;
+          installation_row_id: string | null;
+          operation: string;
+          reason_code: string | null;
+          redaction_metadata: Json;
+          repository_full_name: string | null;
+          repository_id: string | null;
+          request_hash: string;
+          resource_ids: Json;
+          result_category: string;
+          started_at: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Insert: {
+          after_sha?: string | null;
+          agent_id: string;
+          authorization_decision_id: string;
+          before_sha?: string | null;
+          capability_id: string;
+          created_at?: string;
+          execution_id: string;
+          execution_mode: string;
+          finished_at: string;
+          github_installation_id?: number | null;
+          github_request_id?: string | null;
+          http_status_class?: number | null;
+          id?: string;
+          installation_row_id?: string | null;
+          operation: string;
+          reason_code?: string | null;
+          redaction_metadata?: Json;
+          repository_full_name?: string | null;
+          repository_id?: string | null;
+          request_hash: string;
+          resource_ids?: Json;
+          result_category: string;
+          started_at: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Update: {
+          after_sha?: string | null;
+          agent_id?: string;
+          authorization_decision_id?: string;
+          before_sha?: string | null;
+          capability_id?: string;
+          created_at?: string;
+          execution_id?: string;
+          execution_mode?: string;
+          finished_at?: string;
+          github_installation_id?: number | null;
+          github_request_id?: string | null;
+          http_status_class?: number | null;
+          id?: string;
+          installation_row_id?: string | null;
+          operation?: string;
+          reason_code?: string | null;
+          redaction_metadata?: Json;
+          repository_full_name?: string | null;
+          repository_id?: string | null;
+          request_hash?: string;
+          resource_ids?: Json;
+          result_category?: string;
+          started_at?: string;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "github_execution_receipts_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_execution_receipts_authorization_decision_id_tenant_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_execution_receipts_capability_id_tenant_id_fkey";
+            columns: ["capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capability_tokens";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_execution_receipts_installation_row_id_tenant_id_fkey";
+            columns: ["installation_row_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "github_installations";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_execution_receipts_repository_id_tenant_id_fkey";
+            columns: ["repository_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "github_repositories";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_execution_receipts_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_execution_receipts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      github_install_states: {
+        Row: {
+          completed_at: string | null;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          nonce_hash: string;
+          principal_id: string;
+          reject_reason: string | null;
+          reported_installation_id: number | null;
+          status: string;
+          tenant_id: string;
+          user_id: string;
+        };
+        Insert: {
+          completed_at?: string | null;
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          nonce_hash: string;
+          principal_id: string;
+          reject_reason?: string | null;
+          reported_installation_id?: number | null;
+          status?: string;
+          tenant_id: string;
+          user_id: string;
+        };
+        Update: {
+          completed_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          nonce_hash?: string;
+          principal_id?: string;
+          reject_reason?: string | null;
+          reported_installation_id?: number | null;
+          status?: string;
+          tenant_id?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "github_install_states_principal_id_tenant_id_fkey";
+            columns: ["principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_install_states_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      github_installations: {
+        Row: {
+          account_login: string;
+          account_type: string;
+          connected_at: string;
+          connected_by_principal_id: string | null;
+          created_at: string;
+          disconnected_at: string | null;
+          disconnected_by_principal_id: string | null;
+          github_account_id: number;
+          github_installation_id: number;
+          granted_permissions: Json;
+          health_reasons: string[];
+          id: string;
+          last_verified_at: string | null;
+          mode: string;
+          repository_selection: string;
+          status: string;
+          subscribed_events: string[];
+          suspended_at: string | null;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          account_login: string;
+          account_type: string;
+          connected_at?: string;
+          connected_by_principal_id?: string | null;
+          created_at?: string;
+          disconnected_at?: string | null;
+          disconnected_by_principal_id?: string | null;
+          github_account_id: number;
+          github_installation_id: number;
+          granted_permissions?: Json;
+          health_reasons?: string[];
+          id?: string;
+          last_verified_at?: string | null;
+          mode: string;
+          repository_selection: string;
+          status?: string;
+          subscribed_events?: string[];
+          suspended_at?: string | null;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          account_login?: string;
+          account_type?: string;
+          connected_at?: string;
+          connected_by_principal_id?: string | null;
+          created_at?: string;
+          disconnected_at?: string | null;
+          disconnected_by_principal_id?: string | null;
+          github_account_id?: number;
+          github_installation_id?: number;
+          granted_permissions?: Json;
+          health_reasons?: string[];
+          id?: string;
+          last_verified_at?: string | null;
+          mode?: string;
+          repository_selection?: string;
+          status?: string;
+          subscribed_events?: string[];
+          suspended_at?: string | null;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "github_installations_connected_by_principal_id_tenant_id_fkey";
+            columns: ["connected_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_installations_disconnected_by_principal_id_tenant_i_fkey";
+            columns: ["disconnected_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_installations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      github_repositories: {
+        Row: {
+          allowed: boolean;
+          allowed_at: string | null;
+          allowed_by_principal_id: string | null;
+          archived: boolean;
+          default_branch: string;
+          discovered_at: string;
+          full_name_lc: string | null;
+          github_repository_id: number;
+          id: string;
+          installation_row_id: string;
+          is_private: boolean;
+          name: string;
+          owner: string;
+          present: boolean;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          allowed?: boolean;
+          allowed_at?: string | null;
+          allowed_by_principal_id?: string | null;
+          archived?: boolean;
+          default_branch: string;
+          discovered_at?: string;
+          full_name_lc?: string | null;
+          github_repository_id: number;
+          id?: string;
+          installation_row_id: string;
+          is_private: boolean;
+          name: string;
+          owner: string;
+          present?: boolean;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          allowed?: boolean;
+          allowed_at?: string | null;
+          allowed_by_principal_id?: string | null;
+          archived?: boolean;
+          default_branch?: string;
+          discovered_at?: string;
+          full_name_lc?: string | null;
+          github_repository_id?: number;
+          id?: string;
+          installation_row_id?: string;
+          is_private?: boolean;
+          name?: string;
+          owner?: string;
+          present?: boolean;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "github_repositories_allowed_by_principal_id_tenant_id_fkey";
+            columns: ["allowed_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_repositories_installation_row_id_tenant_id_fkey";
+            columns: ["installation_row_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "github_installations";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_repositories_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      github_webhook_deliveries: {
+        Row: {
+          action: string | null;
+          delivery_id: string;
+          event: string;
+          github_installation_id: number | null;
+          outcome: string;
+          received_at: string;
+        };
+        Insert: {
+          action?: string | null;
+          delivery_id: string;
+          event: string;
+          github_installation_id?: number | null;
+          outcome: string;
+          received_at?: string;
+        };
+        Update: {
+          action?: string | null;
+          delivery_id?: string;
+          event?: string;
+          github_installation_id?: number | null;
+          outcome?: string;
+          received_at?: string;
+        };
+        Relationships: [];
       };
       integrations: {
         Row: {
@@ -1333,6 +1874,199 @@ export type Database = {
         };
         Relationships: [];
       };
+      runtime_approval_decisions: {
+        Row: {
+          approver_principal_id: string;
+          created_at: string;
+          decision: string;
+          id: string;
+          note: string | null;
+          request_id: string;
+          tenant_id: string;
+        };
+        Insert: {
+          approver_principal_id: string;
+          created_at?: string;
+          decision: string;
+          id?: string;
+          note?: string | null;
+          request_id: string;
+          tenant_id: string;
+        };
+        Update: {
+          approver_principal_id?: string;
+          created_at?: string;
+          decision?: string;
+          id?: string;
+          note?: string | null;
+          request_id?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "runtime_approval_decisions_approver_principal_id_tenant_id_fkey";
+            columns: ["approver_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_decisions_request_id_tenant_id_fkey";
+            columns: ["request_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "runtime_approval_requests";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_decisions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      runtime_approval_requests: {
+        Row: {
+          agent_id: string;
+          arguments_hash: string;
+          authorization_decision_id: string;
+          context_hash: string;
+          contract_id: string;
+          contract_version: number;
+          created_at: string;
+          evidence: Json;
+          expires_at: string;
+          final_decision_id: string;
+          id: string;
+          minted_capability_id: string | null;
+          operation: string;
+          request_hash: string;
+          required_approvals: number;
+          resolved_at: string | null;
+          resource: string | null;
+          risk_class: string;
+          stale_reason: string | null;
+          status: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+          tool_request_id: string;
+          trigger_kind: string;
+        };
+        Insert: {
+          agent_id: string;
+          arguments_hash: string;
+          authorization_decision_id: string;
+          context_hash: string;
+          contract_id: string;
+          contract_version: number;
+          created_at?: string;
+          evidence: Json;
+          expires_at: string;
+          final_decision_id: string;
+          id?: string;
+          minted_capability_id?: string | null;
+          operation: string;
+          request_hash: string;
+          required_approvals: number;
+          resolved_at?: string | null;
+          resource?: string | null;
+          risk_class: string;
+          stale_reason?: string | null;
+          status?: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+          tool_request_id: string;
+          trigger_kind: string;
+        };
+        Update: {
+          agent_id?: string;
+          arguments_hash?: string;
+          authorization_decision_id?: string;
+          context_hash?: string;
+          contract_id?: string;
+          contract_version?: number;
+          created_at?: string;
+          evidence?: Json;
+          expires_at?: string;
+          final_decision_id?: string;
+          id?: string;
+          minted_capability_id?: string | null;
+          operation?: string;
+          request_hash?: string;
+          required_approvals?: number;
+          resolved_at?: string | null;
+          resource?: string | null;
+          risk_class?: string;
+          stale_reason?: string | null;
+          status?: string;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+          tool_request_id?: string;
+          trigger_kind?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "runtime_approval_minted_fk";
+            columns: ["minted_capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capability_tokens";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_requests_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_requests_authorization_decision_id_tenant_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_requests_contract_id_tenant_id_fkey";
+            columns: ["contract_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "task_authority_contracts";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_requests_final_decision_id_tenant_id_fkey";
+            columns: ["final_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "final_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_requests_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_requests_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "runtime_approval_requests_tool_request_id_tenant_id_fkey";
+            columns: ["tool_request_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tool_requests";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
       semantic_decisions: {
         Row: {
           confidence: number;
@@ -1533,6 +2267,7 @@ export type Database = {
           mode: Database["public"]["Enums"]["semantic_mode"];
           model: string;
           provider: string;
+          runtime_approval_classes: string[];
           semantic_required_classes: string[];
           tenant_id: string;
           timeout_ms: number;
@@ -1548,6 +2283,7 @@ export type Database = {
           mode?: Database["public"]["Enums"]["semantic_mode"];
           model?: string;
           provider?: string;
+          runtime_approval_classes?: string[];
           semantic_required_classes?: string[];
           tenant_id: string;
           timeout_ms?: number;
@@ -1563,6 +2299,7 @@ export type Database = {
           mode?: Database["public"]["Enums"]["semantic_mode"];
           model?: string;
           provider?: string;
+          runtime_approval_classes?: string[];
           semantic_required_classes?: string[];
           tenant_id?: string;
           timeout_ms?: number;
@@ -1923,6 +2660,62 @@ export type Database = {
           },
         ];
       };
+      task_repository_bindings: {
+        Row: {
+          bound_by_principal_id: string;
+          created_at: string;
+          id: string;
+          repository_id: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Insert: {
+          bound_by_principal_id: string;
+          created_at?: string;
+          id?: string;
+          repository_id: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Update: {
+          bound_by_principal_id?: string;
+          created_at?: string;
+          id?: string;
+          repository_id?: string;
+          task_id?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_repository_bindings_bound_by_principal_id_tenant_id_fkey";
+            columns: ["bound_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_repository_bindings_repository_id_tenant_id_fkey";
+            columns: ["repository_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "github_repositories";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_repository_bindings_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_repository_bindings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tasks: {
         Row: {
           agent_id: string;
@@ -2243,6 +3036,10 @@ export type Database = {
         };
         Returns: undefined;
       };
+      decide_runtime_approval: {
+        Args: { p_decision: string; p_note: string; p_request_id: string };
+        Returns: string;
+      };
       ensure_onboarded: {
         Args: never;
         Returns: {
@@ -2344,6 +3141,10 @@ export type Database = {
       };
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
+        Returns: undefined;
+      };
+      set_runtime_approval_classes: {
+        Args: { p_classes: string[]; p_tenant_id: string };
         Returns: undefined;
       };
       set_semantic_settings: {

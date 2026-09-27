@@ -120,13 +120,14 @@ export async function commitAuthorization(input: {
   tokenHash: string;
   evidence: SemanticEvidence | null;
   gatewayVersion: string;
+  registryRequiresApproval: boolean;
 }): Promise<CommitResult> {
   const e = input.evidence;
   const rows = await gatewayQuery<Record<string, unknown>>(
     `select * from gateway.commit_authorization(
        $1, $2::uuid, $3, $4, $5, $6::jsonb, $7::jsonb, $8::uuid, $9, $10, $11, $12, $13::int, $14,
        $15, $16, $17, $18::public.semantic_evidence_state, $19::jsonb, $20::text[], $21::public.semantic_risk_level,
-       $22::double precision, $23::int, $24, $25::jsonb, $26, $27)`,
+       $22::double precision, $23::int, $24, $25::jsonb, $26, $27, $28::boolean)`,
     [
       input.credentialSecret,
       input.taskId,
@@ -155,6 +156,7 @@ export async function commitAuthorization(input: {
       e ? JSON.stringify(e.redaction) : null,
       e?.errorCategory ?? null,
       input.gatewayVersion,
+      input.registryRequiresApproval,
     ],
   );
   const r = rows[0];

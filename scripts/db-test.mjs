@@ -67,6 +67,42 @@ $harness$;
 grant execute on function public.t(text) to authenticated;
 `;
 
+// Suites 17 and 18 pin the deterministic engine's semantics through the Part 4
+// `public.authorize_tool_call()` signature, which no longer exists in the
+// schema. This TEST-ONLY shim (rolled back with each suite) re-creates that
+// signature over gateway.commit_authorization(), mapping gateway statuses back
+// to the SQLSTATEs the assertions expect. It is never a migration.
+const LEGACY_SHIM = `
+create function public.authorize_tool_call(
+  p_credential_secret text, p_task_id uuid, p_tool text, p_operation text, p_resource text, p_arguments jsonb,
+  p_plan_node_id uuid, p_idempotency_key text, p_execution_context jsonb, p_current_registry_version text,
+  p_current_compiler_version text
+) returns table (
+  decision_id uuid, tool_request_id uuid, outcome public.authorization_outcome, reason_codes text[],
+  contract_id uuid, contract_version integer, remaining_invocations integer, was_replayed boolean
+) language plpgsql security definer set search_path = '' as $shim$
+declare
+  r record;
+  v_token text := encode(extensions.gen_random_bytes(32), 'hex');
+begin
+  select * into r from gateway.commit_authorization(
+    p_credential_secret, p_task_id, p_tool, p_operation, p_resource, p_arguments,
+    '{"schemaVersion":1,"count":0,"truncated":false,"entries":[]}'::jsonb, p_plan_node_id, p_idempotency_key,
+    p_current_registry_version, p_current_compiler_version, 'low', 1,
+    encode(extensions.digest(v_token, 'sha256'), 'hex'),
+    null, null, null, null, null, null, null, null, null, null, null, null, 'test-shim', false);
+  if r.r_status in ('invalid_credential', 'revoked_credential') then raise exception 'invalid runtime credential' using errcode = '28000'; end if;
+  if r.r_status = 'rate_limited' then raise exception 'rate limited' using errcode = '53400'; end if;
+  if r.r_status = 'task_not_found' then raise exception 'task not found' using errcode = 'P0002'; end if;
+  if r.r_status = 'agent_mismatch' then raise exception 'agent mismatch' using errcode = '42501'; end if;
+  if r.r_status = 'idempotency_conflict' then raise exception 'idempotency conflict' using errcode = '23505'; end if;
+  return query select r.r_decision_id, r.r_tool_request_id, r.r_final_outcome, r.r_reason_codes, r.r_contract_id,
+    r.r_contract_version, r.r_remaining_invocations, r.r_replayed;
+end;
+$shim$;
+revoke all on function public.authorize_tool_call(text, uuid, text, text, text, jsonb, uuid, text, jsonb, text, text) from public, anon, authenticated;
+`;
+
 const EPILOGUE = `
 reset role;
 insert into public.tap_out (line) select f.line from finish() as f(line);
@@ -104,7 +140,7 @@ async function runSuite({ file, sql, endpoint, token }) {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query: PRELUDE + sql + EPILOGUE }),
+    body: JSON.stringify({ query: PRELUDE + (/^(17|18)_/.test(file) ? LEGACY_SHIM : "") + sql + EPILOGUE }),
   });
 
   const body = await response.json();

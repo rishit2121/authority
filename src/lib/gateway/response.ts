@@ -1,4 +1,5 @@
 import type { CommitResult, GatewayStatus } from "./rpc";
+import type { ApprovalStatus } from "./rpc-github";
 
 /**
  * What an AGENT is allowed to see. The dashboard shows internal reason codes,
@@ -11,6 +12,8 @@ const AGENT_REASON: Record<string, string> = {
   SEMANTIC_CRITICAL_RISK: "SECURITY_POLICY_DENIED",
   SEMANTIC_HIGH_RISK: "APPROVAL_REQUIRED_BY_POLICY",
   SEMANTIC_REQUIRED_UNAVAILABLE: "SECURITY_REVIEW_UNAVAILABLE",
+  POLICY_REQUIRES_APPROVAL: "APPROVAL_REQUIRED_BY_POLICY",
+  REGISTRY_REQUIRES_APPROVAL: "APPROVAL_REQUIRED_BY_POLICY",
 };
 /** Composition markers with no agent-visible meaning (the `degraded` flag carries it). */
 const HIDDEN_REASONS = new Set(["SEMANTIC_DEGRADED_OPTIONAL"]);
@@ -30,7 +33,18 @@ const AGENT_SUMMARY: Record<string, string> = {
   SECURITY_POLICY_DENIED: "The request was refused by security policy.",
   APPROVAL_REQUIRED_BY_POLICY: "This request requires review before it can proceed.",
   SECURITY_REVIEW_UNAVAILABLE: "A required security review could not be completed; the request was refused.",
+  APPROVAL_GRANTED: "Permitted after human approval.",
 };
+
+/** Tools executed by a real connector (mirrors gateway.is_connector_tool). */
+export const CONNECTOR_TOOLS: ReadonlySet<string> = new Set([
+  "github.get_issue",
+  "github.read_repository",
+  "github.create_branch",
+  "github.put_file",
+  "github.create_pull_request",
+  "github.get_pull_request",
+]);
 
 export function agentReasonCodes(internal: readonly string[]): string[] {
   return internal.filter((c) => !HIDDEN_REASONS.has(c)).map((c) => AGENT_REASON[c] ?? c);
@@ -63,7 +77,17 @@ export interface AgentAuthorizeResponse {
     expiresAt: string;
     maxUses: number;
   };
-  simulation: true;
+  /** Present while a human decision is pending or after it resolved. */
+  approval: null | {
+    id: string;
+    state: string;
+    requiredApprovals: number | null;
+    approvals: number | null;
+    expiresAt: string | null;
+    statusUrl: string;
+  };
+  /** True only for tools no connector executes (Part 6 behavior). */
+  simulation: boolean;
 }
 
 export function toAgentResponse(input: {
@@ -71,6 +95,7 @@ export function toAgentResponse(input: {
   capabilityToken: string | null;
   tool: string;
   operation: string;
+  approval?: ApprovalStatus | null;
 }): AgentAuthorizeResponse {
   const { commit } = input;
   const final = commit.finalOutcome ?? "deny";
@@ -103,7 +128,18 @@ export function toAgentResponse(input: {
             maxUses: commit.capabilityMaxUses,
           }
         : null,
-    simulation: true,
+    approval:
+      input.approval && input.approval.approvalId
+        ? {
+            id: input.approval.approvalId,
+            state: input.approval.state ?? "pending",
+            requiredApprovals: input.approval.required,
+            approvals: input.approval.approved,
+            expiresAt: input.approval.expiresAt,
+            statusUrl: `/api/v1/approvals/${input.approval.approvalId}`,
+          }
+        : null,
+    simulation: !CONNECTOR_TOOLS.has(input.tool),
   };
 }
 

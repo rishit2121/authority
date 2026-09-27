@@ -99,6 +99,18 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
 
+    /**
+     * The GitHub connector suite changes tenant-wide state (installation, repository allowlist,
+     * approval policy) and, by design, runtime approvals go stale when tenant policy changes — so it
+     * must not overlap with specs that also edit tenant settings. It runs after the authenticated project.
+     */
+    {
+      name: "github",
+      testMatch: /github-connector\.spec\.ts/,
+      dependencies: ["setup", "authenticated"],
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
+    },
+
     ...externalProjects,
   ],
   // Runs against a production build so the e2e suite exercises what ships.
@@ -107,5 +119,14 @@ export default defineConfig({
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
+    env: {
+      // The MOCK GitHub connector, for the e2e suite only. No real GitHub credential is involved,
+      // and the mock refuses to run in production unless explicitly allowed here.
+      GITHUB_EXECUTION_MODE: "mock",
+      AUTHORITY_ALLOW_MOCK_GITHUB: "1",
+      AUTHORITY_PUBLIC_URL: BASE_URL,
+      // `next start` here is a local production build against the dev project, without the pooler CA.
+      AUTHORITY_DEPLOYMENT: "local",
+    },
   },
 });

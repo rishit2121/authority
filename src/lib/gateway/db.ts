@@ -2,6 +2,8 @@ import "server-only";
 
 import { safeLog } from "@/lib/semantic/scrub";
 
+import { readFileSync } from "node:fs";
+
 import pg from "pg";
 
 /**
@@ -49,7 +51,7 @@ function createPool(): pg.Pool {
     throw new GatewayNotConfiguredError();
   }
 
-  const ca = process.env.GATEWAY_DATABASE_CA?.trim();
+  const ca = gatewayCa();
   const pool = new pg.Pool({
     host: url.hostname,
     port: Number(url.port || 5432),
@@ -81,6 +83,35 @@ function pool(): pg.Pool {
 
 export function isGatewayConfigured(): boolean {
   return Boolean(process.env.GATEWAY_DATABASE_URL?.trim());
+}
+
+/**
+ * Whether the gateway verifies the database server's certificate chain. Without
+ * GATEWAY_DATABASE_CA the connection is encrypted but the peer is not
+ * authenticated. Production readiness fails in that state rather than quietly
+ * running with a man-in-the-middle-able connection.
+ */
+export function gatewayTlsVerified(env: NodeJS.ProcessEnv = process.env): boolean {
+  return gatewayCa(env) !== null;
+}
+
+/** The CA bundle (PEM) from GATEWAY_DATABASE_CA, or read from the file named by GATEWAY_DATABASE_CA_FILE. */
+export function gatewayCa(env: NodeJS.ProcessEnv = process.env): string | null {
+  const inline = env.GATEWAY_DATABASE_CA?.trim();
+  if (inline) return inline;
+  const file = env.GATEWAY_DATABASE_CA_FILE?.trim();
+  if (!file) return null;
+  try {
+    const pem = readFileSync(file, "utf8").trim();
+    return pem.includes("BEGIN CERTIFICATE") ? pem : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when this process is a production deployment that must not run with unverified TLS. */
+export function gatewayTlsRequired(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.NODE_ENV === "production" && env.AUTHORITY_DEPLOYMENT !== "local";
 }
 
 /** Runs one parameterized statement. Parameters are never logged and never appear in errors. */

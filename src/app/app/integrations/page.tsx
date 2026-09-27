@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
 import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
 import { Icon } from "@/components/ui/Icon";
@@ -32,6 +34,22 @@ export default async function IntegrationsPage() {
           Connected tool provider metadata and the credentials Authority isolates on their behalf.
         </p>
       </header>
+
+      <Link
+        href="/app/integrations/github"
+        data-testid="github-integration-link"
+        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
+      >
+        <span>
+          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
+            GitHub connector
+          </span>
+          <span className="block font-body-sm text-body-sm text-on-surface-variant">
+            Install the GitHub App, allow repositories and bind tasks. Real, least-privilege execution.
+          </span>
+        </span>
+        <Icon name="arrow_forward" size={16} />
+      </Link>
 
       {integrations.length === 0 ? (
         <EmptyWorkspace />

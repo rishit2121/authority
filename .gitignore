@@ -20,3 +20,7 @@ test-results/
 # Supabase CLI local state
 supabase/.temp/
 supabase/.branches/
+
+# Local secret files (GitHub App private key etc.). Never commit.
+.secrets/
+*.pem

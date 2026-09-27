@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { GithubTaskPanel, type TaskGithubData } from "@/components/github/GithubTaskPanel";
+import type { FlowPhase, FlowStep } from "@/components/github/ExecutionFlowGraph";
+import { reconcileExpiredReservations } from "@/lib/gateway/rpc-github";
+import { loadRuntimeApprovals, loadTaskGithub } from "@/lib/github/read-model";
 import { SemanticShadowPanel, type SemanticPanelRow } from "@/components/semantic/SemanticShadowPanel";
 import { TaskInvestigationView } from "@/components/task/TaskInvestigationView";
 import { loadTaskInvestigation } from "@/lib/data/task";
@@ -23,7 +27,9 @@ export const metadata: Metadata = {
  */
 export default async function TaskInvestigationPage({ params }: { params: Promise<{ taskId: string }> }) {
   const { taskId } = await params;
-  const { repositories, context } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
+  const { repositories, context, identity } = await createRepositoriesForCurrentTenant(
+    `/app/tasks/${taskId}`,
+  );
 
   const investigation = await loadTaskInvestigation(taskId, repositories);
   if (!investigation) notFound();
@@ -59,9 +65,69 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
     evidence: evidenceByDecision.get(d.id),
   }));
 
+  // Settle any expired execution leases first (best effort) so the panel shows their true state.
+  await reconcileExpiredReservations(20).catch(() => undefined);
+  // GitHub execution state, read through the caller's own RLS scope.
+  const github = await loadTaskGithub(context.supabase, taskId);
+  const approvals = await loadRuntimeApprovals(context.supabase, taskId);
+  const { data: eventRows } = await context.supabase
+    .from("execution_events")
+    .select("id, created_at, summary, event_type, normalized_effect_metadata")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true })
+    .limit(200);
+  const FLOW_PHASES = new Set<string>([
+    "capability_issued",
+    "approval_requested",
+    "approval_granted",
+    "approval_rejected",
+    "approval_stale",
+    "capability_issued_after_approval",
+    "reserved",
+    "dispatched",
+    "succeeded",
+    "succeeded_noop",
+    "failed",
+    "indeterminate",
+    "released",
+  ]);
+  const flow: FlowStep[] = (eventRows ?? []).flatMap((e) => {
+    const meta = (e.normalized_effect_metadata ?? {}) as { phase?: string; mode?: string };
+    if (!meta.phase && e.event_type === "capability_issued") meta.phase = "capability_issued";
+    if (!meta.phase || !FLOW_PHASES.has(meta.phase)) return [];
+    return [
+      {
+        id: e.id,
+        at: e.created_at,
+        phase: meta.phase as FlowPhase,
+        summary: e.summary,
+        mode: meta.mode === "live" || meta.mode === "mock" ? meta.mode : null,
+      },
+    ];
+  });
+  const contractActions = (investigation.contract?.allowedActions ?? [])
+    .filter((a) => a.tool.startsWith("github."))
+    .map((a) => ({
+      tool: a.tool,
+      constraints: a.constraints as TaskGithubData["actions"][number]["constraints"],
+    }));
+  const githubData: TaskGithubData = {
+    taskId,
+    canBind: ["developer", "security_admin", "admin", "owner"].includes(identity.role),
+    canResolve: ["security_admin", "admin", "owner"].includes(identity.role),
+    bound: github.boundRepository,
+    allowedRepositories: github.allowedRepositories,
+    actions: contractActions,
+    reservations: github.reservations,
+    receipts: github.receipts,
+    approvals,
+    flow,
+  };
+
   return (
     <div className="flex flex-col gap-space-lg">
       <TaskInvestigationView investigation={investigation} />
+      <GithubTaskPanel data={githubData} />
       <SemanticShadowPanel rows={panelRows} />
     </div>
   );

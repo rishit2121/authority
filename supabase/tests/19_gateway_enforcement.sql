@@ -71,8 +71,15 @@ language sql security definer set search_path = '' as $$
       '{"schemaVersion":1,"taskAlignment":0.9,"resourceRelevance":0.9,"scopeExpansion":0.1,"externalDisclosure":0.1,"promptInjection":0.1,"suspiciousArgumentChange":0.1,"planDeviation":0.1}'::jsonb)
       else null end,
     '{}'::text[], p_sem_risk, 0.8, 5, repeat('c', 64), '{"schemaVersion":1}'::jsonb,
-    case when p_sem_state = 'timeout' then 'timeout' else null end, 'gw-test') c
+    case when p_sem_state = 'timeout' then 'timeout' else null end, 'gw-test', false) c
 $$;
+
+-- Suite 19 pins the SIMULATED consume path's semantics (single use, replay, revocation ...) with
+-- github.get_issue. Since Part 7 that tool is connector-executed and simulated consumption refuses
+-- it, so for THIS suite only (rolled back with the transaction) the connector predicate is neutralized.
+-- Suite 20 asserts the real behavior.
+create or replace function gateway.is_connector_tool(p_tool text) returns boolean
+language sql immutable set search_path = '' as $$ select false; $$;
 
 create function public.t19c(
   p_key text, p_token_key text, p_tool text default 'github.get_issue', p_args jsonb default '{}'::jsonb,
@@ -100,7 +107,7 @@ set local role postgres;
 set local role anon;
 select t(throws_ok($$ select gateway.ping() $$, '42501', null, 'anon cannot reach the gateway schema at all'));
 select t(throws_ok($$ select * from public.authorize_tool_call('x' || repeat('y', 30), '19000000-0000-4000-8000-000000000004'::uuid, 'github.get_issue', 'op', null, '{}'::jsonb, null, 'k', null, 'rv1', 'cv1') $$,
-  '42501', null, 'anon can no longer call the legacy authorize_tool_call'));
+  '42883', null, 'the legacy authorize_tool_call no longer exists (anon)'));
 select t(throws_ok($$ select * from public.get_semantic_evaluation_context('x' || repeat('y', 30), '19000000-0000-4000-8000-000000000004'::uuid) $$,
   '42501', null, 'anon can no longer read semantic evaluation context'));
 select t(throws_ok($$ select * from public.record_semantic_shadow('x' || repeat('y', 30), '19000000-0000-4000-8000-000000000004'::uuid, 'mock', 'm', '1', 'timeout', null, '{}', 'unknown', 0, 1, repeat('a', 64), '{"schemaVersion":1}'::jsonb, 'timeout') $$,
@@ -113,7 +120,7 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 select t(throws_ok($$ select gateway.ping() $$, '42501', null, 'a signed-in user cannot reach the gateway schema'));
 select t(throws_ok($$ select * from public.authorize_tool_call('x' || repeat('y', 30), '19000000-0000-4000-8000-000000000004'::uuid, 'github.get_issue', 'op', null, '{}'::jsonb, null, 'k', null, 'rv1', 'cv1') $$,
-  '42501', null, 'a signed-in user cannot call the legacy authorize_tool_call either'));
+  '42883', null, 'the legacy authorize_tool_call no longer exists (authenticated)'));
 select t(throws_ok($$ insert into public.capability_tokens (tenant_id) values ('11111111-1111-4111-8111-111111111111') $$,
   '42501', null, 'no client can mint a capability by inserting a row'));
 select t(throws_ok($$ select token_hash from public.capability_tokens limit 1 $$,
@@ -121,7 +128,7 @@ select t(throws_ok($$ select token_hash from public.capability_tokens limit 1 $$
 
 set local role service_role;
 select t(throws_ok($$ select * from public.authorize_tool_call('x' || repeat('y', 30), '19000000-0000-4000-8000-000000000004'::uuid, 'github.get_issue', 'op', null, '{}'::jsonb, null, 'k', null, 'rv1', 'cv1') $$,
-  '42501', null, 'the service-role key cannot call the legacy authorize_tool_call'));
+  '42883', null, 'the legacy authorize_tool_call no longer exists (service role)'));
 
 -- pgTAP's own functions live in a schema the gateway role deliberately cannot
 -- use, so its attempts are captured here and asserted as the owner afterwards.
@@ -138,7 +145,7 @@ set local role postgres;
 select t(is(current_setting('t19.ping'), 'true', 'the gateway role can call gateway functions'));
 select t(is(current_setting('t19.tr'), '42501', 'the gateway role holds no table privileges'));
 select t(is(current_setting('t19.ct'), '42501', 'the gateway role cannot read capability tokens directly'));
-select t(is(current_setting('t19.legacy'), '42501', 'the gateway role cannot call the legacy raw-argument function'));
+select t(is(current_setting('t19.legacy'), '42883', 'the legacy raw-argument function no longer exists for the gateway role either'));
 
 -- =====================================================================
 -- 2. Composition is monotonic — exhaustively.

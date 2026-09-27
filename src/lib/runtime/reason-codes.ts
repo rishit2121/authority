@@ -23,6 +23,9 @@ const REASON_SUMMARIES: Record<string, string> = {
     "A required semantic evaluation was unavailable, so the request failed closed.",
   SEMANTIC_DEGRADED_OPTIONAL:
     "The optional semantic evaluation was degraded; the deterministic result was kept.",
+  POLICY_REQUIRES_APPROVAL: "Tenant policy requires a human approval for this risk class.",
+  REGISTRY_REQUIRES_APPROVAL: "The registry marks this operation as requiring approval.",
+  APPROVAL_GRANTED: "Permitted after human approval.",
   WITHIN_CONTRACT: "Permitted; the request satisfies every contract constraint.",
 };
 
