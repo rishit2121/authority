@@ -44,12 +44,12 @@ export function SiteHeader() {
           >
             Sign in
           </Link>
-          <a
-            href="#request-access"
+          <Link
+            href="/signup"
             className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-space-lg font-headline-sm text-body-md font-medium text-on-primary shadow-[0_0_20px_-4px_rgba(85,216,255,0.35)] transition-all hover:bg-primary-fixed hover:shadow-[0_0_24px_-2px_rgba(85,216,255,0.5)]"
           >
-            Request access
-          </a>
+            Start free
+          </Link>
           <span className="ml-space-xs hidden h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary sm:flex">
             <Icon name="person" size={18} />
           </span>

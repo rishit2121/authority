@@ -17,6 +17,15 @@ test.describe("marketing flow", () => {
     );
   });
 
+  test("the primary call to action leads to a working self-serve signup, not a dead end", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Start free", exact: false }).first().click();
+    await expect(page).toHaveURL(/\/signup$/);
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  });
+
   test("renders the central authority graph", async ({ page }) => {
     await page.goto("/");
     const graph = page.getByRole("group", { name: "Authority graph, animated" });

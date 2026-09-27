@@ -13,6 +13,9 @@ const ROUTES = [
   "/app/approvals",
   "/app/runtime",
   "/app/settings",
+  "/app/validation",
+  "/app/validation/scenarios",
+  "/app/validation/campaigns/new",
 ];
 
 const VIEWPORTS = [

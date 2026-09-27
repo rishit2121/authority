@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
 interface Field {
@@ -58,12 +59,21 @@ export function FinalCta() {
             Put your first production agent behind least privilege.
           </h2>
           <p className="mt-space-md font-body-lg text-body-lg text-on-surface-variant">
-            Bring one agent, one workflow, and one integration. We&apos;ll help define and enforce the task
-            boundary in under 30 minutes.
+            Bring one agent, one workflow, and one integration. Sign up and follow the ten-minute quickstart
+            to define and enforce the task boundary yourself.
           </p>
+          <Link
+            href="/signup"
+            className="mt-space-lg inline-flex items-center justify-center rounded-lg bg-primary px-space-xl py-3 font-headline-sm text-body-md font-medium text-on-primary transition-all hover:bg-primary-fixed"
+          >
+            Start free — no waitlist
+          </Link>
         </div>
 
         <div className="mx-auto max-w-xl rounded-xl border border-outline-variant/40 bg-surface-container-low p-space-xl shadow-2xl">
+          <p className="mb-space-md font-body-sm text-body-sm text-on-surface-variant">
+            Want a hand rolling out a guided pilot instead? Tell us about your use case.
+          </p>
           <form className="flex flex-col gap-space-md" onSubmit={handleSubmit}>
             {FIELDS.map((field) => (
               <div key={field.name}>
@@ -88,14 +98,14 @@ export function FinalCta() {
               type="submit"
               className="mt-space-md h-11 w-full rounded-lg bg-primary font-headline-sm text-body-md font-medium text-on-primary shadow-[0_0_20px_-4px_rgba(85,216,255,0.35)] transition-all hover:bg-primary-fixed"
             >
-              Request early access
+              Tell us about your pilot
             </button>
           </form>
 
           <p aria-live="polite" className="mt-space-md text-center font-mono-code text-[11px] text-outline">
             {submitted
-              ? "Request received — our runtime security team will follow up shortly."
-              : "Strict confidentiality · SOC2-compliant test clusters · White-glove setup"}
+              ? "Thanks — for immediate access, sign up above; this form does not require it."
+              : 'This form is not wired to a mailing list yet. For real access, use "Start free" above.'}
           </p>
         </div>
       </div>
