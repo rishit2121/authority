@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { AuthorityGraph } from "@/components/graph/AuthorityGraph";
 import { Icon } from "@/components/ui/Icon";
 import { StatusDot } from "@/components/ui/StatusDot";
@@ -27,12 +29,12 @@ export function Hero() {
           </p>
 
           <div className="flex w-full flex-wrap items-center gap-space-md sm:w-auto">
-            <a
-              href="#request-access"
+            <Link
+              href="/signup"
               className="inline-flex items-center justify-center rounded-lg bg-on-surface px-space-xl py-3 font-headline-sm text-body-md font-medium text-surface-container-lowest shadow-[0_1px_12px_rgba(255,255,255,0.2)] transition-all hover:bg-white hover:shadow-[0_2px_20px_rgba(255,255,255,0.35)]"
             >
-              Request early access
-            </a>
+              Start free — no waitlist
+            </Link>
             <a
               href="/demo"
               className="group inline-flex items-center justify-center rounded-lg border border-outline-variant/40 bg-surface-container px-space-lg py-3 font-body-md text-body-md text-on-surface transition-all hover:border-outline-variant/80 hover:bg-surface-container-high"

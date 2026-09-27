@@ -57,45 +57,66 @@ labeled as such.
 - CLI and CI gate: [`docs/validation/CI.md`](docs/validation/CI.md) (`npm run -s validate -- --pack starter`)
 - Operations, maintenance, retention, health: [`docs/ops/OPERATIONS.md`](docs/ops/OPERATIONS.md); production check: `npm run check:production`
 - Agent integration example: [`examples/agent/`](examples/agent)
+- Security, threat model and non-guarantees: [`docs/SECURITY.md`](docs/SECURITY.md)
+- Pilot setup checklist: [`docs/PILOT_CHECKLIST.md`](docs/PILOT_CHECKLIST.md)
+- Release notes: [`docs/RELEASE_NOTES_v0.1.md`](docs/RELEASE_NOTES_v0.1.md)
 
 ## Architecture overview
 
 ```
 src/
-  middleware.ts            Session refresh + route gate (Next 15 convention)
+  instrumentation.ts        In-process maintenance scheduler entry point (Node runtime only)
+  middleware.ts             Session refresh + route gate (Next 15 convention)
   app/
-    (marketing)/          /  and  /demo         — public marketing layout + pages
-    (auth)/               /login, /signup, /forgot-password, /reset-password
-    auth/                 /auth/callback, /auth/sign-out — route handlers
-    app/                  /app and its children  — control-plane dashboard
+    (marketing)/            /  and  /demo         — public marketing layout + pages
+    (auth)/                 /login, /signup, /forgot-password, /reset-password
+    auth/                   /auth/callback, /auth/sign-out — route handlers
+    app/                    /app and its children  — control-plane dashboard, incl. /app/validation
+    api/
+      v1/                   Agent-facing runtime API (authorize, capabilities, github/execute, approvals, health/ready)
+      github/               GitHub App connect/setup/oauth/webhook (browser + GitHub, not agents)
+      validation/           UI-facing campaign polling + report download
+      internal/maintenance/ Bearer-token-gated reconciliation trigger
   components/
-    marketing/             Landing page sections, header, footer
-    auth/                  Auth shell, form fields, form status banners
-    graph/                 The agent-centred radial authority graph
-    demo/                  The /demo guided walkthrough
-    dashboard/              Sidebar, shell, metric cards, task table
-    task/                  The task investigation view and its panels
-    ui/                    Shared primitives (Icon, Section, DecisionStatusBadge, …)
+    marketing/               Landing page sections, header, footer
+    auth/                    Auth shell, form fields, form status banners
+    graph/                   The agent-centred radial authority graph
+    demo/                    The /demo guided walkthrough
+    dashboard/               Sidebar, shell, metric cards, task table, onboarding checklist
+    task/, agent/, github/, semantic/, settings/    Domain-specific panels
+    validation/              Validation Lab: attack graph, step detail, remediation cards, metrics panel
+    ui/                      Shared primitives (Icon, Section, DecisionStatusBadge, …)
   lib/
-    domain/                Zod schemas, inferred types, repository interfaces
-    authorization/         The deterministic evaluator + semantic decision port
-    auth/                  Identity, tenant context, safe redirects, error mapping
-    supabase/              Browser / server / middleware clients + generated types
-    env.ts                 Runtime environment validation
-    mock/                  In-memory repositories and fixture data
-    data/                  Loaders: page → loader → repository seam
-  hooks/                   useReducedMotion, useSidebarCollapsed, useFocusTrap
-  styles/                  globals.css
+    domain/                  Zod schemas, inferred types, repository interfaces
+    authorization/           Plan validator, solver, contract compiler (the deterministic evaluator)
+    gateway/                 Restricted-role DB client, pipeline, RPC wrappers, agent recovery guidance
+    semantic/                Semantic risk provider port, mock/openai-compatible providers, circuit breaker
+    github/                  Fixed-route GitHub client, connector operations, App install/webhook handling
+    validation/              Validation Lab: scenario schema/library, engine (runner/campaign/service), metrics,
+                              findings, remediation, regression, reports, read-model
+    maintenance/             Scheduled reconciliation (leases, sandboxes, webhook retries, GitHub re-verification, retention)
+    auth/                    Identity, tenant context, safe redirects, error mapping
+    supabase/                Browser / server / middleware clients + generated types
+    env.ts                   Runtime environment validation
+    mock/                    In-memory repositories and fixture data (dev-only UI fallback)
+    data/                    Loaders: page → loader → repository seam
+  hooks/                     useReducedMotion, useSidebarCollapsed, useFocusTrap
   tests/
-    unit/                  Vitest + Testing Library
-    e2e/                   Playwright
+    unit/                    Vitest + Testing Library
+    integration/             Vitest against the real linked Supabase project
+    e2e/                     Playwright
 supabase/
   config.toml
-  migrations/              Committed SQL — the only way schema changes happen
-  seed.sql                 Development fixture users and tenants
-  tests/                   pgTAP suites for RLS, escalation and onboarding
+  migrations/                Committed SQL — the only way schema changes happen
+  seed.sql                   Development fixture users and tenants
+  tests/                     pgTAP suites (21) for RLS, escalation, gateway, connector and Validation Lab isolation
 scripts/
-  db-test.mjs              Runs supabase/tests against the linked project
+  db-test.mjs                Runs supabase/tests against the linked project
+  validate.ts                Validation Lab CLI (`npm run validate`)
+  check-production.ts        Pre-launch configuration check (`npm run check:production`)
+  gen-scenario-docs.ts        Regenerates docs/validation/SCENARIOS.md from the library
+examples/
+  agent/                     Dependency-free client + sample agent for the runtime API
 ```
 
 Domain logic is deliberately kept out of `components/`. A page calls a
