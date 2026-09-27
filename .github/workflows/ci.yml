@@ -59,7 +59,15 @@ jobs:
         with:
           version: latest
       - name: Start a local Supabase and apply the migrations
-        run: supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector
+        # Container registries rate-limit anonymous pulls from shared runners; retry rather than flake.
+        run: |
+          for attempt in 1 2 3; do
+            if supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector; then exit 0; fi
+            echo "supabase start failed (attempt $attempt); cleaning up and retrying"
+            supabase stop --no-backup || true
+            sleep $((attempt * 20))
+          done
+          exit 1
       - name: Provision the restricted gateway login (local, throwaway password)
         run: |
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
