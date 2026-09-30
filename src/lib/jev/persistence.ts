@@ -97,6 +97,7 @@ export async function recordNecessityEvaluation(
 export interface JevSettingsRow {
   necessityMode: NecessityMode;
   riskMode: "off" | "shadow";
+  enforcementApproved: boolean;
 }
 
 export async function getJevSettings(context: RepositoryContext, tenantId: string): Promise<JevSettingsRow> {
@@ -109,7 +110,11 @@ export async function getJevSettings(context: RepositoryContext, tenantId: strin
             v: string,
           ): {
             maybeSingle(): Promise<{
-              data: { necessity_mode: string; risk_mode: string } | null;
+              data: {
+                necessity_mode: string;
+                risk_mode: string;
+                enforcement_approved_at: string | null;
+              } | null;
               error: { message: string } | null;
             }>;
           };
@@ -118,13 +123,14 @@ export async function getJevSettings(context: RepositoryContext, tenantId: strin
     }
   )
     .from("jev_settings")
-    .select("necessity_mode, risk_mode")
+    .select("necessity_mode, risk_mode, enforcement_approved_at")
     .eq("tenant_id", tenantId)
     .maybeSingle();
   if (error) throwDatabaseError("read jev settings", error);
   return {
     necessityMode: (data?.necessity_mode as NecessityMode | undefined) ?? "off",
     riskMode: (data?.risk_mode as "off" | "shadow" | undefined) ?? "off",
+    enforcementApproved: Boolean(data?.enforcement_approved_at),
   };
 }
 
@@ -146,5 +152,9 @@ export async function setJevSettings(
   if (error) throwDatabaseError("set jev settings", error);
   const row = data?.[0];
   if (!row) throwDatabaseError("set jev settings", { code: "no_rows_returned" });
-  return { necessityMode: row.necessity_mode as NecessityMode, riskMode: row.risk_mode as "off" | "shadow" };
+  return {
+    necessityMode: row.necessity_mode as NecessityMode,
+    riskMode: row.risk_mode as "off" | "shadow",
+    enforcementApproved: row.necessity_mode === "enforce",
+  };
 }

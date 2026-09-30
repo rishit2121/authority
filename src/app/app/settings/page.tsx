@@ -1,6 +1,9 @@
 import { RetentionForm } from "@/components/settings/RetentionForm";
 import { SemanticSettingsForm } from "@/components/semantic/SemanticSettingsForm";
+import { JevSettingsForm } from "@/components/jev/JevSettingsForm";
 import { TENANT_ROLE_RANK } from "@/lib/domain";
+import { getJevSettings } from "@/lib/jev/persistence";
+import { getOpenRouterEnv } from "@/lib/openrouter/env";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { snapshotBreakers } from "@/lib/semantic/circuit-breaker";
 import { getSemanticProviderEnv } from "@/lib/semantic/openai-compatible-provider";
@@ -53,6 +56,13 @@ export default async function SettingsPage() {
   const canEdit = TENANT_ROLE_RANK[identity.role] >= TENANT_ROLE_RANK.security_admin;
   const mode = settings?.mode === "shadow" || settings?.mode === "enforce" ? settings.mode : "off";
 
+  const jevSettings = await getJevSettings(context, identity.tenant.tenantId).catch(() => ({
+    necessityMode: "off" as const,
+    riskMode: "off" as const,
+    enforcementApproved: false,
+  }));
+  const openRouterEnv = getOpenRouterEnv();
+
   return (
     <div className="flex flex-col gap-space-lg">
       <header>
@@ -93,6 +103,30 @@ export default async function SettingsPage() {
             capabilityTtlSeconds: settings?.capability_ttl_seconds ?? 60,
             enforcementApproved: Boolean(settings?.enforcement_approved_at),
           }}
+        />
+      </section>
+
+      <section
+        aria-labelledby="jev-settings-heading"
+        className="rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg"
+      >
+        <h2
+          id="jev-settings-heading"
+          className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+        >
+          Jev (OpenRouter) evaluation
+        </h2>
+        <p className="mb-space-md mt-space-sm max-w-2xl font-body-sm text-body-sm text-on-surface-variant">
+          Jev independently checks whether each tool in a proposed plan is genuinely necessary and, at
+          runtime, supplies semantic risk evidence. It never issues, widens or replaces an authorization
+          decision — the registry, mechanical validation, minimum-authority solver, compiler, verifier and
+          approval lifecycle remain authoritative and unmodified.
+        </p>
+        <JevSettingsForm
+          canEdit={canEdit}
+          planModelConfigured={openRouterEnv !== null}
+          decisionModelConfigured={openRouterEnv?.jevDecisionModel != null}
+          initial={jevSettings}
         />
       </section>
 
