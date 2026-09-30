@@ -104,6 +104,9 @@ export async function createGatewayFixture(options: {
       await managementQuery(`
         set local role postgres;
         select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.jev_risk_evaluations where task_id = '${taskId}';
+        delete from public.jev_necessity_evaluations where task_id = '${taskId}';
+        delete from public.jev_plan_completeness_evaluations where task_id = '${taskId}';
         delete from public.github_execution_receipts where task_id = '${taskId}';
         delete from public.capability_reservations where task_id = '${taskId}';
         delete from public.task_repository_bindings where task_id = '${taskId}';
