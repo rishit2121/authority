@@ -1,5 +1,6 @@
 import "server-only";
 
+import { canonicalHash } from "@/lib/authorization/canonicalize";
 import { computeBackwardSlice } from "@/lib/authorization/backward-slice";
 import type {
   PlanNodeFinding,
@@ -38,6 +39,8 @@ export interface JevNodeRecord {
   inBackwardSlice: boolean;
   /** null when necessity evaluation did not run for this node (mode "off", node not mechanically included, or outside the slice). */
   necessityRun: NecessityRunResult | null;
+  /** SHA-256 of the exact trusted input Jev was (or would have been) given for this node — null exactly when `necessityRun` is null. */
+  inputHash: string | null;
   finalStatus: PlanNodeFindingStatus;
   /** True when Jev's classification would have led to a different disposition than the mechanical result alone — recorded even in shadow mode. */
   disagreement: boolean;
@@ -110,6 +113,7 @@ export async function runJevContractPipeline(
         mechanicalStatus: finding.status,
         inBackwardSlice: inSlice,
         necessityRun: null,
+        inputHash: null,
         finalStatus: finding.status,
         disagreement: false,
         reasons: finding.reasons,
@@ -134,6 +138,7 @@ export async function runJevContractPipeline(
         mechanicalStatus: finding.status,
         inBackwardSlice: false,
         necessityRun: null,
+        inputHash: null,
         finalStatus: status,
         disagreement: false,
         reasons: ["outside_backward_slice"],
@@ -149,6 +154,7 @@ export async function runJevContractPipeline(
         mechanicalStatus: finding.status,
         inBackwardSlice: true,
         necessityRun: null,
+        inputHash: null,
         finalStatus: finding.status,
         disagreement: false,
         reasons: finding.reasons,
@@ -157,29 +163,31 @@ export async function runJevContractPipeline(
     }
 
     const registryOp = registry.operations.get(node.tool)!;
+    const necessityInput = {
+      taskId: plan.taskId,
+      taskIntent: options.taskIntent,
+      plan: summaries,
+      nodeId: finding.nodeId,
+      inBackwardSlice: true,
+      registryOperation: {
+        id: registryOp.id,
+        provider: registryOp.provider,
+        sideEffect: registryOp.sideEffect,
+        resourceType: registryOp.resourceType,
+        dataSensitivity: registryOp.dataSensitivity,
+        preconditions: registryOp.preconditions,
+        effects: registryOp.effects,
+        alternativeOperationIds: registryOp.alternativeOperationIds,
+      },
+      activePolicySummaries: options.activePolicies.map((p) => `${p.effect}: ${p.name}`),
+      agentJustification: options.agentJustifications?.[finding.nodeId] ?? null,
+    };
+    const inputHash = canonicalHash(necessityInput);
     const run = await runNecessityEvaluation({
       provider: options.provider,
       breaker: options.breaker,
       timeoutMs: options.timeoutMs ?? DEFAULT_NECESSITY_TIMEOUT_MS,
-      input: {
-        taskId: plan.taskId,
-        taskIntent: options.taskIntent,
-        plan: summaries,
-        nodeId: finding.nodeId,
-        inBackwardSlice: true,
-        registryOperation: {
-          id: registryOp.id,
-          provider: registryOp.provider,
-          sideEffect: registryOp.sideEffect,
-          resourceType: registryOp.resourceType,
-          dataSensitivity: registryOp.dataSensitivity,
-          preconditions: registryOp.preconditions,
-          effects: registryOp.effects,
-          alternativeOperationIds: registryOp.alternativeOperationIds,
-        },
-        activePolicySummaries: options.activePolicies.map((p) => `${p.effect}: ${p.name}`),
-        agentJustification: options.agentJustifications?.[finding.nodeId] ?? null,
-      },
+      input: necessityInput,
     });
 
     const { status, disagreement, reasons } = applyNecessityRule(finding, run, effectiveMode);
@@ -190,6 +198,7 @@ export async function runJevContractPipeline(
       mechanicalStatus: finding.status,
       inBackwardSlice: true,
       necessityRun: run,
+      inputHash,
       finalStatus: status,
       disagreement,
       reasons,

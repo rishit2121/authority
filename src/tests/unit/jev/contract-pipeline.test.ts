@@ -190,6 +190,58 @@ describe("runJevContractPipeline: mode shadow", () => {
   });
 });
 
+describe("runJevContractPipeline: inputHash", () => {
+  it("computes a real 64-hex-char hash only when Jev is actually consulted", async () => {
+    const p = plan([node({})]);
+    const v = validationFor(p, {});
+    const off = await runJevContractPipeline({
+      candidatePlan: p,
+      taskIntent: "x",
+      validation: v,
+      registry,
+      activePolicies: [],
+      mode: "off",
+      provider: providerReturning("required"),
+    });
+    expect(off.nodeRecords[0].inputHash).toBeNull();
+
+    const shadow = await runJevContractPipeline({
+      candidatePlan: p,
+      taskIntent: "x",
+      validation: v,
+      registry,
+      activePolicies: [],
+      mode: "shadow",
+      provider: providerReturning("required"),
+    });
+    expect(shadow.nodeRecords[0].inputHash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("changes when the trusted task intent changes, so a stale cached evaluation can never be reused for a different intent", async () => {
+    const p = plan([node({})]);
+    const v = validationFor(p, {});
+    const a = await runJevContractPipeline({
+      candidatePlan: p,
+      taskIntent: "intent A",
+      validation: v,
+      registry,
+      activePolicies: [],
+      mode: "shadow",
+      provider: providerReturning("required"),
+    });
+    const b = await runJevContractPipeline({
+      candidatePlan: p,
+      taskIntent: "intent B",
+      validation: v,
+      registry,
+      activePolicies: [],
+      mode: "shadow",
+      provider: providerReturning("required"),
+    });
+    expect(a.nodeRecords[0].inputHash).not.toBe(b.nodeRecords[0].inputHash);
+  });
+});
+
 describe("runJevContractPipeline: mode enforce", () => {
   it("removes a node Jev classifies unjustified", async () => {
     const p = plan([node({})]);
