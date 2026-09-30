@@ -6,19 +6,30 @@
  * Why this exists rather than `supabase test db`: the CLI's own test runner
  * needs the local Docker stack, which is unavailable in this environment (no
  * Docker, and the disk has no room for the images). This runner executes the
- * same SQL against the linked development project over the Management API
- * instead, so the RLS properties are genuinely verified rather than asserted
- * on paper. See README for the Docker path once it is available.
+ * same SQL against the linked development project over a direct Postgres
+ * connection instead, so the RLS properties are genuinely verified rather
+ * than asserted on paper. See README for the Docker path once it is available.
  *
  * Each suite runs inside one transaction that is always rolled back, so the
  * tests never leave rows behind — including the scratch table used to collect
- * TAP output, which the Management API needs because it returns only the final
- * result set of a multi-statement request.
+ * TAP output, which this runner needs because only the final result set of
+ * a multi-statement query is used for parsing.
+ *
+ * Direct connection, not the Management API's `/database/query` endpoint:
+ * that endpoint was previously used here, but now rejects any DDL statement
+ * with "cannot execute ... in a read-only transaction" (confirmed via a bare
+ * `create table` through the same endpoint, and confirmed NOT a property of
+ * the database itself — a direct connection with the same credentials allows
+ * DDL normally). Since every suite's fixture setup includes at least one
+ * `create table`/`create function` for test-only scaffolding, that endpoint
+ * can no longer run any suite in this repository. This is an external
+ * platform change, not a defect in any suite file.
  */
 
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import pg from "pg";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
@@ -133,40 +144,42 @@ function parseTap(lines) {
   return results;
 }
 
-async function runSuite({ file, sql, endpoint, token }) {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ query: PRELUDE + (/^(17|18)_/.test(file) ? LEGACY_SHIM : "") + sql + EPILOGUE }),
-  });
-
-  const body = await response.json();
-
-  if (!response.ok || !Array.isArray(body)) {
-    const message = typeof body?.message === "string" ? body.message : JSON.stringify(body).slice(0, 600);
-    return { file, error: message, results: [] };
+async function runSuite({ client, file, sql }) {
+  let result;
+  try {
+    result = await client.query(PRELUDE + (/^(17|18)_/.test(file) ? LEGACY_SHIM : "") + sql + EPILOGUE);
+  } catch (error) {
+    // A statement failed outside any `throws_ok`/`lives_ok` assertion (a bug in the suite's own SQL, not
+    // something under test). The shared connection is left with an aborted transaction — `begin;` alone does
+    // NOT clear that state in Postgres (it only warns "already in progress" and stays aborted), so the next
+    // suite would silently fail too. Explicitly rolling back here isolates each suite's failure exactly the
+    // way separate Management API requests used to.
+    try {
+      await client.query("rollback");
+    } catch {
+      // Nothing to roll back (e.g. the failure happened before `begin;` ran) — ignore.
+    }
+    return { file, error: error instanceof Error ? error.message : String(error), results: [] };
   }
-
-  return { file, results: parseTap(body.map((row) => row.line)) };
+  // `client.query()` returns one result per statement for a multi-statement string; the one we want is the
+  // EPILOGUE's `select line from tap_out order by seq;` — SECOND to last, since EPILOGUE's own last statement
+  // is `rollback;`, whose own (empty) result would otherwise be picked up instead.
+  const rows = Array.isArray(result) ? (result.at(-2)?.rows ?? []) : (result.rows ?? []);
+  return { file, results: parseTap(rows.map((row) => row.line)) };
 }
 
 async function main() {
   const cliEnv = await loadEnvFile(path.join(root, ".supabase-cli.env"));
-  const token = process.env.SUPABASE_ACCESS_TOKEN ?? cliEnv.SUPABASE_ACCESS_TOKEN;
   const ref = process.env.SUPABASE_PROJECT_REF ?? cliEnv.SUPABASE_PROJECT_REF;
+  const password = process.env.SUPABASE_DB_PASSWORD ?? cliEnv.SUPABASE_DB_PASSWORD;
 
-  if (!token || !ref) {
+  if (!ref || !password) {
     console.error(
-      "db-test: missing SUPABASE_ACCESS_TOKEN or SUPABASE_PROJECT_REF.\n" +
+      "db-test: missing SUPABASE_PROJECT_REF or SUPABASE_DB_PASSWORD.\n" +
         "Provide them in .supabase-cli.env or the environment. See .env.example.",
     );
     process.exit(2);
   }
-
-  const endpoint = `https://api.supabase.com/v1/projects/${ref}/database/query`;
 
   const files = (await readdir(testsDir)).filter((f) => f.endsWith(".sql")).sort();
 
@@ -175,36 +188,50 @@ async function main() {
     process.exit(2);
   }
 
+  const client = new pg.Client({
+    host: `db.${ref}.supabase.co`,
+    port: 5432,
+    user: "postgres",
+    password,
+    database: "postgres",
+    ssl: { rejectUnauthorized: false },
+  });
+  await client.connect();
+
   let passed = 0;
   let failed = 0;
   const failures = [];
 
-  for (const file of files) {
-    const sql = await readFile(path.join(testsDir, file), "utf8");
-    const outcome = await runSuite({ file, sql, endpoint, token });
+  try {
+    for (const file of files) {
+      const sql = await readFile(path.join(testsDir, file), "utf8");
+      const outcome = await runSuite({ client, file, sql });
 
-    if (outcome.error) {
-      console.log(`\n# ${file}`);
-      console.log(`  ERROR: ${outcome.error}`);
-      failed += 1;
-      failures.push(`${file}: ${outcome.error}`);
-      continue;
-    }
-
-    console.log(`\n# ${file}`);
-    for (const result of outcome.results) {
-      if (result.passed) {
-        passed += 1;
-        console.log(`  ok ${result.n} - ${result.name}`);
-      } else {
+      if (outcome.error) {
+        console.log(`\n# ${file}`);
+        console.log(`  ERROR: ${outcome.error}`);
         failed += 1;
-        failures.push(`${file}: ${result.name}`);
-        console.log(`  NOT OK ${result.n} - ${result.name}`);
-        for (const diagnostic of result.diagnostics ?? []) {
-          console.log(`      ${diagnostic}`);
+        failures.push(`${file}: ${outcome.error}`);
+        continue;
+      }
+
+      console.log(`\n# ${file}`);
+      for (const result of outcome.results) {
+        if (result.passed) {
+          passed += 1;
+          console.log(`  ok ${result.n} - ${result.name}`);
+        } else {
+          failed += 1;
+          failures.push(`${file}: ${result.name}`);
+          console.log(`  NOT OK ${result.n} - ${result.name}`);
+          for (const diagnostic of result.diagnostics ?? []) {
+            console.log(`      ${diagnostic}`);
+          }
         }
       }
     }
+  } finally {
+    await client.end();
   }
 
   console.log(`\n${passed} passed, ${failed} failed, ${files.length} suite(s)`);

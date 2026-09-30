@@ -272,7 +272,7 @@ describe("POST /api/v1/capabilities/revoke", () => {
 
 describe("health and readiness", () => {
   beforeEach(() => {
-    schemaVersion.mockResolvedValue("20260930000019");
+    schemaVersion.mockResolvedValue("20260930000020");
   });
 
   it("liveness touches no dependency and reports no commit when Render's variable is unset", async () => {
@@ -311,7 +311,7 @@ describe("health and readiness", () => {
     expect(await stale.json()).toEqual({ status: "not_ready", gateway: "ok", schema: "mismatch" });
     schemaVersion.mockRejectedValue(new Error("no such function"));
     expect((await GET()).status).toBe(503);
-    schemaVersion.mockResolvedValue("20260930000019");
+    schemaVersion.mockResolvedValue("20260930000020");
     expect(await (await GET()).json()).toMatchObject({ status: "ready", schema: "current" });
     delete process.env.GATEWAY_DATABASE_URL;
   });
