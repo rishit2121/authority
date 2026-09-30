@@ -39,6 +39,18 @@ select t(throws_ok(
   '42501', null,
   'a user with no membership in the target tenant cannot reset demo data there'));
 
+-- Captured as baselines, not hardcoded literals, and captured BEFORE any tenant B operation below: tenant A is
+-- the shared seed tenant every other suite (and any manual/live-verification testing) also uses, so its real
+-- task/agent counts vary over time and across environments. This suite's own job is only to prove tenant B's
+-- install/reset never crosses into tenant A — comparing against whatever tenant A's counts already were, rather
+-- than an assumed absolute value, tests exactly that property without being brittle to unrelated activity
+-- elsewhere.
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
+select set_config('t06.tenant_a_tasks_before',
+    (select count(*) from public.tasks where tenant_id = '11111111-1111-4111-8111-111111111111')::text, true),
+  set_config('t06.tenant_a_agents_before',
+    (select count(*) from public.agents where tenant_id = '11111111-1111-4111-8111-111111111111')::text, true);
+
 -- Switch to tenant B's owner and confirm the starting state.
 set local request.jwt.claims = '{"sub":"b0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 
@@ -63,7 +75,8 @@ select t(is(
 set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 
 select t(is(
-  (select count(*) from public.agents where tenant_id = '11111111-1111-4111-8111-111111111111')::int, 2,
+  (select count(*) from public.agents where tenant_id = '11111111-1111-4111-8111-111111111111')::int,
+  current_setting('t06.tenant_a_agents_before')::int,
   'tenant A''s agent count is unaffected by installing demo data for tenant B'));
 
 set local request.jwt.claims = '{"sub":"b0000000-0000-4000-8000-000000000001","role":"authenticated"}';
@@ -92,5 +105,6 @@ select t(is(
 set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 
 select t(is(
-  (select count(*) from public.tasks where tenant_id = '11111111-1111-4111-8111-111111111111')::int, 2,
-  'tenant A''s tasks are still exactly as they were — reset never crossed the tenant boundary'));
+  (select count(*) from public.tasks where tenant_id = '11111111-1111-4111-8111-111111111111')::int,
+  current_setting('t06.tenant_a_tasks_before')::int,
+  'tenant A''s task count is unchanged from this suite''s own start — reset never crossed the tenant boundary'));

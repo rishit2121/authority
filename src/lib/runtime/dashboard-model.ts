@@ -62,6 +62,34 @@ export interface ConsumptionInput {
   reason_code: string;
 }
 
+/** Row shape from `public.jev_risk_evaluations` (Role C, shadow-mode only — see docs/jev/OVERVIEW.md). One row per authorization decision, same 1:1 join as semantic evidence. */
+export interface JevRiskInput {
+  authorization_decision_id: string;
+  provider: string;
+  model: string;
+  state: string;
+  // Present exactly when state === "ok" — {"schemaVersion":1,"riskClass":..,"confidence":..,"categories":[..],"evidenceCodes":[..]}.
+  // Typed `unknown` here (raw JSONB from the database client) and narrowed in `buildRuntimeRows`, mirroring
+  // `lib/semantic/read-model.ts`'s handling of its own JSONB `signals` column.
+  result: unknown;
+  disagreement: boolean;
+  latency_ms: number;
+  error_category: string | null;
+}
+
+export interface JevRiskView {
+  provider: string;
+  model: string;
+  state: string;
+  riskClass: string | null;
+  confidence: number | null;
+  categories: string[];
+  evidenceCodes: string[];
+  disagreement: boolean;
+  latencyMs: number;
+  errorCategory: string | null;
+}
+
 export interface CapabilityView {
   id: string;
   state: CapabilityState;
@@ -101,6 +129,8 @@ export interface RuntimeRow {
   compositionReasonCodes: string[];
   contractVersion: number | null;
   evidence: SemanticEvidenceView | undefined;
+  /** Role C shadow-mode risk evidence, advisory only — never present when risk mode is off or the request predates it. */
+  jevRisk: JevRiskView | undefined;
   capability: CapabilityView | null;
 }
 
@@ -125,6 +155,7 @@ export function buildRuntimeRows(input: {
   tokens: TokenInput[];
   consumptions: ConsumptionInput[];
   evidenceByDecision: Map<string, SemanticEvidenceView>;
+  jevRiskByDecision?: Map<string, JevRiskInput>;
   agentNames: Map<string, string>;
   now?: Date;
 }): RuntimeRow[] {
@@ -198,6 +229,31 @@ export function buildRuntimeRows(input: {
             }
           : undefined;
       })(),
+      jevRisk: (() => {
+        const r = input.jevRiskByDecision?.get(d.id);
+        if (!r) return undefined;
+        const result =
+          r.result && typeof r.result === "object"
+            ? (r.result as {
+                riskClass?: string;
+                confidence?: number;
+                categories?: string[];
+                evidenceCodes?: string[];
+              })
+            : null;
+        return {
+          provider: r.provider,
+          model: r.model,
+          state: r.state,
+          riskClass: result?.riskClass ?? null,
+          confidence: result?.confidence ?? null,
+          categories: result?.categories ?? [],
+          evidenceCodes: result?.evidenceCodes ?? [],
+          disagreement: r.disagreement,
+          latencyMs: r.latency_ms,
+          errorCategory: r.error_category,
+        };
+      })(),
       capability,
     });
   }
@@ -232,6 +288,12 @@ export function decisionTrace(row: RuntimeRow): TraceStep[] {
     steps.push({
       step: "Semantic",
       detail: row.semanticMode === "off" ? "Off — not evaluated." : "No evidence recorded.",
+    });
+  }
+  if (row.jevRisk) {
+    steps.push({
+      step: "Jev risk (shadow)",
+      detail: `${row.jevRisk.provider} · ${row.jevRisk.state}${row.jevRisk.state === "ok" ? ` · ${row.jevRisk.riskClass}-risk (confidence ${row.jevRisk.confidence?.toFixed(2)})` : ""}${row.jevRisk.disagreement ? " — disagrees with the final decision" : ""}. Advisory only; never affected this decision.`,
     });
   }
   if (row.gateway) {

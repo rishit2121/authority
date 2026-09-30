@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { SEMANTIC_MODES, SEMANTIC_PROVIDERS } from "@/lib/domain";
+import { NECESSITY_MODES } from "@/lib/jev/contract-pipeline";
+import { setJevSettings } from "@/lib/jev/persistence";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { RISK_CLASSES } from "@/lib/semantic/enforcement-grade";
 
@@ -91,5 +93,35 @@ export async function setRetentionAction(days: number): Promise<SettingsActionRe
     return { ok: true };
   } catch {
     return { ok: false, error: "Retention could not be saved." };
+  }
+}
+
+export async function updateJevSettingsAction(input: {
+  necessityMode: string;
+  riskMode: string;
+  approveEnforcement: boolean;
+}): Promise<SettingsActionResult> {
+  if (!NECESSITY_MODES.includes(input.necessityMode as never))
+    return { ok: false, error: "Unknown necessity mode." };
+  if (!["off", "shadow"].includes(input.riskMode)) return { ok: false, error: "Unknown risk mode." };
+
+  try {
+    const { context, identity } = await createRepositoriesForCurrentTenant("/app/settings");
+    await setJevSettings(context, {
+      tenantId: identity.tenant.tenantId,
+      necessityMode: input.necessityMode as (typeof NECESSITY_MODES)[number],
+      riskMode: input.riskMode as "off" | "shadow",
+      approveEnforcement: input.approveEnforcement,
+    });
+    revalidatePath("/app/settings");
+    return { ok: true };
+  } catch (error) {
+    // `setJevSettings` wraps the raw Postgrest error into a generic RepositoryError; the original {code, message} is
+    // preserved on `.cause` (see `lib/persistence/errors.ts`'s `throwDatabaseError`).
+    const code = (error instanceof Error ? (error.cause as { code?: string } | undefined) : undefined)?.code;
+    if (code === "42501") return { ok: false, error: "You do not have permission to change these settings." };
+    if (code === "22023")
+      return { ok: false, error: "Enforce mode requires explicit approval, or an invalid mode was given." };
+    return { ok: false, error: "Could not update Jev settings." };
   }
 }

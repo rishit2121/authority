@@ -55,6 +55,15 @@ describe("bundle scanner", () => {
     expect(JSON.stringify(findings)).not.toContain("sk-live-abcdefghij123456");
   });
 
+  it("detects a leaked OPENROUTER_API_KEY value without reporting it", () => {
+    const env = { OPENROUTER_API_KEY: "sk-or-v1-abcdefghij123456" };
+    const dir = bundle({ "x.js": "var k='sk-or-v1-abcdefghij123456'" });
+    const { findings } = scanDirectory(dir, secretValuesFromEnv(env));
+    const labels = findings.map((f: { label: string }) => f.label);
+    expect(labels).toContain("secret-value:OPENROUTER_API_KEY");
+    expect(JSON.stringify(findings)).not.toContain("sk-or-v1-abcdefghij123456");
+  });
+
   it("ignores very short values that would false-match", () => {
     const { findings } = scanDirectory(bundle({ "x.js": "abc" }), [{ label: "S", value: "abc" }]);
     expect(findings).toEqual([]);

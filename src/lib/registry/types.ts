@@ -68,6 +68,19 @@ export const toolOperationSchema = z
      */
     financialImpact: z.boolean(),
     argumentFields: z.array(argumentFieldSchema).max(20),
+    /**
+     * Trusted, short, human-readable facts about this operation — registry-authored, never inferred and never
+     * agent-supplied. Given to Jev (see `lib/jev`) as the operation's authoritative description; an agent's own
+     * justification for calling this tool is never substituted for these.
+     */
+    preconditions: z.array(z.string().min(1).max(300)).max(10).default([]),
+    effects: z.array(z.string().min(1).max(300)).max(10).default([]),
+    /**
+     * Other registry operation IDs a solver/reviewer could consider as a less-privileged substitute for this one
+     * (e.g. a read-only operation instead of a write). Registry-curated; Jev may only ever choose from this exact
+     * list when naming an alternative, never invent one (see `ToolNecessityEvaluation.alternativeOperationIds`).
+     */
+    alternativeOperationIds: z.array(toolNameSchema).max(10).default([]),
   })
   .strict();
 export type ToolOperation = z.infer<typeof toolOperationSchema>;

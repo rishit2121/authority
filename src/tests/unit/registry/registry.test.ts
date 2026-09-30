@@ -75,6 +75,9 @@ describe("loadRegistry", () => {
           requiresApproval: false,
           financialImpact: false,
           argumentFields: [],
+          preconditions: [],
+          effects: [],
+          alternativeOperationIds: [],
         },
       ],
     };

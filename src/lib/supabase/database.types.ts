@@ -1651,6 +1651,307 @@ export type Database = {
           },
         ];
       };
+      jev_necessity_evaluations: {
+        Row: {
+          compiler_version: string;
+          created_at: string;
+          disagreement: boolean;
+          error_category: string | null;
+          final_status: string;
+          id: string;
+          input_hash: string;
+          latency_ms: number;
+          mechanical_status: string;
+          mode: string;
+          model: string;
+          model_version: string;
+          node_key: string;
+          plan_id: string;
+          provider: string;
+          registry_version: string;
+          result: Json | null;
+          state: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Insert: {
+          compiler_version: string;
+          created_at?: string;
+          disagreement?: boolean;
+          error_category?: string | null;
+          final_status: string;
+          id?: string;
+          input_hash: string;
+          latency_ms: number;
+          mechanical_status: string;
+          mode: string;
+          model: string;
+          model_version: string;
+          node_key: string;
+          plan_id: string;
+          provider: string;
+          registry_version: string;
+          result?: Json | null;
+          state: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Update: {
+          compiler_version?: string;
+          created_at?: string;
+          disagreement?: boolean;
+          error_category?: string | null;
+          final_status?: string;
+          id?: string;
+          input_hash?: string;
+          latency_ms?: number;
+          mechanical_status?: string;
+          mode?: string;
+          model?: string;
+          model_version?: string;
+          node_key?: string;
+          plan_id?: string;
+          provider?: string;
+          registry_version?: string;
+          result?: Json | null;
+          state?: string;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "jev_necessity_evaluations_plan_id_tenant_id_fkey";
+            columns: ["plan_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "jev_necessity_evaluations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "jev_necessity_evaluations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      jev_plan_completeness_evaluations: {
+        Row: {
+          created_at: string;
+          error_category: string | null;
+          id: string;
+          input_hash: string;
+          latency_ms: number;
+          model: string;
+          model_version: string;
+          plan_id: string;
+          provider: string;
+          result: Json | null;
+          state: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          error_category?: string | null;
+          id?: string;
+          input_hash: string;
+          latency_ms: number;
+          model: string;
+          model_version: string;
+          plan_id: string;
+          provider: string;
+          result?: Json | null;
+          state: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          error_category?: string | null;
+          id?: string;
+          input_hash?: string;
+          latency_ms?: number;
+          model?: string;
+          model_version?: string;
+          plan_id?: string;
+          provider?: string;
+          result?: Json | null;
+          state?: string;
+          task_id?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "jev_plan_completeness_evaluations_plan_id_tenant_id_fkey";
+            columns: ["plan_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "plans";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "jev_plan_completeness_evaluations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "jev_plan_completeness_evaluations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      jev_risk_evaluations: {
+        Row: {
+          agent_id: string;
+          authorization_decision_id: string;
+          created_at: string;
+          deterministic_decision: string;
+          disagreement: boolean;
+          error_category: string | null;
+          final_decision: string;
+          id: string;
+          input_hash: string;
+          latency_ms: number;
+          mode: string;
+          model: string;
+          model_version: string;
+          provider: string;
+          result: Json | null;
+          state: string;
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Insert: {
+          agent_id: string;
+          authorization_decision_id: string;
+          created_at?: string;
+          deterministic_decision: string;
+          disagreement?: boolean;
+          error_category?: string | null;
+          final_decision: string;
+          id?: string;
+          input_hash: string;
+          latency_ms: number;
+          mode?: string;
+          model: string;
+          model_version: string;
+          provider: string;
+          result?: Json | null;
+          state: string;
+          task_id: string;
+          tenant_id: string;
+          tool_request_id: string;
+        };
+        Update: {
+          agent_id?: string;
+          authorization_decision_id?: string;
+          created_at?: string;
+          deterministic_decision?: string;
+          disagreement?: boolean;
+          error_category?: string | null;
+          final_decision?: string;
+          id?: string;
+          input_hash?: string;
+          latency_ms?: number;
+          mode?: string;
+          model?: string;
+          model_version?: string;
+          provider?: string;
+          result?: Json | null;
+          state?: string;
+          task_id?: string;
+          tenant_id?: string;
+          tool_request_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "jev_risk_evaluations_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "jev_risk_evaluations_authorization_decision_id_tenant_id_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "jev_risk_evaluations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "jev_risk_evaluations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "jev_risk_evaluations_tool_request_id_tenant_id_fkey";
+            columns: ["tool_request_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tool_requests";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      jev_settings: {
+        Row: {
+          enforcement_approved_at: string | null;
+          necessity_mode: string;
+          risk_mode: string;
+          tenant_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        Insert: {
+          enforcement_approved_at?: string | null;
+          necessity_mode?: string;
+          risk_mode?: string;
+          tenant_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          enforcement_approved_at?: string | null;
+          necessity_mode?: string;
+          risk_mode?: string;
+          tenant_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "jev_settings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: true;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       plan_nodes: {
         Row: {
           created_at: string;
@@ -3684,6 +3985,14 @@ export type Database = {
         Args: { p_credential_secret: string };
         Returns: undefined;
       };
+      record_jev_completeness_evaluation: {
+        Args: { p_row: Json; p_tenant_id: string };
+        Returns: string;
+      };
+      record_jev_necessity_evaluation: {
+        Args: { p_row: Json; p_tenant_id: string };
+        Returns: string;
+      };
       record_semantic_shadow: {
         Args: {
           p_confidence: number;
@@ -3726,6 +4035,18 @@ export type Database = {
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
+      };
+      set_jev_settings: {
+        Args: {
+          p_approve_enforcement: boolean;
+          p_necessity_mode: string;
+          p_risk_mode: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          necessity_mode: string;
+          risk_mode: string;
+        }[];
       };
       set_retention_settings: {
         Args: { p_tenant_id: string; p_validation_days: number };

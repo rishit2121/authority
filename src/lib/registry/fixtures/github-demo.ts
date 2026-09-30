@@ -59,6 +59,9 @@ export const githubDemoRegistry: RegistryData = {
       requiresApproval: false,
       financialImpact: false,
       argumentFields: [{ key: "issue_number", type: "string", required: true, identifiesResource: true }],
+      preconditions: ["The repository must already exist and be bound to the task."],
+      effects: ["Returns issue title, body and metadata; makes no change to the repository."],
+      alternativeOperationIds: [],
     },
     {
       id: "github.get_pull_request",
@@ -70,6 +73,11 @@ export const githubDemoRegistry: RegistryData = {
       requiresApproval: false,
       financialImpact: false,
       argumentFields: [{ key: "pull_number", type: "string", required: true, identifiesResource: true }],
+      preconditions: ["The repository must already exist and be bound to the task."],
+      effects: [
+        "Returns pull request title, body, status and diff metadata; makes no change to the repository.",
+      ],
+      alternativeOperationIds: [],
     },
     {
       id: "github.read_repository",
@@ -81,6 +89,9 @@ export const githubDemoRegistry: RegistryData = {
       requiresApproval: false,
       financialImpact: false,
       argumentFields: [{ key: "repository", type: "string", required: true, identifiesResource: true }],
+      preconditions: ["The repository must already exist and be bound to the task."],
+      effects: ["Returns repository metadata (default branch, visibility, description); makes no change."],
+      alternativeOperationIds: [],
     },
     {
       id: "github.create_branch",
@@ -95,6 +106,14 @@ export const githubDemoRegistry: RegistryData = {
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "branch", type: "string", required: true, identifiesResource: false },
       ],
+      preconditions: [
+        "The repository must already exist and be bound to the task.",
+        "The branch name must not be the repository's default branch.",
+      ],
+      effects: [
+        "Creates a new branch pointing at the current head of the source branch; the source branch is unchanged.",
+      ],
+      alternativeOperationIds: [],
     },
     {
       id: "github.push_commit",
@@ -109,6 +128,11 @@ export const githubDemoRegistry: RegistryData = {
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "branch", type: "string", required: true, identifiesResource: false },
       ],
+      preconditions: [
+        "The target branch must already exist and must not be the repository's default branch.",
+      ],
+      effects: ["Adds one or more commits to the target branch; no other branch is affected."],
+      alternativeOperationIds: ["github.put_file"],
     },
     {
       id: "github.put_file",
@@ -124,6 +148,11 @@ export const githubDemoRegistry: RegistryData = {
         { key: "branch", type: "string", required: true, identifiesResource: false },
         { key: "path", type: "string", required: true, identifiesResource: false },
       ],
+      preconditions: [
+        "The target branch must already exist and must not be the repository's default branch.",
+      ],
+      effects: ["Creates or replaces exactly one file's contents on the target branch as a new commit."],
+      alternativeOperationIds: ["github.push_commit"],
     },
     {
       id: "github.create_pull_request",
@@ -139,6 +168,14 @@ export const githubDemoRegistry: RegistryData = {
         { key: "target_branch", type: "string", required: true, identifiesResource: false },
         { key: "head_branch", type: "string", required: false, identifiesResource: false },
       ],
+      preconditions: [
+        "The head branch must already exist and differ from the target branch.",
+        "The target branch is typically the repository's default branch.",
+      ],
+      effects: [
+        "Opens a pull request proposing to merge the head branch into the target branch; merges nothing by itself.",
+      ],
+      alternativeOperationIds: [],
     },
     {
       id: "github.delete_branch",
@@ -153,6 +190,12 @@ export const githubDemoRegistry: RegistryData = {
         { key: "repository", type: "string", required: true, identifiesResource: true },
         { key: "branch", type: "string", required: true, identifiesResource: false },
       ],
+      preconditions: [
+        "The branch must not be the repository's default branch.",
+        "The branch should no longer be needed by an open pull request the task created.",
+      ],
+      effects: ["Permanently removes the branch and its unmerged history from the remote."],
+      alternativeOperationIds: [],
     },
     {
       id: "github.get_repository_secrets",
@@ -164,6 +207,11 @@ export const githubDemoRegistry: RegistryData = {
       requiresApproval: true,
       financialImpact: false,
       argumentFields: [{ key: "repository", type: "string", required: true, identifiesResource: true }],
+      preconditions: [
+        "Reserved for administrative tasks; a task whose stated objective does not concern repository configuration should not need this.",
+      ],
+      effects: ["Returns the names (not values) of configured repository secrets."],
+      alternativeOperationIds: [],
     },
     {
       id: "gmail.send_email",
@@ -178,6 +226,11 @@ export const githubDemoRegistry: RegistryData = {
         { key: "to", type: "string", required: true, identifiesResource: false },
         { key: "subject", type: "string", required: true, identifiesResource: false },
       ],
+      preconditions: [
+        "The recipient must be identifiable from the task's own intent or trusted inputs, never invented.",
+      ],
+      effects: ["Sends one email to the named recipient; this leaves the organization and cannot be undone."],
+      alternativeOperationIds: [],
     },
     {
       id: "stripe.issue_refund",
@@ -192,6 +245,12 @@ export const githubDemoRegistry: RegistryData = {
         { key: "payment_id", type: "string", required: true, identifiesResource: true },
         { key: "amount_cents", type: "number", required: true, identifiesResource: false },
       ],
+      preconditions: [
+        "The payment must belong to the order or customer the task names.",
+        "The amount must not exceed the payment's original amount.",
+      ],
+      effects: ["Refunds the named amount against the named payment; this is a real financial transaction."],
+      alternativeOperationIds: [],
     },
   ],
   permissions: [

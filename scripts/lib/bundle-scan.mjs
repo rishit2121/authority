@@ -63,6 +63,8 @@ export function secretValuesFromEnv(env) {
     "GITHUB_APP_PRIVATE_KEY_BASE64",
     "GITHUB_APP_CLIENT_SECRET",
     "GITHUB_WEBHOOK_SECRET",
+    "OPENAI_API_KEY",
+    "OPENROUTER_API_KEY",
   ]) {
     if (env[name]) out.push({ label: name, value: env[name] });
   }

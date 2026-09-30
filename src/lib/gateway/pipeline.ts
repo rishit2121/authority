@@ -7,6 +7,15 @@ import { breakerFor, type CircuitBreaker } from "@/lib/semantic/circuit-breaker"
 import { createSemanticProvider } from "@/lib/semantic/config";
 import type { SemanticRiskProvider } from "@/lib/semantic/provider";
 import { runSemanticEvaluation } from "@/lib/semantic/runner";
+import { safeLog } from "@/lib/semantic/scrub";
+
+import { canonicalHash } from "@/lib/authorization/canonicalize";
+import { getOpenRouterEnv } from "@/lib/openrouter/env";
+import { OpenRouterJevRiskProvider } from "@/lib/jev/openrouter-risk-provider";
+import { jevRiskModeForTask, recordRiskEvaluation } from "@/lib/jev/risk-persistence";
+import { runRiskEvaluation } from "@/lib/jev/risk-runner";
+import type { RiskEvaluationInput } from "@/lib/jev/risk-provider";
+import { JevProviderUnavailableError } from "@/lib/jev/types";
 
 import { buildArgumentAudit, sanitizeResource, type ArgumentValue } from "./argument-audit";
 import { generateCapabilityToken } from "./capability-token";
@@ -141,6 +150,14 @@ export async function authorizeThroughGateway(
   });
   if (commit.status !== "ok") return { kind: "failure", status: commit.status };
 
+  // Role C (shadow only): fired after commit has already succeeded, never awaited — a Jev outage or this write
+  // itself failing can never affect the authorization decision or add latency to the agent's response. See
+  // docs/jev/OVERVIEW.md. `commit.finalDecisionId` is only ever null on a replay, which this deliberately skips: a
+  // replayed decision was already evaluated (and, if risk shadow mode was on then, already recorded) the first time.
+  if (!commit.replayed && commit.finalDecisionId) {
+    void runShadowRiskEvaluation({ input, prepared, commit, resource });
+  }
+
   // A request awaiting approval reports the approval's state so the agent can poll it.
   const approval =
     commit.finalOutcome === "require_approval" && commit.toolRequestId
@@ -155,4 +172,82 @@ export async function authorizeThroughGateway(
     capabilityToken: commit.capabilityId && !commit.replayed ? token.plaintext : null,
     riskClass,
   };
+}
+
+/**
+ * Role C, shadow mode only. Never awaited by `authorizeThroughGateway` and never throws out of this function — see
+ * the call site's comment. `disagreement` is a coarse, advisory-only signal (not itself persisted as a decision):
+ * true when Jev's risk class and the deterministic outcome point in qualitatively opposite directions.
+ */
+async function runShadowRiskEvaluation(args: {
+  input: AuthorizeInput;
+  prepared: { taskIntent: string | null; allowedTools: string[] };
+  commit: CommitResult;
+  resource: string | null;
+}): Promise<void> {
+  const { input, prepared, commit, resource } = args;
+  try {
+    const { tenantId, mode } = await jevRiskModeForTask(input.taskId);
+    if (mode !== "shadow" || !tenantId) return;
+    const env = getOpenRouterEnv();
+    if (!env?.jevDecisionModel) return;
+
+    let provider: OpenRouterJevRiskProvider;
+    try {
+      provider = new OpenRouterJevRiskProvider();
+    } catch (error) {
+      if (error instanceof JevProviderUnavailableError) return;
+      throw error;
+    }
+
+    const riskInput: RiskEvaluationInput = {
+      taskIntent: prepared.taskIntent ?? "(unknown)",
+      tool: input.tool,
+      operation: input.operation,
+      resource,
+      argumentKeys: Object.keys(input.arguments),
+      contractAllowedTools: prepared.allowedTools,
+      inProposedPlan: Boolean(input.planNodeId),
+      expectedPlanNodeId: input.planNodeId ?? null,
+      priorCallSummaries: [],
+      remainingInvocations: commit.remainingInvocations,
+      contractExpiresInSeconds: null,
+    };
+    const inputHash = canonicalHash(riskInput);
+    const run = await runRiskEvaluation({
+      provider,
+      breaker: breakerFor(`jev-risk:${provider.model}`),
+      input: riskInput,
+    });
+
+    const deterministicDecision = commit.detOutcome ?? "unknown";
+    const finalDecision = commit.finalOutcome ?? "unknown";
+    const permitted = new Set(["allow", "allow_constrained"]);
+    const riskClass = run.evaluation?.riskClass;
+    const disagreement =
+      run.state === "ok" &&
+      ((permitted.has(finalDecision) && (riskClass === "high" || riskClass === "critical")) ||
+        (!permitted.has(finalDecision) && riskClass === "low"));
+
+    // `jev_risk_evaluations.authorization_decision_id` has a foreign key to `authorization_decisions(id)` — the
+    // DETERMINISTIC decision (`commit.decisionId`), not `final_decisions(id)` (`commit.finalDecisionId`), which
+    // is a different id space entirely (mirrors `semantic_evaluations`'s identical column). Using the wrong one
+    // here was a real bug: every shadow-mode risk evaluation failed its insert with a foreign-key violation,
+    // silently swallowed by this function's own catch-and-log (never affecting the authorization decision
+    // itself) — found only by a live run against the real database, since every prior test mocked this call.
+    if (!commit.toolRequestId || !commit.decisionId) return;
+    await recordRiskEvaluation({
+      tenantId,
+      taskId: input.taskId,
+      toolRequestId: commit.toolRequestId,
+      authorizationDecisionId: commit.decisionId,
+      run,
+      inputHash,
+      deterministicDecision,
+      finalDecision,
+      disagreement,
+    });
+  } catch (error) {
+    safeLog(`jev: shadow risk evaluation failed (${error instanceof Error ? error.name : "unknown"})`);
+  }
 }

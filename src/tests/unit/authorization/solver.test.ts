@@ -91,6 +91,9 @@ describe("solveMinimumAuthority — the registry's designed scenarios", () => {
       requiresApproval: false,
       financialImpact: false,
       argumentFields: [],
+      preconditions: [],
+      effects: [],
+      alternativeOperationIds: [],
     }));
     const permissions = operations.map((op, i) => ({
       id: `synthetic.perm_${i}`,

@@ -26,6 +26,9 @@ function buildAdversarialRegistry(permCount: number): RegistryData {
     requiresApproval: false,
     financialImpact: false,
     argumentFields: [],
+    preconditions: [],
+    effects: [],
+    alternativeOperationIds: [],
   }));
 
   const opsPerPerm = 2;

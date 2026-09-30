@@ -9,12 +9,21 @@ import {
   getOpenAiEnv,
   MockPlanProposalProvider,
   OpenAiPlanProposalProvider,
+  OpenRouterJevRouterPlanProposalProvider,
   PlanProposalOutputTooLargeError,
   PlanProposalProviderError,
   PlanProposalTimeoutError,
   type PlanProposalMetadata,
   type PlanProposalProvider,
 } from "@/lib/ai";
+import { getOpenRouterEnv } from "@/lib/openrouter/env";
+import type { JevNodeRecord } from "@/lib/jev/contract-pipeline";
+import {
+  checkPlanCompleteness,
+  loadModeAndRunPipeline,
+  persistCompletenessCheck,
+  persistNecessityRecords,
+} from "@/lib/jev/propose-integration";
 import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
 import { COMPILER_VERSION, compileContract } from "@/lib/authorization/contract-compiler";
@@ -139,6 +148,36 @@ export async function validateCandidatePlanAction(
   }
 }
 
+/** Non-authoritative summary for the UI — see docs/jev/OVERVIEW.md. Absent entirely when necessity evaluation did not run (mode "off" or Jev unconfigured). */
+export interface JevProposalSummary {
+  mode: "shadow" | "enforce";
+  toolsProposed: number;
+  toolsAccepted: number;
+  toolsRemovedAsUnnecessary: number;
+  nodes: Array<{
+    nodeId: string;
+    tool: string;
+    mechanicalStatus: string;
+    finalStatus: string;
+    classification: string | null;
+    confidence: number | null;
+    reasonCodes: string[];
+    alternativeOperationIds: string[];
+    state: string;
+    disagreement: boolean;
+    provider: string;
+    model: string;
+  }>;
+}
+
+/** Plan-level completeness (role B extension) — always advisory, never adds or removes a plan node. Absent when the mode is "off" or Jev is unconfigured. */
+export interface JevCompletenessSummary {
+  state: string;
+  classification: string | null;
+  confidence: number | null;
+  possibleMissingOperationIds: string[];
+}
+
 export interface ProposeContractPreview {
   contractId: string;
   version: number;
@@ -146,6 +185,36 @@ export interface ProposeContractPreview {
   selectedPermissionIds: string[];
   excessOperations: string[];
   requiredApprovals: ApprovalRequirement[];
+  jev: JevProposalSummary | null;
+  jevCompleteness: JevCompletenessSummary | null;
+}
+
+function summarizeJevRecords(mode: "shadow" | "enforce", records: JevNodeRecord[]): JevProposalSummary {
+  const evaluated = records.filter((r) => r.necessityRun);
+  return {
+    mode,
+    toolsProposed: records.length,
+    toolsAccepted: records.filter((r) => r.finalStatus === "accepted" || r.finalStatus === "requires_review")
+      .length,
+    toolsRemovedAsUnnecessary: records.filter(
+      (r) =>
+        r.mechanicalStatus !== r.finalStatus && (r.finalStatus === "replan" || r.finalStatus === "clarify"),
+    ).length,
+    nodes: evaluated.map((r) => ({
+      nodeId: r.nodeId,
+      tool: r.tool,
+      mechanicalStatus: r.mechanicalStatus,
+      finalStatus: r.finalStatus,
+      classification: r.necessityRun?.evaluation?.classification ?? null,
+      confidence: r.necessityRun?.evaluation?.confidence ?? null,
+      reasonCodes: r.necessityRun?.evaluation?.reasonCodes ?? [],
+      alternativeOperationIds: r.necessityRun?.evaluation?.alternativeOperationIds ?? [],
+      state: r.necessityRun?.state ?? "unavailable",
+      disagreement: r.disagreement,
+      provider: r.necessityRun?.provider ?? "",
+      model: r.necessityRun?.model ?? "",
+    })),
+  };
 }
 
 /**
@@ -181,11 +250,45 @@ export async function proposeContractAction(
       return { ok: false, error: "The candidate plan's taskId does not match this task." };
     }
 
-    const validation = validateCandidatePlan(plan, { registry, activePolicies });
-    if (validation.includedNodeIds.length === 0) {
+    const mechanicalValidation = validateCandidatePlan(plan, { registry, activePolicies });
+    if (mechanicalValidation.includedNodeIds.length === 0) {
       return {
         ok: false,
         error: "No plan node was accepted or review-pending — there is nothing to compile a contract from.",
+      };
+    }
+
+    const task = await repositories.tasks.findById(taskId);
+    if (!task || task.tenantId !== identity.tenant.tenantId) {
+      return { ok: false, error: "That task could not be found." };
+    }
+    const [{ mode: jevMode, result: jevResult }, completenessCheck] = await Promise.all([
+      loadModeAndRunPipeline({
+        context,
+        tenantId: identity.tenant.tenantId,
+        candidatePlan: plan,
+        taskIntent: task.intent,
+        validation: mechanicalValidation,
+        registry,
+        activePolicies,
+      }),
+      checkPlanCompleteness({
+        context,
+        tenantId: identity.tenant.tenantId,
+        taskId,
+        taskIntent: task.intent,
+        candidatePlan: plan,
+        registry,
+        activePolicies,
+      }),
+    ]);
+    const validation = jevResult.adjustedValidation;
+    const jevSummary = jevMode === "off" ? null : summarizeJevRecords(jevMode, jevResult.nodeRecords);
+    if (validation.includedNodeIds.length === 0) {
+      return {
+        ok: false,
+        error:
+          "No plan node remained accepted or review-pending after necessity evaluation — there is nothing to compile a contract from.",
       };
     }
 
@@ -264,6 +367,35 @@ export async function proposeContractAction(
       idempotencyKey,
     });
 
+    if (jevMode !== "off") {
+      await persistNecessityRecords(context, {
+        tenantId: identity.tenant.tenantId,
+        taskId,
+        planId: planResult.planId,
+        registryVersion: registry.registryVersion,
+        compilerVersion: COMPILER_VERSION,
+        mode: jevMode,
+        result: jevResult,
+      });
+    }
+    if (completenessCheck.run && completenessCheck.inputHash) {
+      await persistCompletenessCheck(context, {
+        tenantId: identity.tenant.tenantId,
+        taskId,
+        planId: planResult.planId,
+        run: completenessCheck.run,
+        inputHash: completenessCheck.inputHash,
+      });
+    }
+    const jevCompleteness: JevCompletenessSummary | null = completenessCheck.run
+      ? {
+          state: completenessCheck.run.state,
+          classification: completenessCheck.run.evaluation?.classification ?? null,
+          confidence: completenessCheck.run.evaluation?.confidence ?? null,
+          possibleMissingOperationIds: completenessCheck.run.evaluation?.possibleMissingOperationIds ?? [],
+        }
+      : null;
+
     // The compiler's own output is the unwrapped, logical shape it hashes
     // and the verifier checks against. The database's schema-versioned
     // JSONB columns expect a `{schemaVersion, ...}` envelope around that
@@ -330,6 +462,8 @@ export async function proposeContractAction(
         selectedPermissionIds: solverOutcome.solution.selectedPermissionIds,
         excessOperations: solverOutcome.solution.excessOperations,
         requiredApprovals: requiredApprovalsSpec,
+        jev: jevSummary,
+        jevCompleteness,
       },
     };
   } catch (error) {
@@ -406,9 +540,14 @@ export async function generatePlanWithAiAction(taskId: string): Promise<ActionRe
       resourceReferences: [],
     });
 
+    // OpenAI takes precedence when both happen to be configured, so an existing setup's behavior never changes
+    // merely because OPENROUTER_API_KEY was later added; OpenRouter (typesafe/jev-router) is the alternative that
+    // needs no OpenAI key at all. Neither configured falls back to a labeled mock, exactly as before.
     const provider: PlanProposalProvider = getOpenAiEnv()
       ? new OpenAiPlanProposalProvider()
-      : new MockPlanProposalProvider();
+      : getOpenRouterEnv()
+        ? new OpenRouterJevRouterPlanProposalProvider()
+        : new MockPlanProposalProvider();
 
     const result = await provider.proposePlan(trustedInput);
     const parsed = candidatePlanSchema.safeParse(result.plan);
@@ -543,7 +682,31 @@ export async function activateContractAction(taskId: string, contractId: string)
     const allPolicies = await repositories.policies.listByTenant(identity.tenant.tenantId);
     const activePolicies = allPolicies.filter((p) => p.status === "active");
 
-    const validation = validateCandidatePlan(plan, { registry, activePolicies });
+    const mechanicalValidation = validateCandidatePlan(plan, { registry, activePolicies });
+    if (mechanicalValidation.includedNodeIds.length === 0) {
+      return { ok: false, error: "Re-validation found nothing left to authorize; this proposal is stale." };
+    }
+
+    const activationTask = await repositories.tasks.findById(taskId);
+    if (!activationTask) return { ok: false, error: "That task could not be found." };
+    // Re-runs the SAME Jev necessity pipeline used at proposal time, under the tenant's CURRENT setting. In "shadow"
+    // mode (or when Jev is off/unconfigured) this reproduces the mechanical result exactly, so it never affects
+    // activation. In "enforce" mode it must be re-run here because the persisted contract's hash was computed from
+    // the *Jev-adjusted* plan, not the raw mechanical one — but because this calls a live model again rather than
+    // replaying the exact propose-time decision, a classification that comes back even slightly differently this
+    // time (Jev is not guaranteed byte-stable across calls) will correctly be treated as "this would compile
+    // differently now" below, the same conservative failure this check already gives for a registry/policy change.
+    // See docs/jev/OVERVIEW.md's limitations.
+    const { result: activationJevResult } = await loadModeAndRunPipeline({
+      context,
+      tenantId: identity.tenant.tenantId,
+      candidatePlan: plan,
+      taskIntent: activationTask.intent,
+      validation: mechanicalValidation,
+      registry,
+      activePolicies,
+    });
+    const validation = activationJevResult.adjustedValidation;
     if (validation.includedNodeIds.length === 0) {
       return { ok: false, error: "Re-validation found nothing left to authorize; this proposal is stale." };
     }
