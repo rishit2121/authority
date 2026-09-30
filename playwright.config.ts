@@ -138,6 +138,13 @@ export default defineConfig({
       AUTHORITY_PUBLIC_URL: BASE_URL,
       // `next start` here is a local production build against the dev project, without the pooler CA.
       AUTHORITY_DEPLOYMENT: "local",
+      // The e2e suite deliberately tests the untrusted-mock plan-proposal fallback (see
+      // contract-lifecycle.spec.ts's "degrades to the deterministic mock provider" test) — that must hold
+      // regardless of whatever a developer happens to have in their own .env.local for unrelated local/live
+      // testing (this `env` block merges with, rather than replaces, process.env). Empty string is treated as
+      // "not configured" by getOpenAiEnv()/getOpenRouterEnv(), so this reliably forces the mock path here.
+      OPENAI_API_KEY: "",
+      OPENROUTER_API_KEY: "",
     },
   },
 });

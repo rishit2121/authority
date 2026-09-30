@@ -127,9 +127,10 @@ test.describe.serial("semantic shadow mode", () => {
     await expect(page.getByTestId("api-key-status")).toContainText("never entered, stored or displayed here");
     await expect(page.locator('input[type="password"]')).toHaveCount(0);
 
+    const semanticForm = page.getByRole("form", { name: "Semantic evaluation settings" });
     await page.getByTestId("semantic-mode").selectOption("shadow");
-    await page.getByRole("button", { name: "Save settings" }).click();
-    await expect(page.getByRole("status")).toHaveText("Saved.");
+    await semanticForm.getByRole("button", { name: "Save settings" }).click();
+    await expect(semanticForm.getByRole("status")).toHaveText("Saved.");
 
     await page.reload();
     await expect(page.getByTestId("semantic-mode")).toHaveValue("shadow");
@@ -228,14 +229,15 @@ test.describe.serial("semantic shadow mode", () => {
     request,
   }) => {
     await page.goto("/app/settings");
+    const semanticForm = page.getByRole("form", { name: "Semantic evaluation settings" });
     await page.getByTestId("semantic-mode").selectOption("enforce");
     // Without approval the save is refused by the database.
-    await page.getByRole("button", { name: "Save settings" }).click();
-    await expect(page.getByRole("status")).toContainText("explicit approval");
+    await semanticForm.getByRole("button", { name: "Save settings" }).click();
+    await expect(semanticForm.getByRole("status")).toContainText("explicit approval");
 
     await page.getByTestId("approve-enforcement").check();
-    await page.getByRole("button", { name: "Save settings" }).click();
-    await expect(page.getByRole("status")).toHaveText("Saved.");
+    await semanticForm.getByRole("button", { name: "Save settings" }).click();
+    await expect(semanticForm.getByRole("status")).toHaveText("Saved.");
 
     const injection = {
       issue_number: "1",
@@ -272,9 +274,10 @@ test.describe.serial("semantic shadow mode", () => {
 
   test("turning the mode off stops evaluation entirely", async ({ page, request }) => {
     await page.goto("/app/settings");
+    const semanticForm = page.getByRole("form", { name: "Semantic evaluation settings" });
     await page.getByTestId("semantic-mode").selectOption("off");
-    await page.getByRole("button", { name: "Save settings" }).click();
-    await expect(page.getByRole("status")).toHaveText("Saved.");
+    await semanticForm.getByRole("button", { name: "Save settings" }).click();
+    await expect(semanticForm.getByRole("status")).toHaveText("Saved.");
 
     const before = (await managementQuery(
       `select count(*)::int as n from public.semantic_evaluations where task_id = '${taskId}';`,
