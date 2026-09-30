@@ -75,6 +75,12 @@ export interface PlanProposalMetadata {
   model: string;
   /** The provider implementation's own version string, for audit trails — never a claim about the plan's correctness. */
   providerVersion: string;
+  /**
+   * The model that actually answered, when the provider is a router (e.g. OpenRouter's `typesafe/jev-router`) that
+   * may not use exactly the model named in `model`. Omitted by providers that call one fixed model directly (e.g.
+   * OpenAI), where `model` already is the actual model.
+   */
+  respondedModel?: string;
 }
 
 /**

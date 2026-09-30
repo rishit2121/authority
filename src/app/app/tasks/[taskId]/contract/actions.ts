@@ -9,12 +9,14 @@ import {
   getOpenAiEnv,
   MockPlanProposalProvider,
   OpenAiPlanProposalProvider,
+  OpenRouterJevRouterPlanProposalProvider,
   PlanProposalOutputTooLargeError,
   PlanProposalProviderError,
   PlanProposalTimeoutError,
   type PlanProposalMetadata,
   type PlanProposalProvider,
 } from "@/lib/ai";
+import { getOpenRouterEnv } from "@/lib/openrouter/env";
 import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
 import { COMPILER_VERSION, compileContract } from "@/lib/authorization/contract-compiler";
@@ -406,9 +408,14 @@ export async function generatePlanWithAiAction(taskId: string): Promise<ActionRe
       resourceReferences: [],
     });
 
+    // OpenAI takes precedence when both happen to be configured, so an existing setup's behavior never changes
+    // merely because OPENROUTER_API_KEY was later added; OpenRouter (typesafe/jev-router) is the alternative that
+    // needs no OpenAI key at all. Neither configured falls back to a labeled mock, exactly as before.
     const provider: PlanProposalProvider = getOpenAiEnv()
       ? new OpenAiPlanProposalProvider()
-      : new MockPlanProposalProvider();
+      : getOpenRouterEnv()
+        ? new OpenRouterJevRouterPlanProposalProvider()
+        : new MockPlanProposalProvider();
 
     const result = await provider.proposePlan(trustedInput);
     const parsed = candidatePlanSchema.safeParse(result.plan);

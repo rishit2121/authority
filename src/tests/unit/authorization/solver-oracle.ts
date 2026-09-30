@@ -185,6 +185,9 @@ export function toRegistryData(input: LoadedRegistryInput) {
       requiresApproval: false,
       financialImpact: false,
       argumentFields: [],
+      preconditions: [],
+      effects: [],
+      alternativeOperationIds: [],
     })),
     permissions: input.permissions.map((p) => ({
       id: `synthetic.${p.id}`,
