@@ -3,12 +3,7 @@ import { SemanticEvidenceDetail } from "@/components/semantic/SemanticEvidenceDe
 import { SemanticShadowBadge } from "@/components/semantic/SemanticShadowBadge";
 import { presentDecisionStatus } from "@/lib/authorization/decision-status";
 import type { DecisionStatus } from "@/lib/domain";
-import {
-  buildRuntimeRows,
-  decisionTrace,
-  type JevRiskInput,
-  type RuntimeRow,
-} from "@/lib/runtime/dashboard-model";
+import { buildRuntimeRows, decisionTrace, type RuntimeRow } from "@/lib/runtime/dashboard-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import {
   EVIDENCE_COLUMNS,
@@ -96,17 +91,7 @@ export default async function RuntimePage({
           .from("semantic_shadow_evaluations")
           .select(EVIDENCE_COLUMNS)
           .in("authorization_decision_id", decisionIds),
-        // TEMPORARY: `jev_risk_evaluations` is not in the generated database types yet (see
-        // src/lib/jev/persistence.ts's module doc — same expired Management API token). Cast at the boundary only.
-        (
-          db as unknown as {
-            from(t: "jev_risk_evaluations"): {
-              select(cols: string): {
-                in(col: string, ids: string[]): Promise<{ data: JevRiskInput[] | null }>;
-              };
-            };
-          }
-        )
+        db
           .from("jev_risk_evaluations")
           .select(
             "authorization_decision_id, provider, model, state, result, disagreement, latency_ms, error_category",

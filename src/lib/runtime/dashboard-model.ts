@@ -69,12 +69,9 @@ export interface JevRiskInput {
   model: string;
   state: string;
   // Present exactly when state === "ok" — {"schemaVersion":1,"riskClass":..,"confidence":..,"categories":[..],"evidenceCodes":[..]}.
-  result: {
-    riskClass?: string;
-    confidence?: number;
-    categories?: string[];
-    evidenceCodes?: string[];
-  } | null;
+  // Typed `unknown` here (raw JSONB from the database client) and narrowed in `buildRuntimeRows`, mirroring
+  // `lib/semantic/read-model.ts`'s handling of its own JSONB `signals` column.
+  result: unknown;
   disagreement: boolean;
   latency_ms: number;
   error_category: string | null;
@@ -235,14 +232,23 @@ export function buildRuntimeRows(input: {
       jevRisk: (() => {
         const r = input.jevRiskByDecision?.get(d.id);
         if (!r) return undefined;
+        const result =
+          r.result && typeof r.result === "object"
+            ? (r.result as {
+                riskClass?: string;
+                confidence?: number;
+                categories?: string[];
+                evidenceCodes?: string[];
+              })
+            : null;
         return {
           provider: r.provider,
           model: r.model,
           state: r.state,
-          riskClass: r.result?.riskClass ?? null,
-          confidence: r.result?.confidence ?? null,
-          categories: r.result?.categories ?? [],
-          evidenceCodes: r.result?.evidenceCodes ?? [],
+          riskClass: result?.riskClass ?? null,
+          confidence: result?.confidence ?? null,
+          categories: result?.categories ?? [],
+          evidenceCodes: result?.evidenceCodes ?? [],
           disagreement: r.disagreement,
           latencyMs: r.latency_ms,
           errorCategory: r.error_category,
