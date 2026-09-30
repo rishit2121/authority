@@ -1,11 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildCompletenessQuestions,
   mapCompletenessAnswers,
   type CompletenessEvaluationInput,
+  type JevCompletenessProvider,
 } from "@/lib/jev/completeness-provider";
 import { MockCompletenessProvider } from "@/lib/jev/mock-completeness-provider";
+import { runCompletenessEvaluation } from "@/lib/jev/completeness-runner";
+import { CircuitBreaker } from "@/lib/semantic/circuit-breaker";
+import { JevProviderError, JevProviderUnavailableError } from "@/lib/jev/types";
 
 const input: CompletenessEvaluationInput = {
   taskIntent: "Resolve issue #991 and open a pull request",
@@ -60,5 +64,57 @@ describe("MockCompletenessProvider", () => {
       signal: new AbortController().signal,
     });
     expect(result.classification).toBe("missing_capability_category");
+  });
+});
+
+describe("runCompletenessEvaluation", () => {
+  const okProvider: JevCompletenessProvider = {
+    name: "mock",
+    model: "m",
+    modelVersion: "v1",
+    evaluate: async () => ({ classification: "complete", confidence: 0.9, possibleMissingOperationIds: [] }),
+  };
+
+  it("resolves ok with the evaluation on success", async () => {
+    const result = await runCompletenessEvaluation({ provider: okProvider, input });
+    expect(result.state).toBe("ok");
+    expect(result.evaluation?.classification).toBe("complete");
+  });
+
+  it("never throws, and never returns an evaluation on unavailable/timeout/error", async () => {
+    const unavailable: JevCompletenessProvider = {
+      ...okProvider,
+      evaluate: async () => {
+        throw new JevProviderUnavailableError("no key");
+      },
+    };
+    const r1 = await runCompletenessEvaluation({ provider: unavailable, input });
+    expect(r1).toMatchObject({ state: "unavailable", evaluation: null });
+
+    const erroring: JevCompletenessProvider = {
+      ...okProvider,
+      evaluate: async () => {
+        throw new JevProviderError("malformed_output", "bad");
+      },
+    };
+    const r2 = await runCompletenessEvaluation({ provider: erroring, input });
+    expect(r2).toMatchObject({ state: "error", evaluation: null, errorCategory: "malformed_output" });
+
+    const hanging: JevCompletenessProvider = { ...okProvider, evaluate: () => new Promise(() => undefined) };
+    const r3 = await runCompletenessEvaluation({ provider: hanging, input, timeoutMs: 20 });
+    expect(r3).toMatchObject({ state: "timeout", evaluation: null });
+  });
+
+  it("respects an open circuit breaker without calling the provider", async () => {
+    const breaker = new CircuitBreaker({ failureThreshold: 1 });
+    breaker.recordFailure();
+    const spy = vi.fn(okProvider.evaluate);
+    const result = await runCompletenessEvaluation({
+      provider: { ...okProvider, evaluate: spy },
+      input,
+      breaker,
+    });
+    expect(result.state).toBe("circuit_open");
+    expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -18,7 +18,12 @@ import {
 } from "@/lib/ai";
 import { getOpenRouterEnv } from "@/lib/openrouter/env";
 import type { JevNodeRecord } from "@/lib/jev/contract-pipeline";
-import { loadModeAndRunPipeline, persistNecessityRecords } from "@/lib/jev/propose-integration";
+import {
+  checkPlanCompleteness,
+  loadModeAndRunPipeline,
+  persistCompletenessCheck,
+  persistNecessityRecords,
+} from "@/lib/jev/propose-integration";
 import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
 import { COMPILER_VERSION, compileContract } from "@/lib/authorization/contract-compiler";
@@ -165,6 +170,14 @@ export interface JevProposalSummary {
   }>;
 }
 
+/** Plan-level completeness (role B extension) — always advisory, never adds or removes a plan node. Absent when the mode is "off" or Jev is unconfigured. */
+export interface JevCompletenessSummary {
+  state: string;
+  classification: string | null;
+  confidence: number | null;
+  possibleMissingOperationIds: string[];
+}
+
 export interface ProposeContractPreview {
   contractId: string;
   version: number;
@@ -173,6 +186,7 @@ export interface ProposeContractPreview {
   excessOperations: string[];
   requiredApprovals: ApprovalRequirement[];
   jev: JevProposalSummary | null;
+  jevCompleteness: JevCompletenessSummary | null;
 }
 
 function summarizeJevRecords(mode: "shadow" | "enforce", records: JevNodeRecord[]): JevProposalSummary {
@@ -248,15 +262,26 @@ export async function proposeContractAction(
     if (!task || task.tenantId !== identity.tenant.tenantId) {
       return { ok: false, error: "That task could not be found." };
     }
-    const { mode: jevMode, result: jevResult } = await loadModeAndRunPipeline({
-      context,
-      tenantId: identity.tenant.tenantId,
-      candidatePlan: plan,
-      taskIntent: task.intent,
-      validation: mechanicalValidation,
-      registry,
-      activePolicies,
-    });
+    const [{ mode: jevMode, result: jevResult }, completenessCheck] = await Promise.all([
+      loadModeAndRunPipeline({
+        context,
+        tenantId: identity.tenant.tenantId,
+        candidatePlan: plan,
+        taskIntent: task.intent,
+        validation: mechanicalValidation,
+        registry,
+        activePolicies,
+      }),
+      checkPlanCompleteness({
+        context,
+        tenantId: identity.tenant.tenantId,
+        taskId,
+        taskIntent: task.intent,
+        candidatePlan: plan,
+        registry,
+        activePolicies,
+      }),
+    ]);
     const validation = jevResult.adjustedValidation;
     const jevSummary = jevMode === "off" ? null : summarizeJevRecords(jevMode, jevResult.nodeRecords);
     if (validation.includedNodeIds.length === 0) {
@@ -353,6 +378,23 @@ export async function proposeContractAction(
         result: jevResult,
       });
     }
+    if (completenessCheck.run && completenessCheck.inputHash) {
+      await persistCompletenessCheck(context, {
+        tenantId: identity.tenant.tenantId,
+        taskId,
+        planId: planResult.planId,
+        run: completenessCheck.run,
+        inputHash: completenessCheck.inputHash,
+      });
+    }
+    const jevCompleteness: JevCompletenessSummary | null = completenessCheck.run
+      ? {
+          state: completenessCheck.run.state,
+          classification: completenessCheck.run.evaluation?.classification ?? null,
+          confidence: completenessCheck.run.evaluation?.confidence ?? null,
+          possibleMissingOperationIds: completenessCheck.run.evaluation?.possibleMissingOperationIds ?? [],
+        }
+      : null;
 
     // The compiler's own output is the unwrapped, logical shape it hashes
     // and the verifier checks against. The database's schema-versioned
@@ -421,6 +463,7 @@ export async function proposeContractAction(
         excessOperations: solverOutcome.solution.excessOperations,
         requiredApprovals: requiredApprovalsSpec,
         jev: jevSummary,
+        jevCompleteness,
       },
     };
   } catch (error) {

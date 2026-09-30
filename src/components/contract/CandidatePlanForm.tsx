@@ -444,6 +444,36 @@ export function CandidatePlanForm({ taskId }: { taskId: string }) {
               )}
             </div>
           ) : null}
+          {proposal.jevCompleteness ? (
+            <div className="border-t border-primary/20 px-space-lg py-space-md">
+              <h3 className="mb-space-sm font-label-caps text-label-caps uppercase tracking-widest text-on-surface-variant">
+                Jev plan-completeness evaluation
+              </h3>
+              <p className="font-body-sm text-[12px] text-on-surface-variant">
+                Advisory only — never adds, removes or reorders a plan node. Checks for a whole missing step
+                the plan never proposed at all, which per-tool necessity cannot notice on its own.
+              </p>
+              {proposal.jevCompleteness.state === "ok" ? (
+                <>
+                  <p className="mt-1 font-mono-code text-[12px] text-on-surface">
+                    Classification: {proposal.jevCompleteness.classification ?? "—"}
+                    {proposal.jevCompleteness.confidence != null
+                      ? ` (confidence ${proposal.jevCompleteness.confidence.toFixed(2)})`
+                      : ""}
+                  </p>
+                  {proposal.jevCompleteness.possibleMissingOperationIds.length > 0 ? (
+                    <p className="mt-1 font-mono-code text-[12px] text-amber-300">
+                      Possibly missing: {proposal.jevCompleteness.possibleMissingOperationIds.join(", ")}
+                    </p>
+                  ) : null}
+                </>
+              ) : (
+                <p className="mt-1 font-mono-code text-[12px] text-on-surface-variant">
+                  Unavailable ({proposal.jevCompleteness.state}) — no completeness signal for this proposal.
+                </p>
+              )}
+            </div>
+          ) : null}
           <div className="border-t border-primary/20 px-space-lg py-space-md">
             <button
               type="button"

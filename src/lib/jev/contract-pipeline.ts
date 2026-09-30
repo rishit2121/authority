@@ -71,7 +71,8 @@ export interface JevContractPipelineOptions {
   agentJustifications?: Record<string, string | null>;
 }
 
-function planSummaries(plan: CandidatePlan): NecessityPlanNodeSummary[] {
+/** Exported for reuse by the plan-completeness evaluator (role B extension), which needs the identical plan-shape summary. */
+export function planSummaries(plan: CandidatePlan): NecessityPlanNodeSummary[] {
   return plan.nodes.map((n) => ({
     id: n.id,
     tool: n.tool,

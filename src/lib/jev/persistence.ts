@@ -4,6 +4,7 @@ import type { RepositoryContext } from "@/lib/persistence/context";
 import { throwDatabaseError } from "@/lib/persistence/errors";
 
 import type { NecessityRunResult } from "./necessity-runner";
+import type { CompletenessRunResult } from "./completeness-runner";
 import type { NecessityMode } from "./contract-pipeline";
 import type { PlanNodeFindingStatus } from "@/lib/authorization/plan-validator";
 
@@ -92,6 +93,37 @@ export async function recordNecessityEvaluation(
     },
   });
   if (error) throwDatabaseError("record jev necessity evaluation", error);
+}
+
+export interface RecordCompletenessEvaluationInput {
+  tenantId: string;
+  taskId: string;
+  planId: string;
+  run: CompletenessRunResult;
+  inputHash: string;
+}
+
+/** Never throws — see `recordNecessityEvaluation`'s doc; an audit-trail write failing must not block contract proposal. */
+export async function recordCompletenessEvaluation(
+  context: RepositoryContext,
+  input: RecordCompletenessEvaluationInput,
+): Promise<void> {
+  const { error } = await jevClient(context).rpc("record_jev_completeness_evaluation", {
+    p_tenant_id: input.tenantId,
+    p_row: {
+      taskId: input.taskId,
+      planId: input.planId,
+      provider: input.run.provider,
+      model: input.run.model,
+      modelVersion: input.run.modelVersion,
+      inputHash: input.inputHash,
+      state: input.run.state,
+      result: input.run.evaluation ? { schemaVersion: 1, ...input.run.evaluation } : null,
+      latencyMs: input.run.latencyMs,
+      errorCategory: input.run.errorCategory,
+    },
+  });
+  if (error) throwDatabaseError("record jev completeness evaluation", error);
 }
 
 export interface JevSettingsRow {
