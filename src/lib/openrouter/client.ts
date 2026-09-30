@@ -147,8 +147,8 @@ function extractChatContent(response: unknown): string | null {
 export interface DecisionQuestion {
   type: "choice" | "noul" | "score";
   instructions: string;
-  /** choice: option -> description (<=255 options). noul: optional {true, false}. score: ordered array, 2-10 levels. */
-  criteria: Record<string, string> | string[];
+  /** choice: required, option -> description (<=255 options). noul: optional {true, false}. score: required ordered array, 2-10 levels. */
+  criteria?: Record<string, string> | string[];
 }
 
 export interface DecisionsRequest {
