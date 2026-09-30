@@ -11,7 +11,12 @@ export interface OpenAiEnv {
   model: string;
 }
 
-const DEFAULT_MODEL = "gpt-4o-mini";
+// Verified directly against developers.openai.com/api/docs/models/gpt-6-luna (2026-09-30): OpenAI's current
+// cheapest model ($0.10 / $0.50 per M input/output tokens), 1.05M context, supports the Chat Completions API and
+// structured JSON output — plan proposal here uses neither function calling nor a non-default reasoning_effort,
+// so gpt-6-luna's one documented caveat ("function calling only with reasoning_effort=none") does not apply.
+// Overridable via OPENAI_MODEL; every plan this produces is untrusted and re-validated regardless of model.
+const DEFAULT_MODEL = "gpt-6-luna";
 
 /**
  * Returns null when no key is configured — callers fall back to manual plan
