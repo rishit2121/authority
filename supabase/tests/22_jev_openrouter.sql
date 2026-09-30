@@ -217,7 +217,8 @@ select t(is(
   true, 'dev.a (developer, in-tenant, valid references) can record a necessity evaluation'));
 
 select set_config('test.nec_1', (select id::text from public.jev_necessity_evaluations
-  where tenant_id = '11111111-1111-4111-8111-111111111111' and node_key = 'n1'), true);
+  where tenant_id = '11111111-1111-4111-8111-111111111111' and plan_id = '22000000-0000-4000-8000-000000000007'
+  and node_key = 'n1'), true);
 
 set local role postgres;
 select t(throws_ok(
@@ -270,7 +271,7 @@ select t(is(
   true, 'dev.a can record a plan-completeness evaluation'));
 
 select set_config('test.comp_1', (select id::text from public.jev_plan_completeness_evaluations
-  where tenant_id = '11111111-1111-4111-8111-111111111111'), true);
+  where tenant_id = '11111111-1111-4111-8111-111111111111' and plan_id = '22000000-0000-4000-8000-000000000007'), true);
 
 set local role postgres;
 select t(throws_ok(

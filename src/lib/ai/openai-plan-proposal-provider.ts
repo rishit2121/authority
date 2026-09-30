@@ -115,7 +115,11 @@ export class OpenAiPlanProposalProvider implements PlanProposalProvider {
         },
         body: JSON.stringify({
           model: env.model,
-          temperature: 0,
+          // No `temperature` override: reasoning-tier models (e.g. gpt-6-luna) reject any value other than the
+          // default (1) with a 400 `unsupported_value` error — confirmed directly against the real API.
+          // Determinism was never a security property here regardless: every proposed plan is untrusted and
+          // fully re-validated by `candidatePlanSchema` and the mechanical pipeline no matter what temperature
+          // produced it.
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: buildUserPrompt(input) },
