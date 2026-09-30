@@ -229,12 +229,18 @@ async function runShadowRiskEvaluation(args: {
       ((permitted.has(finalDecision) && (riskClass === "high" || riskClass === "critical")) ||
         (!permitted.has(finalDecision) && riskClass === "low"));
 
-    if (!commit.toolRequestId || !commit.finalDecisionId) return;
+    // `jev_risk_evaluations.authorization_decision_id` has a foreign key to `authorization_decisions(id)` — the
+    // DETERMINISTIC decision (`commit.decisionId`), not `final_decisions(id)` (`commit.finalDecisionId`), which
+    // is a different id space entirely (mirrors `semantic_evaluations`'s identical column). Using the wrong one
+    // here was a real bug: every shadow-mode risk evaluation failed its insert with a foreign-key violation,
+    // silently swallowed by this function's own catch-and-log (never affecting the authorization decision
+    // itself) — found only by a live run against the real database, since every prior test mocked this call.
+    if (!commit.toolRequestId || !commit.decisionId) return;
     await recordRiskEvaluation({
       tenantId,
       taskId: input.taskId,
       toolRequestId: commit.toolRequestId,
-      authorizationDecisionId: commit.finalDecisionId,
+      authorizationDecisionId: commit.decisionId,
       run,
       inputHash,
       deterministicDecision,

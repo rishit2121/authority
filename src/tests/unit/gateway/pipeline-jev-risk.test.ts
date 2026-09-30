@@ -140,7 +140,9 @@ describe("authorizeThroughGateway: shadow-mode Jev risk evaluation", () => {
       tenantId: "t1",
       taskId: input.taskId,
       toolRequestId: "t",
-      authorizationDecisionId: "f",
+      // The deterministic decision's own id (authorization_decisions.id), which jev_risk_evaluations'
+      // foreign key actually targets — NOT commit.finalDecisionId (final_decisions.id, a different id space).
+      authorizationDecisionId: "d",
       deterministicDecision: "allow",
       finalDecision: "allow",
     });
