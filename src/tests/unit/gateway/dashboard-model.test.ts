@@ -182,4 +182,60 @@ describe("buildRuntimeRows", () => {
   it("skips a decision whose request row is not visible", () => {
     expect(build({ requests: [] })).toHaveLength(0);
   });
+
+  it("leaves jevRisk undefined when no risk evaluation was recorded for the decision", () => {
+    const [row] = build();
+    expect(row.jevRisk).toBeUndefined();
+    expect(decisionTrace(row).some((s) => s.step === "Jev risk (shadow)")).toBe(false);
+  });
+
+  it("maps a recorded Jev risk evaluation onto the row, always as advisory-only", () => {
+    const jevRiskByDecision = new Map([
+      [
+        "d1",
+        {
+          authorization_decision_id: "d1",
+          provider: "openrouter",
+          model: "typesafe/jev-1.13",
+          state: "ok",
+          result: { riskClass: "high", confidence: 0.82, categories: ["task_divergence"], evidenceCodes: [] },
+          disagreement: true,
+          latency_ms: 420,
+          error_category: null,
+        },
+      ],
+    ]);
+    const [row] = build({ jevRiskByDecision });
+    expect(row.jevRisk).toMatchObject({
+      provider: "openrouter",
+      state: "ok",
+      riskClass: "high",
+      confidence: 0.82,
+      disagreement: true,
+      latencyMs: 420,
+    });
+    const step = decisionTrace(row).find((s) => s.step === "Jev risk (shadow)");
+    expect(step?.detail).toMatch(/high-risk/);
+    expect(step?.detail).toMatch(/never affected this decision/);
+  });
+
+  it("surfaces a non-ok Jev risk state without an evaluation", () => {
+    const jevRiskByDecision = new Map([
+      [
+        "d1",
+        {
+          authorization_decision_id: "d1",
+          provider: "openrouter",
+          model: "typesafe/jev-1.13",
+          state: "timeout",
+          result: null,
+          disagreement: false,
+          latency_ms: 15000,
+          error_category: "timeout",
+        },
+      ],
+    ]);
+    const [row] = build({ jevRiskByDecision });
+    expect(row.jevRisk).toMatchObject({ state: "timeout", riskClass: null, confidence: null });
+  });
 });

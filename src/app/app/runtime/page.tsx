@@ -3,7 +3,12 @@ import { SemanticEvidenceDetail } from "@/components/semantic/SemanticEvidenceDe
 import { SemanticShadowBadge } from "@/components/semantic/SemanticShadowBadge";
 import { presentDecisionStatus } from "@/lib/authorization/decision-status";
 import type { DecisionStatus } from "@/lib/domain";
-import { buildRuntimeRows, decisionTrace, type RuntimeRow } from "@/lib/runtime/dashboard-model";
+import {
+  buildRuntimeRows,
+  decisionTrace,
+  type JevRiskInput,
+  type RuntimeRow,
+} from "@/lib/runtime/dashboard-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import {
   EVIDENCE_COLUMNS,
@@ -24,6 +29,13 @@ const MODE_LABEL: Record<string, string> = {
   off: "semantic off",
   shadow: "semantic shadow",
   enforce: "semantic ENFORCE",
+};
+
+const JEV_RISK_CLASSES: Record<string, string> = {
+  low: "border-allow/30 bg-allow/10 text-allow",
+  medium: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  high: "border-deny/30 bg-deny/10 text-deny",
+  critical: "border-deny/50 bg-deny/20 text-deny",
 };
 
 const select =
@@ -64,7 +76,7 @@ export default async function RuntimePage({
   const decisionIds = decisions.map((d) => d.id);
   const requestIds = decisions.map((d) => d.tool_request_id);
 
-  const [requests, finals, gatewayEvidence, legacyEvidence] = decisionIds.length
+  const [requests, finals, gatewayEvidence, legacyEvidence, jevRiskRows] = decisionIds.length
     ? await Promise.all([
         db
           .from("tool_requests")
@@ -84,8 +96,24 @@ export default async function RuntimePage({
           .from("semantic_shadow_evaluations")
           .select(EVIDENCE_COLUMNS)
           .in("authorization_decision_id", decisionIds),
+        // TEMPORARY: `jev_risk_evaluations` is not in the generated database types yet (see
+        // src/lib/jev/persistence.ts's module doc — same expired Management API token). Cast at the boundary only.
+        (
+          db as unknown as {
+            from(t: "jev_risk_evaluations"): {
+              select(cols: string): {
+                in(col: string, ids: string[]): Promise<{ data: JevRiskInput[] | null }>;
+              };
+            };
+          }
+        )
+          .from("jev_risk_evaluations")
+          .select(
+            "authorization_decision_id, provider, model, state, result, disagreement, latency_ms, error_category",
+          )
+          .in("authorization_decision_id", decisionIds),
       ])
-    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }];
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
 
   const finalIds = (finals.data ?? []).map((f) => f.id);
   const [tokens] = finalIds.length
@@ -112,6 +140,7 @@ export default async function RuntimePage({
       toEvidenceView(r),
     ]),
   );
+  const jevRiskByDecision = new Map((jevRiskRows.data ?? []).map((r) => [r.authorization_decision_id, r]));
 
   const all = buildRuntimeRows({
     decisions,
@@ -120,6 +149,7 @@ export default async function RuntimePage({
     tokens: tokens.data ?? [],
     consumptions: consumptions.data ?? [],
     evidenceByDecision,
+    jevRiskByDecision,
     agentNames: new Map(agents.map((a) => [a.id, a.name])),
   });
 
@@ -292,6 +322,7 @@ export default async function RuntimePage({
                   "Agent · tool",
                   "Deterministic",
                   "Semantic",
+                  "Jev risk (shadow)",
                   "Final decision",
                   "Capability (simulation)",
                   "Trace",
@@ -348,6 +379,39 @@ function Row({ row }: { row: RuntimeRow }) {
             ⚠ disagrees with deterministic decision
           </span>
         ) : null}
+      </td>
+      <td className="px-space-lg py-space-md" data-testid="jev-risk-cell">
+        {row.jevRisk ? (
+          <div className="flex flex-col gap-1">
+            {row.jevRisk.state === "ok" ? (
+              <>
+                <span
+                  className={`inline-flex w-fit rounded border px-2 py-0.5 font-mono-code text-[11px] ${JEV_RISK_CLASSES[row.jevRisk.riskClass ?? ""] ?? "border-outline-variant/40 text-on-surface-variant"}`}
+                >
+                  {row.jevRisk.riskClass ?? "unknown"}-risk
+                </span>
+                <span className="font-mono-code text-[10px] text-outline">
+                  confidence {row.jevRisk.confidence != null ? row.jevRisk.confidence.toFixed(2) : "—"} ·{" "}
+                  {row.jevRisk.provider} · {row.jevRisk.latencyMs}ms
+                </span>
+                {row.jevRisk.disagreement ? (
+                  <span className="font-mono-code text-[10px] text-secondary">
+                    ⚠ disagrees with final decision
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span className="font-mono-code text-[11px] text-outline">
+                {row.jevRisk.state} ({row.jevRisk.errorCategory ?? "no evidence"})
+              </span>
+            )}
+            <span className="font-mono-code text-[10px] text-outline">
+              shadow only — never affected this decision
+            </span>
+          </div>
+        ) : (
+          <span className="font-mono-code text-[11px] text-outline">not evaluated</span>
+        )}
       </td>
       <td className="px-space-lg py-space-md" data-testid="final-cell">
         <OutcomePill outcome={row.final} />
