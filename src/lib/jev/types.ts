@@ -107,3 +107,19 @@ export class JevProviderUnavailableError extends JevProviderError {
     this.name = "JevProviderUnavailableError";
   }
 }
+
+export const COMPLETENESS_CLASSIFICATIONS = [
+  "complete",
+  "missing_information",
+  "missing_capability_category",
+  "internally_inconsistent",
+  "unnecessarily_privileged",
+] as const;
+export type CompletenessClassification = (typeof COMPLETENESS_CLASSIFICATIONS)[number];
+
+export interface PlanCompletenessEvaluation {
+  classification: CompletenessClassification;
+  confidence: number;
+  /** Always a subset of the candidate registry operation ids supplied to Jev — never an invented tool. */
+  possibleMissingOperationIds: string[];
+}
