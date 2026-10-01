@@ -254,8 +254,9 @@ paths:
       description: >
         The generic counterpart to `/github/execute` (Phase 2/4): dispatches
         by the authorized tool's provider prefix (`stripe.*`, `gmail.*`,
-        `slack.*`, `postgres.*`, or a tenant's own `custom.<connectionId>.*`
-        operations) to that connector's `AuthorityConnector.execute()`,
+        `slack.*`, `postgres.*`, or a tenant's own `custom_<connectionId>.*`
+        operations, one opaque provider id per Custom API connection) to that
+        connector's `AuthorityConnector.execute()`,
         through the same reserve -> dispatch -> settle -> receipt lifecycle
         `/github/execute` already uses. `github.*` tools remain reachable at
         their existing path; this route additionally accepts them so new
@@ -655,8 +656,7 @@ components:
 
     ToolManifest:
       type: object
-      required:
-        [taskId, contract, registryVersion, manifestHash, generatedAt, expiresAt, tools]
+      required: [taskId, contract, registryVersion, manifestHash, generatedAt, expiresAt, tools]
       properties:
         taskId: { type: string, format: uuid }
         contract:
