@@ -18,7 +18,7 @@ test.describe("empty workspace and demo installation", () => {
   test("a new authenticated tenant sees the honest empty state, not mock fixtures", async ({ page }) => {
     await signIn(page, OWNER_B);
 
-    await expect(page.getByText("No agents or tasks have been configured")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Protect your first agent" })).toBeVisible();
     await expect(page.getByText(/does not contact github, stripe, gmail, slack/i)).toBeVisible();
     await expect(page.getByText(/stores no external credentials/i)).toBeVisible();
     await expect(page.getByRole("button", { name: "Install demo workspace" })).toBeVisible();
@@ -52,39 +52,49 @@ test.describe("empty workspace and demo installation", () => {
     const rowCountAfterFirstInstall = await page.locator("table tbody tr").count();
 
     await page.goto("/app/agents");
-    await expect(page.getByRole("button", { name: "Reset demo data" })).toBeVisible();
-    await page.getByRole("button", { name: "Reset demo data" }).click();
-    await expect(page.getByText("No agents or tasks have been configured")).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: new RegExp(OWNER_B.displayName) }).click();
+    const menu = page.getByRole("menu", { name: "Account" });
+    await expect(menu.getByRole("menuitem", { name: "Reset demo data" })).toBeVisible();
+    await menu.getByRole("menuitem", { name: "Reset demo data" }).click();
+    await expect(page.getByRole("heading", { name: "No agents registered" })).toBeVisible({
+      timeout: 15_000,
+    });
 
     expect(rowCountAfterFirstInstall).toBeGreaterThan(0);
   });
 });
 
 test.describe("product pages read from Supabase", () => {
-  test("dashboard metrics and recent traces come from persisted tenant A records", async ({ page }) => {
+  test("dashboard metrics come from persisted tenant A records", async ({ page }) => {
     await page.goto("/app");
+    // The "Recent tool calls" widget is a small, recency-ordered, tenant-wide
+    // window — under concurrent e2e load from other specs it can't promise
+    // any one agent's calls stay in the top few, so this checks the
+    // aggregate status row instead; coding-agent-17 itself is asserted on
+    // its own page below.
     await expect(page.getByText("Active agents")).toBeVisible();
-    await expect(page.getByText("coding-agent-17").first()).toBeVisible();
+    await expect(page.getByText("Protected tool calls")).toBeVisible();
   });
 
-  test("agents page lists persisted agents with owner and created time", async ({ page }) => {
+  test("agents page lists persisted agents with owner and activity", async ({ page }) => {
     await page.goto("/app/agents");
     await expect(page.getByText("coding-agent-17")).toBeVisible();
     await expect(page.getByText("customer-ops-agent")).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Owner" })).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "Created" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Last seen" })).toBeVisible();
   });
 
   test("policies page shows both the active and the draft demo policy", async ({ page }) => {
     await page.goto("/app/policies");
     await expect(page.getByText("Never read repository secrets")).toBeVisible();
     await expect(page.getByText("CI workflow changes require review")).toBeVisible();
-    await expect(page.getByText("draft", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
   });
 
   test("integrations page shows persisted metadata, clearly labelled as simulated", async ({ page }) => {
     await page.goto("/app/integrations");
-    await expect(page.getByText("github", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "GitHub connector" })).toBeVisible();
+    await expect(page.getByText("stripe", { exact: true })).toBeVisible();
     await expect(page.getByText(/simulated metadata only/i)).toBeVisible();
     await expect(page.getByText(/no oauth token, password, api key/i)).toBeVisible();
   });
