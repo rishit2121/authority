@@ -47,11 +47,23 @@ export interface AgentRepository {
   listByTenant(tenantId: Id): Promise<Agent[]>;
 }
 
+/** Narrowing applied server-side, ahead of pagination — the Tasks list page's Status/Agent/Search filters. */
+export interface TaskListFilters {
+  status?: Task["status"];
+  agentId?: Id;
+  /** Case-insensitive substring match against the task's intent text. */
+  search?: string;
+}
+
 export interface TaskRepository {
   findById(id: Id): Promise<Task | null>;
   listByTenant(tenantId: Id): Promise<Task[]>;
   /** Tasks accumulate per tenant indefinitely; the dashboard needs this bounded. */
-  listByTenantPaged(tenantId: Id, options?: PageOptions): Promise<PageResult<Task>>;
+  listByTenantPaged(
+    tenantId: Id,
+    options?: PageOptions,
+    filters?: TaskListFilters,
+  ): Promise<PageResult<Task>>;
 }
 
 export interface ContractRepository {
@@ -70,6 +82,12 @@ export interface ContractRepository {
   findById(contractId: Id): Promise<TaskAuthorityContract | null>;
   /** Every version ever proposed for a task, newest first — for the contract version history UI. */
   listByTaskId(taskId: Id): Promise<TaskAuthorityContract[]>;
+  /**
+   * `findByTaskId`'s display-only "latest version" lookup, batched across
+   * several tasks in one call — the same reason `DecisionRepository.countByTaskIds`
+   * exists: a tasks list showing N rows must not cost N queries.
+   */
+  listLatestByTaskIds(taskIds: readonly Id[]): Promise<Map<Id, TaskAuthorityContract>>;
 }
 
 export interface PlanRepository {

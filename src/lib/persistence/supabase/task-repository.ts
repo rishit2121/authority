@@ -1,4 +1,4 @@
-import type { ContractRepository, TaskRepository } from "@/lib/domain";
+import type { ContractRepository, TaskAuthorityContract, TaskRepository } from "@/lib/domain";
 
 import type { RepositoryContext } from "../context";
 import { assertTenantMatch } from "../context";
@@ -30,7 +30,7 @@ export function createSupabaseTaskRepository(context: RepositoryContext): TaskRe
       return (data ?? []).map(taskRowToDomain);
     },
 
-    async listByTenantPaged(tenantId, options) {
+    async listByTenantPaged(tenantId, options, filters) {
       assertTenantMatch(context, tenantId);
 
       const limit = resolveLimit(options);
@@ -45,6 +45,9 @@ export function createSupabaseTaskRepository(context: RepositoryContext): TaskRe
         // One extra row, never returned, just to know whether a next page exists.
         .limit(limit + 1);
 
+      if (filters?.status) query = query.eq("status", filters.status);
+      if (filters?.agentId) query = query.eq("agent_id", filters.agentId);
+      if (filters?.search) query = query.ilike("intent", `%${filters.search}%`);
       if (cursor) query = query.or(cursorFilter(cursor));
 
       const { data, error } = await query;
@@ -116,6 +119,24 @@ export function createSupabaseContractRepository(context: RepositoryContext): Co
 
       if (error) throwDatabaseError("list contracts", error);
       return (data ?? []).map(contractRowToDomain);
+    },
+
+    async listLatestByTaskIds(taskIds) {
+      if (taskIds.length === 0) return new Map();
+
+      const { data, error } = await context.supabase
+        .from("task_authority_contracts")
+        .select("*")
+        .in("task_id", taskIds)
+        .order("version", { ascending: false });
+
+      if (error) throwDatabaseError("list latest contracts", error);
+
+      const latestByTask = new Map<string, TaskAuthorityContract>();
+      for (const row of data ?? []) {
+        if (!latestByTask.has(row.task_id)) latestByTask.set(row.task_id, contractRowToDomain(row));
+      }
+      return latestByTask;
     },
   };
 }
