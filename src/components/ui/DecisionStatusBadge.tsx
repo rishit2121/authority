@@ -30,9 +30,9 @@ export function DecisionStatusBadge({ status, mono = false, className = "" }: De
       data-status={status}
       data-tone={presentation.tone}
       title={presentation.description}
-      className={`inline-flex items-center rounded border px-2 py-0.5 font-mono-code text-[11px] ${
-        TONE_CLASSES[presentation.tone]
-      } ${className}`}
+      className={`inline-flex items-center rounded border px-2 py-0.5 text-[12px] font-medium ${
+        mono ? "font-mono-code text-[11px] font-normal" : ""
+      } ${TONE_CLASSES[presentation.tone]} ${className}`}
     >
       {mono ? presentation.token : presentation.label}
     </span>

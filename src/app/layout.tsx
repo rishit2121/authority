@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0e15",
+  themeColor: "#F3F1E9",
   width: "device-width",
   initialScale: 1,
 };
@@ -26,7 +26,7 @@ export const viewport: Viewport = {
  */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`dark ${fontVariables}`}>
+    <html lang="en" className={fontVariables}>
       <body className="bg-surface-container-lowest font-body-md text-on-surface antialiased selection:bg-primary selection:text-on-primary">
         {children}
       </body>
