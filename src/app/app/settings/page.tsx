@@ -1,6 +1,7 @@
 import { RetentionForm } from "@/components/settings/RetentionForm";
 import { SemanticSettingsForm } from "@/components/semantic/SemanticSettingsForm";
 import { JevSettingsForm } from "@/components/jev/JevSettingsForm";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { TENANT_ROLE_RANK } from "@/lib/domain";
 import { getJevSettings } from "@/lib/jev/persistence";
 import { getOpenRouterEnv } from "@/lib/openrouter/env";
@@ -65,15 +66,10 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <header>
-        <h1 className="font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-          Settings
-        </h1>
-        <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Tenant configuration for semantic risk evaluation, rate-limit visibility and validation data
-          retention. Audit export is not yet available.
-        </p>
-      </header>
+      <PageHeader
+        title="Settings"
+        description="Runtime enforcement, AI providers, and validation data retention for this workspace."
+      />
 
       <section
         aria-labelledby="semantic-settings-heading"
@@ -83,7 +79,7 @@ export default async function SettingsPage() {
           id="semantic-settings-heading"
           className="font-headline-sm text-headline-sm font-semibold text-on-surface"
         >
-          Semantic risk evaluation
+          AI risk signal
         </h2>
         <p className="mb-space-md mt-space-sm max-w-2xl font-body-sm text-body-sm text-on-surface-variant">
           The deterministic engine remains the security boundary. Semantic models add evidence beside each
