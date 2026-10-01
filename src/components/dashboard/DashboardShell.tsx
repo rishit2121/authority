@@ -53,14 +53,32 @@ function SidebarHeader({
   );
 }
 
-/** Gateway status + account control, pinned to the bottom of the rail. */
-function SidebarFooter({ collapsed, identity }: { collapsed: boolean; identity: UserMenuIdentity }) {
+/**
+ * Gateway status + account control, pinned to the bottom of the rail.
+ *
+ * "Gateway online" and "Deterministic enforcement" are two separate, always-
+ * true facts about this product's architecture (the gateway only renders
+ * this shell once it has successfully reached the tenant's data, and the
+ * deterministic layer is never toggleable off) — not a claim derived from a
+ * live health check. `jevAdvisory` reflects the tenant's actual
+ * `jev_settings` row, read in the layout: it never implies Jev enforces
+ * anything while it's in shadow mode.
+ */
+function SidebarFooter({
+  collapsed,
+  identity,
+  jevAdvisory,
+}: {
+  collapsed: boolean;
+  identity: UserMenuIdentity;
+  jevAdvisory: boolean;
+}) {
   if (collapsed) {
     return (
-      <div className="flex flex-col items-center gap-space-md border-t border-outline-variant/20 pt-space-md">
+      <div className="flex flex-col items-center gap-space-md border-t border-line pt-space-md">
         <span
-          title="Gateway enforcing"
-          aria-label="Gateway enforcing"
+          title="Gateway online · deterministic enforcement"
+          aria-label="Gateway online, deterministic enforcement"
           className="flex h-7 w-7 items-center justify-center"
         >
           <StatusDot className="bg-allow" ping={false} />
@@ -71,12 +89,15 @@ function SidebarFooter({ collapsed, identity }: { collapsed: boolean; identity: 
   }
 
   return (
-    <div className="flex flex-col gap-space-sm border-t border-outline-variant/20 pt-space-md">
-      <span className="flex items-center gap-2 rounded-lg border border-outline-variant/30 bg-surface-container px-space-md py-2 font-mono-code text-[11px] text-on-surface-variant">
-        <StatusDot className="bg-allow" ping={false} />
-        Gateway
-        <strong className="ml-auto font-semibold text-allow">Enforcing</strong>
-      </span>
+    <div className="flex flex-col gap-space-sm border-t border-line pt-space-md">
+      <div className="flex flex-col gap-1 rounded-lg border border-line bg-paper-raised px-space-md py-2.5 text-[12px]">
+        <span className="flex items-center gap-2 text-ink">
+          <StatusDot className="bg-allow" ping={false} />
+          Gateway online
+        </span>
+        <span className="pl-[18px] text-ink-soft">Deterministic enforcement</span>
+        {jevAdvisory ? <span className="pl-[18px] text-ink-soft">Jev · advisory</span> : null}
+      </div>
       <UserMenu identity={identity} />
     </div>
   );
@@ -85,6 +106,8 @@ function SidebarFooter({ collapsed, identity }: { collapsed: boolean; identity: 
 interface DashboardShellProps {
   children: ReactNode;
   badges: NavBadgeCounts;
+  /** Whether Jev (necessity and/or risk) is on in this tenant — always advisory, never enforcing. */
+  jevAdvisory: boolean;
   /** Resolved server-side by requireIdentity(); never derived in the browser. */
   identity: UserMenuIdentity;
   memberships: TenantMembership[];
@@ -99,6 +122,7 @@ interface DashboardShellProps {
 export function DashboardShell({
   children,
   badges,
+  jevAdvisory,
   identity,
   memberships,
   currentTenantId,
@@ -146,7 +170,7 @@ export function DashboardShell({
         {/* Desktop sidebar */}
         <aside
           className={`sticky top-0 hidden h-screen shrink-0 flex-col justify-between border-r border-outline-variant/20 bg-surface-container-low transition-[width] duration-200 lg:flex ${
-            collapsed ? "w-[72px] px-2.5 py-space-lg" : "w-64 p-space-lg"
+            collapsed ? "w-[72px] px-2.5 py-space-lg" : "w-[240px] p-space-lg"
           }`}
         >
           <div className="flex min-h-0 flex-1 flex-col gap-space-lg overflow-y-auto">
@@ -168,7 +192,7 @@ export function DashboardShell({
             <SidebarNav badges={badges} collapsed={collapsed} />
           </div>
 
-          <SidebarFooter collapsed={collapsed} identity={identity} />
+          <SidebarFooter collapsed={collapsed} identity={identity} jevAdvisory={jevAdvisory} />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -240,7 +264,7 @@ export function DashboardShell({
             <SidebarNav badges={badges} onNavigate={() => setMenuOpen(false)} />
 
             <div className="mt-auto">
-              <SidebarFooter collapsed={false} identity={identity} />
+              <SidebarFooter collapsed={false} identity={identity} jevAdvisory={jevAdvisory} />
             </div>
           </div>
         </div>

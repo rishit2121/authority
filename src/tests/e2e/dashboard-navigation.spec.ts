@@ -3,6 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 const NAV_LINKS: Array<{ name: string; href: string; heading: string | RegExp }> = [
   { name: "Tasks", href: "/app/tasks", heading: "Tasks" },
   { name: "Agents", href: "/app/agents", heading: "Agents" },
+  // Visible label is "Tool calls" (clearer to a developer); the route and page heading are
+  // unchanged, so this also confirms the rename didn't disturb either.
+  { name: "Tool calls", href: "/app/runtime", heading: "Tool calls" },
   { name: "Policies", href: "/app/policies", heading: "Policies" },
   { name: "Integrations", href: "/app/integrations", heading: "Integrations" },
   { name: "Approvals", href: "/app/approvals", heading: "Approvals" },
@@ -18,13 +21,14 @@ test.describe("dashboard navigation", () => {
     await page.goto("/app");
     const sidebar = desktopSidebar(page);
 
-    for (const group of ["Monitor", "Control", "System"]) {
+    for (const group of ["Workspace", "Control", "Test", "System"]) {
       await expect(sidebar.getByText(group, { exact: true })).toBeVisible();
     }
     for (const label of [
       "Overview",
       "Tasks",
       "Agents",
+      "Tool calls",
       "Policies",
       "Integrations",
       "Approvals",
