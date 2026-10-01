@@ -24,7 +24,7 @@ export function MobileNav({
         aria-controls="mobile-nav-panel"
         aria-label={open ? "Close menu" : "Open menu"}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-10 w-10 items-center justify-center rounded-md text-mkt-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-indigo"
+        className="flex h-10 w-10 items-center justify-center rounded-md text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       >
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
           {open ? (
@@ -38,29 +38,29 @@ export function MobileNav({
       {open ? (
         <div
           id="mobile-nav-panel"
-          className="absolute inset-x-0 top-[68px] flex flex-col gap-1 border-b border-mkt-hairline bg-mkt-surface px-6 py-4"
+          className="absolute inset-x-0 top-[64px] flex flex-col gap-1 border-b border-line bg-paper px-6 py-4"
         >
           {links.map((link) => (
             <a
               key={link.label}
               href={link.href}
               onClick={() => setOpen(false)}
-              className="py-2.5 text-[15px] text-mkt-text"
+              className="py-2.5 text-[15px] text-ink"
             >
               {link.label}
             </a>
           ))}
-          <div className="mt-2 flex flex-col gap-2 border-t border-mkt-hairline pt-4">
+          <div className="mt-2 flex flex-col gap-2 border-t border-line pt-4">
             {signedIn ? (
-              <Link href={consoleHref} className="py-2 text-[15px] font-medium text-mkt-indigo">
+              <Link href={consoleHref} className="py-2 text-[15px] font-medium text-ink">
                 Open console
               </Link>
             ) : (
               <>
-                <Link href="/login" className="py-2 text-[15px] text-mkt-text">
+                <Link href="/login" className="py-2 text-[15px] text-ink">
                   Sign in
                 </Link>
-                <Link href="/signup" className="py-2 text-[15px] font-medium text-mkt-indigo">
+                <Link href="/signup" className="py-2 text-[15px] font-medium text-ink">
                   Start building
                 </Link>
               </>

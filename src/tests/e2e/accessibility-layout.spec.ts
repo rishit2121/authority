@@ -77,11 +77,18 @@ test.describe("keyboard access and focus visibility", () => {
     expect(outlineWidth).not.toBe("0px");
   });
 
-  test("the authority graph pauses on keyboard focus and shows Resume", async ({ page }) => {
+  test("the graph's pause control is keyboard-accessible and toggles Resume", async ({ page }) => {
     await page.goto("/");
-    const graph = page.getByRole("group", { name: "Authority field, animated" });
-    await graph.focus();
-    await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
+    const hero = page.getByRole("group", { name: "Authority field, animated" });
+    // Desktop and mobile layouts each render their own copy of the control, sharing one paused
+    // state; `.first()` is the desktop one, visible at this default viewport.
+    const pauseButton = hero.getByRole("button", { name: "Pause animation" }).first();
+    // Keyboard-accessible even though it's visually subtle until focused — focusing it directly
+    // (simulating Tab arriving on it) must work without first needing a pointer hover.
+    await pauseButton.focus();
+    await expect(pauseButton).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(hero.getByRole("button", { name: "Resume animation" }).first()).toBeVisible();
   });
 
   test("kill-switch confirmation is keyboard operable", async ({ page }) => {
@@ -108,12 +115,15 @@ test.describe("keyboard access and focus visibility", () => {
 test.describe("reduced motion", () => {
   test.use({ reducedMotion: "reduce" });
 
-  test("the authority graph renders the resolved state with no pause/replay controls", async ({ page }) => {
+  test("the authority graph renders the resolved state with no pause control", async ({ page }) => {
     await page.goto("/");
-    const graph = page.getByRole("group", { name: "Authority field, animated" });
-    await expect(graph.getByText("0 standing permissions")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pause" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Replay" })).toHaveCount(0);
+    const hero = page.getByRole("group", { name: "Authority field, animated" });
+    // Both the desktop and mobile layouts render in the DOM simultaneously (one hidden via CSS
+    // depending on viewport width), so this text matches two elements. The desktop layout is
+    // first in DOM order and this test runs at the default (desktop-width) viewport, where it's
+    // the one actually visible.
+    await expect(hero.getByText("Permissions revoked").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Pause animation" })).toHaveCount(0);
   });
 
   test("the walkthrough is fully usable with motion reduced", async ({ page }) => {

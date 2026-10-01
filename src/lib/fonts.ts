@@ -1,4 +1,4 @@
-import { Geist, Inter, Space_Mono } from "next/font/google";
+import { Geist, Instrument_Serif, Inter, Space_Mono } from "next/font/google";
 
 /**
  * Self-hosted at build time by next/font, replacing the export's runtime
@@ -25,4 +25,14 @@ export const spaceMono = Space_Mono({
   display: "swap",
 });
 
-export const fontVariables = `${geist.variable} ${inter.variable} ${spaceMono.variable}`;
+/** Editorial display serif for marketing headlines only (design/frontend-simplification
+ * hero correction). Google only publishes this family at weight 400, which is exactly
+ * the weight the hero spec calls for. */
+export const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-instrument-serif",
+  display: "swap",
+});
+
+export const fontVariables = `${geist.variable} ${inter.variable} ${spaceMono.variable} ${instrumentSerif.variable}`;

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { InkButton } from "@/components/marketing/InkButton";
 import { MobileNav } from "@/components/marketing/MobileNav";
 import { PRIMARY_NAV } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -24,46 +25,40 @@ export async function SiteHeader() {
   const signedIn = await getIsSignedIn();
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-mkt-hairline bg-mkt-surface/90 backdrop-blur-md">
-      <div className="relative mx-auto flex h-[68px] w-full max-w-[1280px] items-center justify-between px-6 md:px-10">
-        <a href="#top" className="flex items-center gap-2.5">
-          <Logo />
-          <span className="font-headline-sm text-[16px] font-semibold tracking-tight text-mkt-text">
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-line bg-paper/95 backdrop-blur-md">
+      <div className="relative mx-auto flex h-[64px] w-full max-w-[1320px] items-center justify-between px-8 md:px-12">
+        <a href="#top" className="flex items-center gap-2">
+          <Logo size={22} />
+          <span className="font-headline-sm text-[15px] font-semibold tracking-tight text-ink">
             Authority
           </span>
         </a>
 
-        <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-10 md:flex">
           {PRIMARY_NAV.map((link) => (
             <a
               key={link.label}
               href={link.href}
-              className="text-[14px] text-mkt-text-secondary transition-colors hover:text-mkt-text"
+              className="text-[13px] text-ink-soft transition-colors hover:text-ink"
             >
               {link.label}
             </a>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-5 md:flex">
+        <div className="hidden items-center gap-6 md:flex">
           {signedIn ? (
-            <Link
-              href="/app"
-              className="rounded-md bg-mkt-indigo px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-[#3F4CDB]"
-            >
+            <InkButton href="/app" className="px-4 py-2 text-[13px]">
               Open console
-            </Link>
+            </InkButton>
           ) : (
             <>
-              <Link href="/login" className="text-[14px] text-mkt-text-secondary hover:text-mkt-text">
+              <Link href="/login" className="text-[13px] text-ink-soft hover:text-ink">
                 Sign in
               </Link>
-              <Link
-                href="/signup"
-                className="rounded-md bg-mkt-indigo px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-[#3F4CDB]"
-              >
+              <InkButton href="/signup" className="px-4 py-2 text-[13px]">
                 Start building
-              </Link>
+              </InkButton>
             </>
           )}
         </div>
