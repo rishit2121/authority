@@ -25,6 +25,7 @@ function fakeOp(over: Partial<TenantPublishedOperation> = {}): TenantPublishedOp
     inputSchemaHash: "hash-a",
     requestMappingHash: "hash-b",
     connectorId: "custom_abc123",
+    connectionName: "Widget Orders API",
     publishedAt: "2026-10-01T00:00:00Z",
     ...over,
   };

@@ -202,6 +202,7 @@ export interface TenantPublishedOperation {
   inputSchemaHash: string | null;
   requestMappingHash: string | null;
   connectorId: string;
+  connectionName: string;
   publishedAt: string | null;
 }
 
@@ -229,6 +230,7 @@ export async function listPublishedCustomOperationsForTenant(tenantId: string): 
     inputSchemaHash: (r.lpco_input_schema_hash as string) ?? null,
     requestMappingHash: (r.lpco_request_mapping_hash as string) ?? null,
     connectorId: r.lpco_connector_id as string,
+    connectionName: r.lpco_connection_name as string,
     publishedAt: (r.lpco_published_at as string) ?? null,
   }));
 }

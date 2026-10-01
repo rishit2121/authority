@@ -2,9 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { CandidatePlanForm } from "@/components/contract/CandidatePlanForm";
+import { CandidatePlanForm, type AvailableCustomTool } from "@/components/contract/CandidatePlanForm";
 import { Icon } from "@/components/ui/Icon";
+import { listPublishedCustomOperationsForTenant } from "@/lib/gateway/rpc-custom-operations";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+
+interface InputSchemaFieldShape {
+  key: string;
+  type: string;
+  required: boolean;
+  identifiesResource: boolean;
+  in: "path" | "query" | "body";
+}
 
 export const metadata: Metadata = {
   title: "Create authority contract",
@@ -18,10 +27,37 @@ export const metadata: Metadata = {
  */
 export default async function NewContractPage({ params }: { params: Promise<{ taskId: string }> }) {
   const { taskId } = await params;
-  const { repositories } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}/contract/new`);
+  const { repositories, identity } = await createRepositoriesForCurrentTenant(
+    `/app/tasks/${taskId}/contract/new`,
+  );
 
   const task = await repositories.tasks.findById(taskId);
   if (!task) notFound();
+
+  // Published, on an active connection only -- draft, validated-but-unpublished,
+  // retired, and anything on a disconnected connection are excluded by this
+  // read itself (gateway.list_published_custom_operations_for_tenant), not
+  // filtered here.
+  const customOps = await listPublishedCustomOperationsForTenant(identity.tenant.tenantId);
+  const availableCustomTools: AvailableCustomTool[] = customOps.map((op) => {
+    const schema = op.inputSchema as { fields?: InputSchemaFieldShape[] };
+    return {
+      toolName: op.toolName,
+      connectionName: op.connectionName,
+      operationName: op.name,
+      effect: op.effect,
+      // The operation id is what every capability/contract/manifest actually
+      // pins -- a short prefix of it is a stable, human-scannable "version"
+      // marker for a definition that, once published, can never change.
+      version: op.operationId.slice(0, 8),
+      fields: (schema.fields ?? []).map((f) => ({
+        key: f.key,
+        type: f.type,
+        required: f.required,
+        in: f.in,
+      })),
+    };
+  });
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -45,7 +81,7 @@ export default async function NewContractPage({ params }: { params: Promise<{ ta
         </p>
       </div>
 
-      <CandidatePlanForm taskId={taskId} />
+      <CandidatePlanForm taskId={taskId} availableCustomTools={availableCustomTools} />
     </div>
   );
 }
