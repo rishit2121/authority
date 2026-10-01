@@ -137,8 +137,15 @@ export interface AuthorityConnector {
    * id and the agent's raw, schema-validated input. Throws a definite
    * rejection (never silently coerces) if the input doesn't match the
    * operation's own strict schema.
+   *
+   * Async because a connector whose operations are tenant-published (Custom
+   * API) must resolve the operation's own definition row (pinned by id,
+   * immutable once published) before it can validate anything — there is no
+   * way to do that from process memory alone, unlike GitHub's static
+   * registry. A statically-registered connector (GitHub once migrated,
+   * Stripe, Slack) can simply resolve to an already-settled value.
    */
-  normalizeRequest(operation: string, input: unknown): NormalizedConnectorRequest;
+  normalizeRequest(operation: string, input: unknown): Promise<NormalizedConnectorRequest>;
 
   /** Runs one already-reserved, already-dispatched request. Never called directly by a route handler — only by the generic executor. */
   execute(

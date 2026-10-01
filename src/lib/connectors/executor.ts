@@ -11,6 +11,7 @@ import {
 } from "@/lib/gateway/rpc-connectors";
 import { safeLog } from "@/lib/semantic/scrub";
 
+import { ensureConnectorsRegistered } from "./register";
 import { resolveConnectorForTool } from "./registry";
 import type { ConnectorExecutionResult } from "./types";
 
@@ -80,6 +81,7 @@ export async function executeConnectorOperation(
   input: ExecuteConnectorInput,
   deps: ConnectorExecutorDeps = defaultConnectorExecutorDeps,
 ): Promise<ExecuteConnectorResult> {
+  if (deps.resolveConnector === resolveConnectorForTool) ensureConnectorsRegistered();
   const connector = deps.resolveConnector(input.tool);
   if (!connector) {
     return {
@@ -189,7 +191,7 @@ export async function executeConnectorOperation(
   // ---- pre-dispatch validation: a definite failure here releases the use ----
   let normalized;
   try {
-    normalized = connector.normalizeRequest(input.operation, input.args);
+    normalized = await connector.normalizeRequest(input.operation, input.args);
     if (reserved.connectorId && !normalized.tool.startsWith(`${reserved.connectorId}.`)) {
       return released("OPERATION_CONNECTOR_MISMATCH", 422);
     }

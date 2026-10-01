@@ -36,7 +36,19 @@ function providerOf(tool: string): string | null {
 export function resolveConnectorForTool(tool: string): AuthorityConnector | null {
   const provider = providerOf(tool);
   if (!provider) return null;
-  return connectors.get(provider) ?? null;
+  const exact = connectors.get(provider);
+  if (exact) return exact;
+  // Connectors whose provider id is dynamic per tenant connection (Custom
+  // API's "custom_<connectionId>") register once under a fixed, trailing-
+  // underscore prefix (e.g. "custom_"). Every tool whose provider starts
+  // with that prefix resolves to the same connector instance, which derives
+  // the specific connection id from the tool name itself -- no per-
+  // connection, per-process registration is needed (and none would survive
+  // a serverless restart or be visible to another instance anyway).
+  for (const [registeredId, connector] of connectors) {
+    if (registeredId.endsWith("_") && provider.startsWith(registeredId)) return connector;
+  }
+  return null;
 }
 
 export function listRegisteredConnectors(): readonly AuthorityConnector[] {

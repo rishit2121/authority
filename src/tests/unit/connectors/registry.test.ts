@@ -13,7 +13,7 @@ function fakeConnector(id: string): AuthorityConnector {
     id,
     describeOperations: () => [],
     verifyInstallation: async () => ({ status: "active", reasons: [], lastVerifiedAt: null }),
-    normalizeRequest: (operation, input) => ({
+    normalizeRequest: async (operation, input) => ({
       tool: `${id}.${operation}`,
       operation,
       resource: "",

@@ -133,4 +133,4 @@ select t(is((select count(*)::int from gateway.webhook_retry_due(50) where r_del
 select gateway.webhook_retry_mark('t21-delivery-0001', false, 'timeout');
 select t(is((select count(*)::int from gateway.webhook_retry_due(50) where r_delivery_id = 't21-delivery-0001'), 0, 'a failed attempt backs off'));
 select t(throws_ok($$ insert into public.github_webhook_retries (delivery_id, event, github_installation_id) values ('t21-bad-event-00', 'push', 1) $$, '23514', null, 'only installation events are queued'));
-select t(is(gateway.schema_version(), '20261001000002', 'the schema-version probe reports the newest migration'));
+select t(is(gateway.schema_version(), '20261001000009', 'the schema-version probe reports the newest migration'));
