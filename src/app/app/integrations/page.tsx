@@ -1,17 +1,11 @@
 import Link from "next/link";
 
-import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
-import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
-import { TENANT_ROLE_LABELS } from "@/lib/auth/tenant-context";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusPill, type StatusTone } from "@/components/ui/StatusPill";
 import type { IntegrationStatus } from "@/lib/domain";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
-
-const STATUS_CLASSES: Record<IntegrationStatus, string> = {
-  connected: "border-allow/30 bg-allow/10 text-allow",
-  warning: "border-secondary/40 bg-secondary/10 text-secondary",
-  not_connected: "border-outline-variant/40 bg-surface-container-high text-on-surface-variant",
-};
 
 const STATUS_LABELS: Record<IntegrationStatus, string> = {
   connected: "Connected",
@@ -19,85 +13,93 @@ const STATUS_LABELS: Record<IntegrationStatus, string> = {
   not_connected: "Not connected",
 };
 
+const STATUS_TONE: Record<IntegrationStatus, StatusTone> = {
+  connected: "positive",
+  warning: "attention",
+  not_connected: "muted",
+};
+
 export default async function IntegrationsPage() {
   const { identity, repositories } = await createRepositoriesForCurrentTenant("/app/integrations");
   const integrations = await repositories.integrations.listByTenant(identity.tenant.tenantId);
-  const canManageDemoData = identity.role !== "viewer" && TENANT_ROLE_LABELS[identity.role] !== undefined;
+
+  // GitHub's authoritative, live (mock-execution) status lives on its own
+  // connector page and card below — this generic table is simulated registry
+  // metadata only, so GitHub's row here would otherwise contradict that card.
+  const registryTools = integrations.filter((integration) => integration.provider !== "github");
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <header>
-        <h1 className="font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-          Integrations
-        </h1>
-        <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Connected tool provider metadata and the credentials Authority isolates on their behalf.
-        </p>
-      </header>
+      <PageHeader
+        title="Integrations"
+        description="Connect the services agents may access through Authority."
+      />
 
-      <Link
-        href="/app/integrations/github"
-        data-testid="github-integration-link"
-        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
-      >
-        <span>
-          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
-            GitHub connector
+      <section aria-labelledby="connected-integrations" className="flex flex-col gap-3">
+        <h2 id="connected-integrations" className="text-[15px] font-semibold text-ink">
+          Connected integrations
+        </h2>
+        <Link
+          href="/app/integrations/github"
+          data-testid="github-integration-link"
+          className="flex items-center justify-between rounded-[10px] border border-line bg-paper-raised p-5 transition-colors hover:bg-black/[0.02]"
+        >
+          <span>
+            <h3 className="text-[15px] font-semibold text-ink">GitHub connector</h3>
+            <span className="block text-[13px] text-ink-soft">
+              Install the GitHub App, allow repositories and bind tasks. Real, least-privilege execution.
+            </span>
           </span>
-          <span className="block font-body-sm text-body-sm text-on-surface-variant">
-            Install the GitHub App, allow repositories and bind tasks. Real, least-privilege execution.
-          </span>
-        </span>
-        <Icon name="arrow_forward" size={16} />
-      </Link>
+          <Icon name="arrow_forward" size={16} className="text-ink-soft" />
+        </Link>
+      </section>
 
       {integrations.length === 0 ? (
-        <EmptyWorkspace />
+        <EmptyState
+          icon="token"
+          heading="No integrations configured"
+          description="Connect GitHub to let agents act on real repositories under least-privilege authority."
+        />
       ) : (
-        <>
-          <DemoDataNotice showReset={canManageDemoData} />
+        <section aria-labelledby="available-tools" className="flex flex-col gap-3">
+          <h2 id="available-tools" className="text-[15px] font-semibold text-ink">
+            Available tools
+          </h2>
 
           <div
             role="note"
-            className="flex items-start gap-space-sm rounded-lg border border-outline-variant/30 bg-surface-container px-space-md py-2.5"
+            className="flex items-start gap-2.5 rounded-lg border border-line bg-paper px-3.5 py-2.5"
           >
-            <Icon name="lock" size={15} className="mt-0.5 shrink-0 text-outline" />
-            <p className="font-body-md text-body-sm text-on-surface-variant">
+            <Icon name="lock" size={15} className="mt-0.5 shrink-0 text-ink-soft" />
+            <p className="text-[13px] text-ink-soft">
               Simulated metadata only. No OAuth token, password, API key or other credential is collected or
               stored here — there is no &quot;Connect&quot; action that reaches a real provider yet.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-space-md sm:grid-cols-2 xl:grid-cols-3">
-            {integrations.map((integration) => (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {registryTools.map((integration) => (
               <article
                 key={integration.id}
-                className="flex flex-col gap-space-sm rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg"
+                className="flex flex-col gap-2 rounded-[10px] border border-line bg-paper-raised p-4"
               >
-                <div className="flex items-center justify-between gap-space-sm">
-                  <h2 className="flex items-center gap-2 font-headline-sm text-body-lg font-semibold capitalize text-on-surface">
-                    <Icon name="token" size={16} className="text-outline" />
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="flex items-center gap-2 text-[14px] font-semibold capitalize text-ink">
+                    <Icon name="token" size={15} className="text-ink-soft" />
                     {integration.provider}
-                  </h2>
-                  <span
-                    className={`inline-flex rounded border px-2 py-0.5 font-mono-code text-[11px] ${STATUS_CLASSES[integration.status]}`}
-                  >
+                  </h3>
+                  <StatusPill tone={STATUS_TONE[integration.status]}>
                     {STATUS_LABELS[integration.status]}
-                  </span>
+                  </StatusPill>
                 </div>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">{integration.displayName}</p>
-                <p className="mt-auto font-mono-code text-[11px] text-outline">
-                  Added{" "}
-                  {new Date(integration.createdAt).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+                <p className="text-[13px] text-ink-soft">{integration.displayName}</p>
+                <p className="text-[11px] text-ink-soft">
+                  Available in the tool registry · No live connector configured
                 </p>
               </article>
             ))}
           </div>
-        </>
+        </section>
       )}
     </div>
   );
