@@ -65,7 +65,7 @@ test.describe("layout: no console errors", () => {
 test.describe("keyboard access and focus visibility", () => {
   test("the primary CTA on the homepage is reachable and shows a visible focus ring", async ({ page }) => {
     await page.goto("/");
-    const cta = page.getByRole("link", { name: "Start free" }).first();
+    const cta = page.getByRole("link", { name: "Start building" }).first();
     await cta.focus();
     await expect(cta).toBeFocused();
 
@@ -79,7 +79,7 @@ test.describe("keyboard access and focus visibility", () => {
 
   test("the authority graph pauses on keyboard focus and shows Resume", async ({ page }) => {
     await page.goto("/");
-    const graph = page.getByRole("group", { name: "Authority graph, animated" });
+    const graph = page.getByRole("group", { name: "Authority field, animated" });
     await graph.focus();
     await expect(page.getByRole("button", { name: "Resume" })).toBeVisible();
   });
@@ -110,7 +110,8 @@ test.describe("reduced motion", () => {
 
   test("the authority graph renders the resolved state with no pause/replay controls", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("Reduced motion: showing the resolved authorization state.")).toBeVisible();
+    const graph = page.getByRole("group", { name: "Authority field, animated" });
+    await expect(graph.getByText("0 standing permissions")).toBeVisible();
     await expect(page.getByRole("button", { name: "Pause" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Replay" })).toHaveCount(0);
   });
