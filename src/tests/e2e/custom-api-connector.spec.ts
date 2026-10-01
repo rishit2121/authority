@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 
 import { managementQuery } from "../integration/support";
-import { signIn } from "./support/auth";
-import { ADMIN_A } from "./support/users";
 
 /**
  * The Custom API connector setup wizard, driven through the real browser UI:
@@ -12,6 +10,15 @@ import { ADMIN_A } from "./support/users";
  * and the draft -> validated -> published lifecycle, not live execution
  * (that is covered by src/tests/integration/connectors/custom-api-connector.test.ts
  * against a real database with an in-memory fixture provider).
+ *
+ * This project's `storageState` is already the tenant A owner's signed-in
+ * session (written once by auth.setup.ts) — owner outranks admin, so no
+ * additional sign-in is needed or wanted here. Calling the login-form
+ * `signIn()` helper on an already-authenticated page would hang forever:
+ * the app redirects an authenticated visitor away from /login before the
+ * form ever renders, exactly like every other spec in the "authenticated"-
+ * derived projects (see dashboard-navigation.spec.ts) that navigates
+ * directly instead.
  */
 
 const RUN = Date.now().toString(36);
@@ -33,7 +40,7 @@ test.describe("Custom API connector setup wizard", () => {
 
   test("connect, configure a credential, and publish an operation", async ({ page }) => {
     connectionName = `Widget Orders E2E ${RUN}`;
-    await signIn(page, ADMIN_A, { next: "/app/integrations/custom-api" });
+    await page.goto("/app/integrations/custom-api");
 
     await page.getByTestId("custom-api-name").fill(connectionName);
     await page.getByTestId("custom-api-base-url").fill("https://api.widget-orders.example.com");
