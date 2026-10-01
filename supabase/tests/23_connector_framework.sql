@@ -3,12 +3,13 @@
 -- connectors, against the real deployed schema. Mirrors
 -- 20_github_connector.sql's structure for the parts that generalize.
 
-select plan(29);
+select plan(34);
 
 set local role postgres;
 
 select set_config('authority.allow_demo_purge', 'on', true);
 delete from public.connector_execution_receipts where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
+delete from public.task_connector_bindings where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
 delete from public.connector_reservations where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
 delete from public.connector_connections where tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222');
 select set_config('authority.allow_demo_purge', 'off', true);
@@ -31,7 +32,7 @@ language sql security definer set search_path = '' as $$
     ephemeral_limits, contract_status, registry_version, compiler_version, input_hash, output_hash,
     data_flow_bindings, required_approvals, activated_at, expires_at, required_approvals_spec, demo_key)
   values (p_id, '11111111-1111-4111-8111-111111111111', p_task, 1, 'v1',
-    '{"schemaVersion":1,"items":[{"tool":"widgetco.retrieve_widget","constraints":[]}]}'::jsonb,
+    '{"schemaVersion":1,"items":[{"tool":"widgetco.retrieve_widget","constraints":[]},{"tool":"bindtest.do_thing","constraints":[]}]}'::jsonb,
     '{}', '{}', jsonb_build_object('schemaVersion', 1, 'maxToolInvocations', p_max, 'expiresInSeconds', 3600),
     'active', 'rv1', 'cv1', repeat('9', 64), repeat('8', 64), '{"schemaVersion":1,"refs":[]}'::jsonb,
     '{"schemaVersion":1,"items":[]}'::jsonb, now(), now() + interval '1 hour', '{"schemaVersion":1,"items":[]}'::jsonb, 't23:' || p_id::text)
@@ -57,6 +58,23 @@ language sql security definer set search_path = '' as $$
 $$;
 create or replace function public.t23_tok(p_key text) returns text language sql stable set search_path = '' as $$
   select encode(extensions.digest('authcap_v1_' || p_key, 'sha256'), 'hex') $$;
+
+create or replace function public.t23_auth_bind(p_key text) returns table (status text, cap uuid)
+language sql security definer set search_path = '' as $$
+  select c.r_status, c.r_capability_id
+  from gateway.commit_authorization(current_setting('test.secret_23a'), '23000000-0000-4000-8000-000000000020'::uuid,
+    'bindtest.do_thing', 'op', 'thing-1', '{}'::jsonb,
+    '{"schemaVersion":1,"count":0,"truncated":false,"entries":[]}'::jsonb, null, p_key, 'rv1', 'cv1', 'low', 1,
+    encode(extensions.digest('authcap_v1_' || p_key, 'sha256'), 'hex'), null, null, null, null, null, null, null, null, null, null, null, null,
+    't23', false) c
+$$;
+create or replace function public.t23_reserve_bind(p_key text, p_token_key text)
+returns table (result text, reason text, exec uuid, connector text, connection uuid, prev text)
+language sql security definer set search_path = '' as $$
+  select r.rce_result, r.rce_reason_code, r.rce_execution_id, r.rce_connector_id, r.rce_connection_id, r.rce_prev_category
+  from gateway.reserve_connector_execution(current_setting('test.secret_23a'),
+    encode(extensions.digest('authcap_v1_' || p_token_key, 'sha256'), 'hex'), 'bindtest.do_thing', 'op', 'thing-1', '{}'::jsonb, p_key, 'mock', 45) r
+$$;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000003","role":"authenticated"}';
@@ -155,5 +173,32 @@ select public.t23_auth('a-6');
 select t(is((select reason from public.t23_reserve('r-7', 'a-6')), 'CONNECTOR_NOT_CONFIGURED', 'and no new reservation can be made once disconnected'));
 select t(is((select count(*)::int from public.connector_execution_receipts where tenant_id = '11111111-1111-4111-8111-111111111111'), 4,
   'every receipt written before disconnect is preserved'));
+
+-- =====================================================================
+-- 4. Task <-> connector binding: a disconnect-and-reconnect mid-task can
+--    never silently swap which connection a task's tool calls run against.
+-- =====================================================================
+select gateway.create_connector_connection('11111111-1111-4111-8111-111111111111'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid, 'bindtest', 'First bindtest connection', 'development');
+select public.t23_auth_bind('bind-1');
+select t(is((select result from public.t23_reserve_bind('rbind-1', 'bind-1')), 'reserved', 'first reservation for this task+connector pins the binding'));
+select t(is((select connection_id from public.task_connector_bindings
+  where task_id = '23000000-0000-4000-8000-000000000020' and connector_id = 'bindtest'),
+  (select id from public.connector_connections where tenant_id = '11111111-1111-4111-8111-111111111111' and connector_id = 'bindtest'),
+  'the binding points at the connection that was active at first use'));
+
+-- Disconnect and reconnect with a brand new connection under the same connector_id.
+select gateway.disconnect_connector_connection('11111111-1111-4111-8111-111111111111'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
+  (select id from public.connector_connections where tenant_id = '11111111-1111-4111-8111-111111111111' and connector_id = 'bindtest'));
+select gateway.create_connector_connection('11111111-1111-4111-8111-111111111111'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid, 'bindtest', 'Second bindtest connection (different credentials)', 'development');
+
+select public.t23_auth_bind('bind-2');
+select t(is((select reason from public.t23_reserve_bind('rbind-2', 'bind-2')), 'CONNECTOR_CONNECTION_CHANGED',
+  'a reconnect under the same connector_id can never silently take over an already-bound task'));
+select t(is((select uses from public.capability_tokens where token_hash = public.t23_tok('bind-2')), 0,
+  'the rejected reservation never spent the capability''s use'));
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000003","role":"authenticated"}';
+select t(throws_ok($$ delete from public.task_connector_bindings $$, '42501', null, 'a client cannot delete a task-connector binding directly'));
+set local role postgres;
 
 select * from finish();
