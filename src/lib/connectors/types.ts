@@ -133,10 +133,17 @@ export interface AuthorityConnector {
   verifyInstallation(context: ConnectorContext): Promise<ConnectorHealthResult>;
 
   /**
-   * Builds the exact request the connector will run from a trusted operation
-   * id and the agent's raw, schema-validated input. Throws a definite
-   * rejection (never silently coerces) if the input doesn't match the
-   * operation's own strict schema.
+   * Builds the exact request the connector will run from the full, trusted
+   * tool id (e.g. "github.get_issue", "custom_<connectionId>.get_order") and
+   * the agent's raw, schema-validated input. Looked up by `tool`, not the
+   * separate free-form `operation` scope-check field also carried on a
+   * capability -- matching GitHub's own OPERATIONS.get(input.tool), and the
+   * only option that carries enough information for a connector whose
+   * operations are not statically, globally keyed (Custom API's single
+   * shared connector instance serves every tenant's every connection; a bare
+   * action slug alone cannot say which one). Throws a definite rejection
+   * (never silently coerces) if the input doesn't match the operation's own
+   * strict schema.
    *
    * Async because a connector whose operations are tenant-published (Custom
    * API) must resolve the operation's own definition row (pinned by id,
@@ -145,7 +152,7 @@ export interface AuthorityConnector {
    * registry. A statically-registered connector (GitHub once migrated,
    * Stripe, Slack) can simply resolve to an already-settled value.
    */
-  normalizeRequest(operation: string, input: unknown): Promise<NormalizedConnectorRequest>;
+  normalizeRequest(tool: string, input: unknown): Promise<NormalizedConnectorRequest>;
 
   /** Runs one already-reserved, already-dispatched request. Never called directly by a route handler — only by the generic executor. */
   execute(

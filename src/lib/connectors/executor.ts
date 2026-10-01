@@ -191,7 +191,7 @@ export async function executeConnectorOperation(
   // ---- pre-dispatch validation: a definite failure here releases the use ----
   let normalized;
   try {
-    normalized = await connector.normalizeRequest(input.operation, input.args);
+    normalized = await connector.normalizeRequest(input.tool, input.args);
     if (reserved.connectorId && !normalized.tool.startsWith(`${reserved.connectorId}.`)) {
       return released("OPERATION_CONNECTOR_MISMATCH", 422);
     }

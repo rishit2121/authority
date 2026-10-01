@@ -193,12 +193,12 @@ export function createCustomApiConnector(deps: CustomApiConnectorDeps = defaultC
       };
     },
 
-    async normalizeRequest(operation: string, input: unknown): Promise<NormalizedConnectorRequest> {
-      const { connectionId, op } = await loadPublished(operation);
+    async normalizeRequest(tool: string, input: unknown): Promise<NormalizedConnectorRequest> {
+      const { connectionId, op } = await loadPublished(tool);
       const built = buildHttpRequest(connectionId, op, (input as Record<string, unknown>) ?? {});
       return {
         tool: op.toolName,
-        operation,
+        operation: tool,
         resource: built.resource,
         args: (input as Record<string, unknown>) ?? {},
       };

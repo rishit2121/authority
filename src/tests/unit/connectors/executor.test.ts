@@ -34,9 +34,9 @@ function fakeConnector(over: Partial<AuthorityConnector> = {}): AuthorityConnect
     id: "widgetco",
     describeOperations: () => [],
     verifyInstallation: async () => ({ status: "active", reasons: [], lastVerifiedAt: null }),
-    normalizeRequest: async (operation, input) => ({
-      tool: `widgetco.${operation}`,
-      operation,
+    normalizeRequest: async (tool, input) => ({
+      tool,
+      operation: tool,
       resource: "widget-1",
       args: (input as Record<string, unknown>) ?? {},
     }),
@@ -112,9 +112,9 @@ describe("generic connector executor (no database, no real provider)", () => {
     expect(h1.finish).toHaveBeenCalledWith(expect.objectContaining({ category: "released" }));
 
     const mismatched = fakeConnector({
-      normalizeRequest: async (operation) => ({
-        tool: `widgetco.${operation}`,
-        operation,
+      normalizeRequest: async (tool) => ({
+        tool,
+        operation: tool,
         resource: "widget-999",
         args: {},
       }),

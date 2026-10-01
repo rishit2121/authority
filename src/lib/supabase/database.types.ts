@@ -908,6 +908,401 @@ export type Database = {
           },
         ];
       };
+      connector_connection_secrets: {
+        Row: {
+          connection_id: string;
+          created_at: string;
+          created_by_principal_id: string | null;
+          id: string;
+          rotated_at: string | null;
+          rotated_by_principal_id: string | null;
+          secret_type: string;
+          tenant_id: string;
+          vault_secret_id: string;
+        };
+        Insert: {
+          connection_id: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          id?: string;
+          rotated_at?: string | null;
+          rotated_by_principal_id?: string | null;
+          secret_type: string;
+          tenant_id: string;
+          vault_secret_id: string;
+        };
+        Update: {
+          connection_id?: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          id?: string;
+          rotated_at?: string | null;
+          rotated_by_principal_id?: string | null;
+          secret_type?: string;
+          tenant_id?: string;
+          vault_secret_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connector_connection_secrets_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_connection_secrets_created_by_principal_id_tenan_fkey";
+            columns: ["created_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_connection_secrets_rotated_by_principal_id_tenan_fkey";
+            columns: ["rotated_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_connection_secrets_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      connector_connections: {
+        Row: {
+          config: Json;
+          config_version: number;
+          connected_at: string;
+          connected_by_principal_id: string | null;
+          connector_id: string;
+          created_at: string;
+          demo_key: string | null;
+          disconnected_at: string | null;
+          disconnected_by_principal_id: string | null;
+          environment: Database["public"]["Enums"]["tenant_environment"];
+          health_reasons: string[];
+          id: string;
+          last_verified_at: string | null;
+          name: string;
+          status: Database["public"]["Enums"]["connector_connection_status"];
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          config?: Json;
+          config_version?: number;
+          connected_at?: string;
+          connected_by_principal_id?: string | null;
+          connector_id: string;
+          created_at?: string;
+          demo_key?: string | null;
+          disconnected_at?: string | null;
+          disconnected_by_principal_id?: string | null;
+          environment?: Database["public"]["Enums"]["tenant_environment"];
+          health_reasons?: string[];
+          id?: string;
+          last_verified_at?: string | null;
+          name: string;
+          status?: Database["public"]["Enums"]["connector_connection_status"];
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          config?: Json;
+          config_version?: number;
+          connected_at?: string;
+          connected_by_principal_id?: string | null;
+          connector_id?: string;
+          created_at?: string;
+          demo_key?: string | null;
+          disconnected_at?: string | null;
+          disconnected_by_principal_id?: string | null;
+          environment?: Database["public"]["Enums"]["tenant_environment"];
+          health_reasons?: string[];
+          id?: string;
+          last_verified_at?: string | null;
+          name?: string;
+          status?: Database["public"]["Enums"]["connector_connection_status"];
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connector_connections_connected_by_principal_id_tenant_id_fkey";
+            columns: ["connected_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_connections_disconnected_by_principal_id_tenant__fkey";
+            columns: ["disconnected_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_connections_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      connector_execution_receipts: {
+        Row: {
+          agent_id: string;
+          authorization_decision_id: string;
+          capability_id: string;
+          connection_id: string | null;
+          connector_id: string;
+          created_at: string;
+          execution_id: string;
+          execution_mode: string;
+          finished_at: string;
+          http_status_class: number | null;
+          id: string;
+          operation: string;
+          provider_request_id: string | null;
+          reason_code: string | null;
+          redaction_metadata: Json;
+          request_hash: string;
+          resource: string | null;
+          resource_ids: Json;
+          result_category: string;
+          started_at: string | null;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Insert: {
+          agent_id: string;
+          authorization_decision_id: string;
+          capability_id: string;
+          connection_id?: string | null;
+          connector_id: string;
+          created_at?: string;
+          execution_id: string;
+          execution_mode: string;
+          finished_at?: string;
+          http_status_class?: number | null;
+          id?: string;
+          operation: string;
+          provider_request_id?: string | null;
+          reason_code?: string | null;
+          redaction_metadata?: Json;
+          request_hash: string;
+          resource?: string | null;
+          resource_ids?: Json;
+          result_category: string;
+          started_at?: string | null;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Update: {
+          agent_id?: string;
+          authorization_decision_id?: string;
+          capability_id?: string;
+          connection_id?: string | null;
+          connector_id?: string;
+          created_at?: string;
+          execution_id?: string;
+          execution_mode?: string;
+          finished_at?: string;
+          http_status_class?: number | null;
+          id?: string;
+          operation?: string;
+          provider_request_id?: string | null;
+          reason_code?: string | null;
+          redaction_metadata?: Json;
+          request_hash?: string;
+          resource?: string | null;
+          resource_ids?: Json;
+          result_category?: string;
+          started_at?: string | null;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connector_execution_receipts_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_execution_receipts_authorization_decision_id_ten_fkey";
+            columns: ["authorization_decision_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "authorization_decisions";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_execution_receipts_capability_id_tenant_id_fkey";
+            columns: ["capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capability_tokens";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_execution_receipts_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_execution_receipts_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_execution_receipts_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      connector_reservations: {
+        Row: {
+          agent_id: string;
+          capability_id: string;
+          connection_config_version: number;
+          connection_id: string;
+          connector_id: string;
+          created_at: string;
+          dispatched_at: string | null;
+          execution_mode: string;
+          finished_at: string | null;
+          id: string;
+          idempotency_key: string;
+          lease_expires_at: string;
+          operation: string;
+          reason_code: string | null;
+          request_hash: string;
+          reserved_at: string;
+          resolution_note: string | null;
+          resolved_at: string | null;
+          resolved_by_principal_id: string | null;
+          resolved_outcome: string | null;
+          resource: string | null;
+          status: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Insert: {
+          agent_id: string;
+          capability_id: string;
+          connection_config_version: number;
+          connection_id: string;
+          connector_id: string;
+          created_at?: string;
+          dispatched_at?: string | null;
+          execution_mode: string;
+          finished_at?: string | null;
+          id?: string;
+          idempotency_key: string;
+          lease_expires_at: string;
+          operation: string;
+          reason_code?: string | null;
+          request_hash: string;
+          reserved_at?: string;
+          resolution_note?: string | null;
+          resolved_at?: string | null;
+          resolved_by_principal_id?: string | null;
+          resolved_outcome?: string | null;
+          resource?: string | null;
+          status?: string;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+        };
+        Update: {
+          agent_id?: string;
+          capability_id?: string;
+          connection_config_version?: number;
+          connection_id?: string;
+          connector_id?: string;
+          created_at?: string;
+          dispatched_at?: string | null;
+          execution_mode?: string;
+          finished_at?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          lease_expires_at?: string;
+          operation?: string;
+          reason_code?: string | null;
+          request_hash?: string;
+          reserved_at?: string;
+          resolution_note?: string | null;
+          resolved_at?: string | null;
+          resolved_by_principal_id?: string | null;
+          resolved_outcome?: string | null;
+          resource?: string | null;
+          status?: string;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connector_reservations_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_reservations_capability_id_tenant_id_fkey";
+            columns: ["capability_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "capability_tokens";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_reservations_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_reservations_resolved_by_principal_id_tenant_id_fkey";
+            columns: ["resolved_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_reservations_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_reservations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       contract_compilations: {
         Row: {
           compiler_version: string;
@@ -979,6 +1374,145 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "tenants";
             referencedColumns: ["id"];
+          },
+        ];
+      };
+      custom_operation_definitions: {
+        Row: {
+          auth_config: Json;
+          auth_type: string;
+          connection_id: string;
+          created_at: string;
+          created_by_principal_id: string | null;
+          demo_key: string | null;
+          description: string | null;
+          effect: string;
+          id: string;
+          input_schema: Json;
+          input_schema_hash: string | null;
+          invocation_limit: number | null;
+          method: string;
+          name: string;
+          operation_slug: string;
+          path_template: string;
+          published_at: string | null;
+          published_by_principal_id: string | null;
+          request_mapping: Json;
+          request_mapping_hash: string | null;
+          retired_at: string | null;
+          retired_by_principal_id: string | null;
+          status: string;
+          tenant_id: string;
+          timeout_ms: number;
+          tool_name: string;
+          updated_at: string;
+          validated_at: string | null;
+          validated_by_principal_id: string | null;
+        };
+        Insert: {
+          auth_config?: Json;
+          auth_type?: string;
+          connection_id: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          demo_key?: string | null;
+          description?: string | null;
+          effect: string;
+          id?: string;
+          input_schema: Json;
+          input_schema_hash?: string | null;
+          invocation_limit?: number | null;
+          method: string;
+          name: string;
+          operation_slug: string;
+          path_template: string;
+          published_at?: string | null;
+          published_by_principal_id?: string | null;
+          request_mapping: Json;
+          request_mapping_hash?: string | null;
+          retired_at?: string | null;
+          retired_by_principal_id?: string | null;
+          status?: string;
+          tenant_id: string;
+          timeout_ms?: number;
+          tool_name: string;
+          updated_at?: string;
+          validated_at?: string | null;
+          validated_by_principal_id?: string | null;
+        };
+        Update: {
+          auth_config?: Json;
+          auth_type?: string;
+          connection_id?: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          demo_key?: string | null;
+          description?: string | null;
+          effect?: string;
+          id?: string;
+          input_schema?: Json;
+          input_schema_hash?: string | null;
+          invocation_limit?: number | null;
+          method?: string;
+          name?: string;
+          operation_slug?: string;
+          path_template?: string;
+          published_at?: string | null;
+          published_by_principal_id?: string | null;
+          request_mapping?: Json;
+          request_mapping_hash?: string | null;
+          retired_at?: string | null;
+          retired_by_principal_id?: string | null;
+          status?: string;
+          tenant_id?: string;
+          timeout_ms?: number;
+          tool_name?: string;
+          updated_at?: string;
+          validated_at?: string | null;
+          validated_by_principal_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "custom_operation_definitions_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "custom_operation_definitions_created_by_principal_id_tenan_fkey";
+            columns: ["created_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "custom_operation_definitions_published_by_principal_id_ten_fkey";
+            columns: ["published_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "custom_operation_definitions_retired_by_principal_id_tenan_fkey";
+            columns: ["retired_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "custom_operation_definitions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "custom_operation_definitions_validated_by_principal_id_ten_fkey";
+            columns: ["validated_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
           },
         ];
       };
@@ -3006,6 +3540,55 @@ export type Database = {
           },
         ];
       };
+      task_connector_bindings: {
+        Row: {
+          connection_id: string;
+          connector_id: string;
+          created_at: string;
+          id: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Insert: {
+          connection_id: string;
+          connector_id: string;
+          created_at?: string;
+          id?: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Update: {
+          connection_id?: string;
+          connector_id?: string;
+          created_at?: string;
+          id?: string;
+          task_id?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_connector_bindings_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_connector_bindings_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_connector_bindings_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       task_repository_bindings: {
         Row: {
           bound_by_principal_id: string;
@@ -4095,6 +4678,7 @@ export type Database = {
       authorization_outcome:
         "allow" | "allow_constrained" | "replan" | "clarify" | "require_approval" | "deny";
       capability_status: "active" | "expired" | "revoked" | "consumed";
+      connector_connection_status: "active" | "suspended" | "needs_attention" | "disconnected";
       contract_status:
         | "draft"
         | "active"
@@ -4270,6 +4854,7 @@ export const Constants = {
       approval_status: ["pending", "approved", "rejected", "expired"],
       authorization_outcome: ["allow", "allow_constrained", "replan", "clarify", "require_approval", "deny"],
       capability_status: ["active", "expired", "revoked", "consumed"],
+      connector_connection_status: ["active", "suspended", "needs_attention", "disconnected"],
       contract_status: [
         "draft",
         "active",

@@ -112,13 +112,26 @@ export default defineConfig({
     },
 
     /**
+     * The Custom API connector wizard, like the GitHub suite, signs in itself and changes tenant-wide
+     * state (a new connection, a credential, a published operation) — kept off the authenticated
+     * project's shared session for the same reason, and after "github" so the two admin-state-mutating
+     * suites never overlap.
+     */
+    {
+      name: "custom-api",
+      testMatch: /custom-api-connector\.spec\.ts/,
+      dependencies: ["setup", "authenticated", "github"],
+      use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
+    },
+
+    /**
      * The Validation Lab runs real attack campaigns (dozens of database round trips per scenario), which would slow the
      * timing-sensitive specs above if it overlapped them, so it runs last, on its own.
      */
     {
       name: "validation",
       testMatch: /validation-lab\.spec\.ts/,
-      dependencies: ["setup", "authenticated", "github"],
+      dependencies: ["setup", "authenticated", "github", "custom-api"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
 
