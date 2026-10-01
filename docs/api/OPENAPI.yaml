@@ -1,0 +1,799 @@
+openapi: 3.1.0
+info:
+  title: Authority Runtime API
+  version: "1.1.0"
+  summary: >
+    The public contract between an external agent (or anything acting on its
+    behalf — an ordinary HTTP client, the official SDKs, or the MCP bridge)
+    and Authority's gateway. This file is the single source of truth for
+    request/response shapes; docs/api/RUNTIME_API.md is kept in sync with it
+    in prose form.
+  description: |
+    ## Reading this spec
+
+    Every path and schema below carries an `x-status` extension:
+
+    - `stable` — implemented today, exactly as described. Changing one of
+      these is a breaking change and requires an explicit version bump.
+    - `planned` — part of this roadmap, not yet implemented. Included now so
+      the whole surface — ordinary HTTP clients, the TypeScript/Python SDKs,
+      and the MCP bridge — is designed against one contract from day one,
+      per "Phase 1: inspect and define the public API." A `planned` path
+      returns `501 NOT_IMPLEMENTED` with the standard error envelope until
+      its own PR lands; this spec is updated in the same commit that
+      implements it.
+
+    ## The three things this API deliberately keeps separate
+
+    - **Agent credential** (`authority_rk_...`) — identifies a registered
+      agent. Proves *who is calling*, nothing else.
+    - **Task session** (`authority_ts_...`, planned) — binds that agent to
+      one task and one contract version. Grants no tool authority by itself;
+      it exists so a client doesn't have to re-send the agent credential on
+      every call and so Authority can filter which tools a client even sees.
+    - **Capability** (`authcap_v1_...`) — the only thing that ever authorizes
+      one exact operation, resource, and argument set, for a short time, a
+      bounded number of uses. Every protected call is authorized
+      independently; nothing upstream of a capability is an enforcement
+      boundary.
+
+    A filtered tool list (whether from `all_registered` wide-open diagnostics
+    or the `active_contract` default) reduces mistakes and attack surface.
+    It is never itself the thing that decides whether a call is allowed —
+    `POST /authorize` (or, with a session, `POST /tools/{tool}/run`) is.
+  license:
+    name: Proprietary
+servers:
+  - url: "{baseUrl}/api/v1"
+    variables:
+      baseUrl:
+        default: "http://localhost:3000"
+        description: "e.g. https://authority-d2zf.onrender.com for the hosted pilot deployment."
+
+security:
+  - agentCredential: []
+
+tags:
+  - name: health
+    description: Unauthenticated liveness/readiness.
+  - name: authorization
+    description: The core authorize-then-execute protocol.
+  - name: capabilities
+    description: Capability consumption and revocation.
+  - name: connectors
+    description: Server-executed external operations.
+  - name: approvals
+    description: Human-in-the-loop approval status.
+  - name: sessions
+    x-status: planned
+    description: Task-bound sessions (Phase 12).
+  - name: manifests
+    x-status: planned
+    description: Contract-filtered tool manifests (Phase 13).
+
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness
+      tags: [health]
+      x-status: stable
+      security: []
+      responses:
+        "200":
+          description: The process is up. Touches no dependency.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { const: ok }
+                  commit:
+                    type: string
+                    description: Truncated, non-secret deploy commit SHA, present only on Render.
+
+  /ready:
+    get:
+      operationId: getReady
+      summary: Readiness
+      tags: [health]
+      x-status: stable
+      security: []
+      responses:
+        "200":
+          description: The gateway can reach its database and the schema matches this build.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, github, tls, schema]
+                properties:
+                  status: { const: ready }
+                  github: { type: string, enum: [disabled, mock, live] }
+                  tls: { type: string, enum: [verified, unverified_local] }
+                  schema: { const: current }
+        "503":
+          description: Not ready. Deliberately names no host, role, version, or error detail.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { const: not_ready }
+                  gateway: { type: string, enum: [not_configured, unreachable, tls_unverified, ok] }
+                  schema: { const: mismatch }
+                  github: { const: misconfigured }
+
+  /authorize:
+    post:
+      operationId: authorize
+      summary: Authorize one tool call and, if permitted, issue a capability
+      tags: [authorization]
+      x-status: stable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AuthorizeRequest" }
+      responses:
+        "200":
+          description: >
+            A decision — including a deny. Authorization never raises an
+            error for a refusal; refusals are normal 200 responses.
+          headers:
+            X-Request-Id: { $ref: "#/components/headers/XRequestId" }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthorizeResponse" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { $ref: "#/components/responses/AgentTaskMismatch" }
+        "404": { $ref: "#/components/responses/TaskNotFound" }
+        "409": { $ref: "#/components/responses/IdempotencyConflict" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "503": { $ref: "#/components/responses/GatewayUnavailable" }
+
+  /capabilities/consume:
+    post:
+      operationId: consumeCapability
+      summary: Simulated consumption of a capability (tools with no live connector)
+      tags: [capabilities]
+      x-status: stable
+      description: >
+        Validates the call against the capability exactly as a real executor
+        would, then calls nothing external. Tools with a real connector are
+        executed via `POST /execute` instead, whose response says
+        `simulation: false`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConsumeCapabilityRequest" }
+      responses:
+        "200":
+          description: Accepted (possibly a replay).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ConsumeCapabilityResponse" }
+        "403": { $ref: "#/components/responses/ScopeMismatch" }
+        "404": { $ref: "#/components/responses/CapabilityNotFound" }
+        "409": { $ref: "#/components/responses/CapabilityConflict" }
+
+  /capabilities/revoke:
+    post:
+      operationId: revokeCapability
+      summary: Revoke a capability the calling agent holds
+      tags: [capabilities]
+      x-status: stable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [capabilityId, reason]
+              additionalProperties: false
+              properties:
+                capabilityId: { type: string, format: uuid }
+                reason: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "200":
+          description: Revoked (possibly already revoked — idempotent).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [result, capabilityId]
+                properties:
+                  result: { type: string, enum: [revoked, already_revoked] }
+                  capabilityId: { type: string, format: uuid }
+        "404": { $ref: "#/components/responses/CapabilityNotFound" }
+        "409":
+          description: CAPABILITY_ALREADY_USED — a fully used capability cannot be revoked.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /github/execute:
+    post:
+      operationId: executeGithub
+      summary: "Execute a github.* operation through Authority's GitHub connector"
+      tags: [connectors]
+      x-status: stable
+      description: >
+        Preserved exactly as-is for backward compatibility. New connectors
+        (Custom API, Stripe, Gmail, Slack, PostgreSQL) are reached through the
+        generic `POST /execute` below instead of one route per connector;
+        this route is not deprecated, just no longer the pattern new
+        connectors follow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExecuteRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/ExecuteSucceeded" }
+        "403": { $ref: "#/components/responses/ExecuteForbidden" }
+        "409": { $ref: "#/components/responses/ExecuteConflict" }
+        "504": { $ref: "#/components/responses/ExecuteIndeterminate" }
+        "503":
+          description: CONNECTOR_DISABLED or CONNECTOR_NOT_CONFIGURED.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /execute:
+    post:
+      operationId: execute
+      summary: Execute any connector operation through Authority
+      tags: [connectors]
+      x-status: planned
+      description: >
+        The generic counterpart to `/github/execute` (Phase 2/4): dispatches
+        by the authorized tool's provider prefix (`stripe.*`, `gmail.*`,
+        `slack.*`, `postgres.*`, or a tenant's own `custom.<connectionId>.*`
+        operations) to that connector's `AuthorityConnector.execute()`,
+        through the same reserve -> dispatch -> settle -> receipt lifecycle
+        `/github/execute` already uses. `github.*` tools remain reachable at
+        their existing path; this route additionally accepts them so new
+        integrations never need a tool-specific URL.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ExecuteRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/ExecuteSucceeded" }
+        "403": { $ref: "#/components/responses/ExecuteForbidden" }
+        "409": { $ref: "#/components/responses/ExecuteConflict" }
+        "504": { $ref: "#/components/responses/ExecuteIndeterminate" }
+        "501":
+          description: The tool's connector is not yet implemented against this contract.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /approvals/{id}:
+    get:
+      operationId: getApproval
+      summary: Poll a pending approval's status
+      tags: [approvals]
+      x-status: stable
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: >
+            State only — never approver identity, notes, or evidence. Only
+            the requesting agent's own approvals are visible; others 404.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApprovalStatus" }
+        "404": { $ref: "#/components/responses/ApprovalNotFound" }
+
+  /sessions:
+    post:
+      operationId: createSession
+      summary: Establish a task-bound session
+      tags: [sessions]
+      x-status: planned
+      description: |
+        Phase 12. Binds the calling agent credential to one task and its
+        currently active contract version. A session grants no tool
+        authority by itself — every call made while holding one still goes
+        through `/authorize` (or `/tools/{tool}/run`, which does so
+        internally). Expiration is bounded by the earliest of the task's,
+        contract's, credential's, and tenant's own limits; default maximum
+        lifetime is approximately 15 minutes. Only the token hash is stored.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [taskId]
+              additionalProperties: false
+              properties:
+                taskId: { type: string, format: uuid }
+                toolExposureMode:
+                  $ref: "#/components/schemas/ToolExposureMode"
+                  default: active_contract
+      responses:
+        "200":
+          description: The session token, returned exactly once.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sessionId, token, expiresAt, contract]
+                properties:
+                  sessionId: { type: string, format: uuid }
+                  token:
+                    type: string
+                    pattern: "^authority_ts_"
+                    description: Opaque. Shown only in this response; only its hash is ever stored.
+                  expiresAt: { type: string, format: date-time }
+                  contract:
+                    type: object
+                    required: [id, version]
+                    properties:
+                      id: { type: string, format: uuid }
+                      version: { type: integer }
+                  registryVersion: { type: string }
+        "404": { $ref: "#/components/responses/TaskNotFound" }
+        "409":
+          description: NO_ACTIVE_CONTRACT — a session cannot be established for a task with no currently active contract.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /sessions/{id}:
+    delete:
+      operationId: revokeSession
+      summary: Revoke a task session
+      tags: [sessions]
+      x-status: planned
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      security:
+        - taskSession: []
+        - agentCredential: []
+      responses:
+        "200":
+          description: Revoked (idempotent).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  result: { type: string, enum: [revoked, already_revoked] }
+        "404": { description: Unknown or not this agent's/tenant's session. }
+
+  /tasks/{taskId}/tools:
+    get:
+      operationId: listTaskTools
+      summary: Fetch the contract-filtered tool manifest for a task
+      tags: [manifests]
+      x-status: planned
+      description: |
+        Phase 13. In `active_contract` mode (the production default) this
+        exposes only operations in the task's currently valid active
+        contract — never the full registry, and never a stale manifest for a
+        contract that has since expired, been revoked, or been superseded.
+        `all_registered` is an explicitly gated diagnostic mode, not a
+        production default, and is unavailable unless the tenant has turned
+        it on for this task.
+      security:
+        - taskSession: []
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The manifest. Supports conditional requests via ETag.
+          headers:
+            ETag:
+              schema: { type: string }
+              description: Hash of task id + contract id/version + registry version + tool set.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ToolManifest" }
+        "304":
+          description: Not modified (If-None-Match matched the current ETag).
+        "409":
+          description: NO_ACTIVE_CONTRACT — never falls back to the full registry.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+components:
+  securitySchemes:
+    agentCredential:
+      type: http
+      scheme: bearer
+      bearerFormat: "authority_rk_<64 hex chars>"
+      description: Identifies a registered agent. No Supabase session is involved.
+    taskSession:
+      type: http
+      scheme: bearer
+      bearerFormat: "authority_ts_<opaque>"
+      description: Planned (Phase 12). Binds an agent credential to one task and contract version. Grants no tool authority by itself.
+
+  headers:
+    XRequestId:
+      schema: { type: string, format: uuid }
+      description: Echoed on every response, success or failure, for correlation. Never a token or payload.
+
+  schemas:
+    ToolExposureMode:
+      type: string
+      enum: [active_contract, all_registered]
+      description: >
+        `active_contract` (default) exposes only the task's currently active
+        contract's tools. `all_registered` is gated diagnostic behavior, not
+        a production default.
+
+    ArgumentValue:
+      oneOf:
+        - type: string
+        - type: number
+        - type: boolean
+        - type: array
+          items: { type: string }
+
+    AuthorizeRequest:
+      type: object
+      required: [taskId, tool, operation, idempotencyKey]
+      additionalProperties: false
+      properties:
+        taskId: { type: string, format: uuid }
+        tool: { type: string, pattern: "^[a-z0-9_]+\\.[a-z0-9_]+$" }
+        operation: { type: string, minLength: 1, maxLength: 100 }
+        resource: { type: string, minLength: 1, maxLength: 200 }
+        arguments:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/ArgumentValue" }
+          default: {}
+        planNodeId: { type: string, format: uuid }
+        idempotencyKey: { type: string, minLength: 1, maxLength: 200 }
+        maxUses: { type: integer, minimum: 1, maximum: 5, default: 1 }
+        executionContext:
+          type: object
+          description: Validated and never stored.
+
+    AuthorizeResponse:
+      type: object
+      required:
+        - decisionId
+        - status
+        - reasonCodes
+        - summary
+        - requiresApproval
+        - requiresClarification
+        - requiresReplan
+        - wasReplayed
+        - enforcement
+        - guidance
+        - simulation
+      properties:
+        decisionId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [allow, allow_constrained, replan, clarify, require_approval, deny]
+        reasonCodes:
+          type: array
+          items:
+            type: string
+            enum:
+              - TASK_NOT_EXECUTABLE
+              - NO_ACTIVE_CONTRACT
+              - CONTRACT_NOT_CURRENTLY_ACTIVE
+              - UNSUPPORTED_CONTRACT_VERSION
+              - FORBIDDEN_RESOURCE
+              - FORBIDDEN_OPERATION
+              - TOOL_NOT_IN_CONTRACT
+              - ARGUMENTS_UNDERSPECIFIED
+              - CONSTRAINT_VIOLATION
+              - INVOCATION_LIMIT_REACHED
+              - WITHIN_CONTRACT
+              - SECURITY_POLICY_DENIED
+              - APPROVAL_REQUIRED_BY_POLICY
+              - SECURITY_REVIEW_UNAVAILABLE
+        summary: { type: string }
+        contract:
+          nullable: true
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            version: { type: integer }
+        remainingInvocations: { type: integer, nullable: true }
+        requiresApproval: { type: boolean }
+        requiresClarification: { type: boolean }
+        requiresReplan: { type: boolean }
+        wasReplayed: { type: boolean }
+        enforcement:
+          type: object
+          required: [mode, degraded, narrowedBySecurityPolicy]
+          properties:
+            mode: { type: string, enum: [off, shadow, enforce] }
+            degraded: { type: boolean }
+            narrowedBySecurityPolicy: { type: boolean }
+        capability:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/Capability" }]
+        approval:
+          nullable: true
+          allOf: [{ $ref: "#/components/schemas/ApprovalStatus" }]
+        guidance: { $ref: "#/components/schemas/Guidance" }
+        simulation:
+          type: boolean
+          description: false only for tools with a real connector (currently github.*).
+
+    Capability:
+      type: object
+      required: [id, tokenAlreadyIssued, tool, operation, expiresAt, maxUses]
+      properties:
+        id: { type: string, format: uuid }
+        token:
+          type: string
+          nullable: true
+          pattern: "^authcap_v1_"
+          description: Present only in the response that issued it; never re-shown on replay.
+        tokenAlreadyIssued: { type: boolean }
+        tool: { type: string }
+        operation: { type: string }
+        expiresAt: { type: string, format: date-time }
+        maxUses: { type: integer }
+
+    Guidance:
+      type: object
+      required: [nextStep, message]
+      description: Tells an agent how to recover from a refusal. Never grants anything.
+      properties:
+        nextStep:
+          type: string
+          enum: [proceed, replan, clarify, request_approval, retry_later, stop]
+        message: { type: string }
+
+    ApprovalStatus:
+      type: object
+      required: [approvalId, state]
+      properties:
+        approvalId: { type: string, format: uuid, nullable: true }
+        state:
+          type: string
+          enum: [pending, approved, rejected, expired, stale, consumed]
+        requiredApprovals: { type: integer, nullable: true }
+        approvals: { type: integer, nullable: true }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        reason: { type: string, nullable: true }
+        statusUrl: { type: string }
+
+    ConsumeCapabilityRequest:
+      type: object
+      required: [capability, tool, operation, idempotencyKey]
+      additionalProperties: false
+      properties:
+        capability: { type: string, minLength: 1, maxLength: 200 }
+        tool: { type: string }
+        operation: { type: string }
+        resource: { type: string, minLength: 1, maxLength: 200 }
+        arguments:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/ArgumentValue" }
+          default: {}
+        idempotencyKey: { type: string, minLength: 1, maxLength: 200 }
+
+    ConsumeCapabilityResponse:
+      type: object
+      required: [result, capabilityId, remainingUses, expiresAt, replayed, simulated, message]
+      properties:
+        result: { const: accepted }
+        capabilityId: { type: string, format: uuid }
+        remainingUses: { type: integer }
+        expiresAt: { type: string, format: date-time }
+        replayed: { type: boolean }
+        simulated: { const: true }
+        message: { const: "SIMULATED — no external tool was executed." }
+
+    ExecuteRequest:
+      type: object
+      required: [capability, tool, operation, resource, idempotencyKey]
+      additionalProperties: false
+      properties:
+        capability: { type: string, minLength: 1, maxLength: 200 }
+        tool: { type: string }
+        operation: { type: string }
+        resource: { type: string, minLength: 1, maxLength: 200 }
+        arguments:
+          type: object
+          additionalProperties: { $ref: "#/components/schemas/ArgumentValue" }
+          default: {}
+        idempotencyKey: { type: string, minLength: 1, maxLength: 200 }
+
+    ExecuteReceipt:
+      type: object
+      required: [result, executionId, receiptId, execution, resource]
+      properties:
+        result: { type: string, enum: [succeeded, succeeded_noop] }
+        executionId: { type: string, format: uuid }
+        receiptId: { type: string, format: uuid }
+        execution:
+          type: object
+          required: [mode, simulated]
+          properties:
+            mode: { type: string, enum: [mock, live] }
+            simulated: { type: boolean }
+        resource: { type: string }
+        data:
+          type: object
+          description: Connector-specific, redacted, size-bounded response projection.
+
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, reason, message, requestId]
+          properties:
+            code: { type: string }
+            reason: { type: string }
+            message: { type: string }
+            requestId: { type: string, format: uuid }
+
+    ToolManifest:
+      type: object
+      required:
+        [taskId, contract, registryVersion, manifestHash, generatedAt, expiresAt, tools]
+      properties:
+        taskId: { type: string, format: uuid }
+        contract:
+          type: object
+          required: [id, version]
+          properties:
+            id: { type: string, format: uuid }
+            version: { type: integer }
+        registryVersion: { type: string }
+        manifestHash: { type: string }
+        generatedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        tools:
+          type: array
+          items: { $ref: "#/components/schemas/ManifestTool" }
+
+    ManifestTool:
+      type: object
+      required: [name, connector, operation, description, inputSchema, effect, useLimit, approvalRequired]
+      description: >
+        Descriptions and schemas come only from published trusted
+        definitions — never credentials, internal policy text, provider
+        prompts, other tenants' data, or model reasoning.
+      properties:
+        name: { type: string }
+        connector: { type: string }
+        operation: { type: string }
+        description: { type: string }
+        inputSchema:
+          type: object
+          description: JSON Schema for this operation's arguments.
+        effect: { type: string, enum: [read, write_create, write_update, write_delete, admin] }
+        resourceConstraints:
+          type: array
+          items:
+            type: object
+            properties:
+              key: { type: string }
+              equals: { type: string }
+              matches: { type: string }
+        useLimit: { type: integer, nullable: true }
+        approvalRequired: { type: boolean }
+
+  responses:
+    InvalidRequest:
+      description: INVALID_REQUEST — field paths only, never values.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    Unauthenticated:
+      description: UNAUTHENTICATED — missing, invalid, or revoked key (deliberately identical).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    AgentTaskMismatch:
+      description: AGENT_TASK_MISMATCH — the key's agent is not the task's agent.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    TaskNotFound:
+      description: TASK_NOT_FOUND — also returned for another tenant's task.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    IdempotencyConflict:
+      description: IDEMPOTENCY_CONFLICT — same key, different call.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    PayloadTooLarge:
+      description: PAYLOAD_TOO_LARGE.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    RateLimited:
+      description: RATE_LIMITED — 20+ failed attempts for a key prefix in 60s.
+      headers:
+        Retry-After: { schema: { type: integer, const: 60 } }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    GatewayUnavailable:
+      description: GATEWAY_UNAVAILABLE — fails closed.
+      headers:
+        Retry-After: { schema: { type: integer, const: 5 } }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ScopeMismatch:
+      description: SCOPE_MISMATCH — different tool, operation, resource, or arguments than issued.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    CapabilityNotFound:
+      description: CAPABILITY_NOT_FOUND — unknown, or another agent's/tenant's (indistinguishable).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    CapabilityConflict:
+      description: CAPABILITY_ALREADY_USED | CAPABILITY_EXPIRED | CAPABILITY_REVOKED | CONTRACT_NO_LONGER_ACTIVE | TASK_NO_LONGER_EXECUTABLE | AGENT_OR_KEY_REVOKED | IDEMPOTENCY_CONFLICT.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ApprovalNotFound:
+      description: APPROVAL_NOT_FOUND.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ExecuteSucceeded:
+      description: The connector call completed (possibly a no-op), or this is a replay of an already-finished execution.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/ExecuteReceipt"
+              - type: object
+                required: [replayed, status, receipt]
+                properties:
+                  replayed: { const: true }
+                  status: { type: string }
+                  receipt: { type: object }
+    ExecuteForbidden:
+      description: REPOSITORY_NOT_BOUND | REPOSITORY_NOT_ALLOWED | INSTALLATION_UNAVAILABLE | SCOPE_MISMATCH (connector-specific equivalents for non-GitHub connectors).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ExecuteConflict:
+      description: EXECUTION_IN_PROGRESS | CAPABILITY_ALREADY_USED | CAPABILITY_REVOKED | CAPABILITY_EXPIRED | IDEMPOTENCY_CONFLICT. A "released" status means nothing was sent and the use was returned.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+    ExecuteIndeterminate:
+      description: >
+        EXECUTION_INDETERMINATE — the write's outcome is unknown (e.g. a
+        timeout after dispatch). Never retried automatically by Authority;
+        the capability's use is spent and the execution is queued for lazy
+        reconciliation or human resolution.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorEnvelope" }
