@@ -4,6 +4,7 @@ import { CircuitBreaker } from "@/lib/semantic/circuit-breaker";
 import { MockSemanticRiskProvider } from "@/lib/semantic/mock-provider";
 import { authorizeThroughGateway, type AuthorizeInput, type PipelineDeps } from "@/lib/gateway/pipeline";
 import type { CommitResult, PrepareResult } from "@/lib/gateway/rpc";
+import { registryRequiresApproval, riskClassFor } from "@/lib/gateway/risk-class";
 
 const { jevRiskModeForTask, recordRiskEvaluation } = vi.hoisted(() => ({
   jevRiskModeForTask: vi.fn(),
@@ -69,6 +70,8 @@ function deps(over: { p?: Partial<PrepareResult>; c?: Partial<CommitResult> } = 
     approval: vi.fn().mockResolvedValue({ status: "ok", approvalId: null }) as never,
     createProvider: vi.fn(() => new MockSemanticRiskProvider()) as never,
     breakerFor: () => new CircuitBreaker(),
+    riskClassFor,
+    registryRequiresApproval,
   };
 }
 

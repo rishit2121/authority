@@ -2,15 +2,27 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EXPECTED_SCHEMA_VERSION } from "@/lib/gateway/schema-version";
+import type * as PipelineModule from "@/lib/gateway/pipeline";
+import type * as RpcModule from "@/lib/gateway/rpc";
 
 const authorizeThroughGateway = vi.fn();
 const consumeCapability = vi.fn();
 const revokeCapabilityViaGateway = vi.fn();
 const gatewayPing = vi.fn();
 const schemaVersion = vi.fn();
+// Falls back to the GitHub-fixture-only registry/registryVersion (see the
+// route's own `tenantId ? ... : null` guard) -- these tests exercise routing
+// and error-mapping, not tenant-scoped registry assembly.
+const tenantForTask = vi.fn().mockResolvedValue(null);
 
-vi.mock("@/lib/gateway/pipeline", () => ({ authorizeThroughGateway }));
-vi.mock("@/lib/gateway/rpc", () => ({ consumeCapability, revokeCapabilityViaGateway, gatewayPing }));
+vi.mock("@/lib/gateway/pipeline", async (importOriginal) => {
+  const actual = await importOriginal<typeof PipelineModule>();
+  return { ...actual, authorizeThroughGateway };
+});
+vi.mock("@/lib/gateway/rpc", async (importOriginal) => {
+  const actual = await importOriginal<typeof RpcModule>();
+  return { ...actual, consumeCapability, revokeCapabilityViaGateway, gatewayPing, tenantForTask };
+});
 vi.mock("@/lib/maintenance/db", () => ({ schemaVersion }));
 
 const TASK = "00000000-0000-4000-8000-000000000001";

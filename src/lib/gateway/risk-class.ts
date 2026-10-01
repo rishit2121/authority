@@ -1,6 +1,6 @@
 import "server-only";
 
-import { githubDemoRegistry, loadRegistry } from "@/lib/registry";
+import { githubDemoRegistry, loadRegistry, type LoadedRegistry } from "@/lib/registry";
 
 export type RiskClass = "low" | "medium" | "high";
 
@@ -16,8 +16,8 @@ const registry = loadRegistry(githubDemoRegistry);
  * - medium: creates/updates.
  * - low:    reads of public/internal data.
  */
-export function riskClassFor(tool: string): RiskClass {
-  const op = registry.operations.get(tool);
+export function riskClassForRegistry(forRegistry: LoadedRegistry, tool: string): RiskClass {
+  const op = forRegistry.operations.get(tool);
   if (!op) return "high";
   if (
     op.sideEffect === "write_delete" ||
@@ -34,8 +34,17 @@ export function riskClassFor(tool: string): RiskClass {
 }
 
 /** Registry-declared approval requirement (never inferred from the request). */
+export function registryRequiresApprovalForRegistry(forRegistry: LoadedRegistry, tool: string): boolean {
+  return forRegistry.operations.get(tool)?.requiresApproval ?? false;
+}
+
+/** GitHub-fixture-only convenience wrappers, kept for every existing call site that has no tenant context of its own. */
+export function riskClassFor(tool: string): RiskClass {
+  return riskClassForRegistry(registry, tool);
+}
+
 export function registryRequiresApproval(tool: string): boolean {
-  return registry.operations.get(tool)?.requiresApproval ?? false;
+  return registryRequiresApprovalForRegistry(registry, tool);
 }
 
 export { registry as gatewayRegistry };

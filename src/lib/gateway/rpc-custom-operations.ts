@@ -190,3 +190,45 @@ export async function deleteCustomOperationDraft(input: {
   );
   return rows[0].status as string;
 }
+
+export interface TenantPublishedOperation {
+  operationId: string;
+  toolName: string;
+  operationSlug: string;
+  name: string;
+  description: string | null;
+  effect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
+  inputSchema: Record<string, unknown>;
+  inputSchemaHash: string | null;
+  requestMappingHash: string | null;
+  connectorId: string;
+  publishedAt: string | null;
+}
+
+/**
+ * Every operation this tenant may currently reference in a new plan: published,
+ * on a still-active connection. Used to assemble the tenant-scoped registry
+ * (src/lib/registry/tenant.ts) -- never called with a caller-supplied tenant
+ * id; every call site resolves it server-side first (from a signed-in
+ * session, or from the task id via gateway.jev_risk_mode_for_task's same
+ * side-effect-free pattern for the runtime authorize path).
+ */
+export async function listPublishedCustomOperationsForTenant(tenantId: string): Promise<TenantPublishedOperation[]> {
+  const rows = await gatewayQuery<Row>(
+    `select * from gateway.list_published_custom_operations_for_tenant($1::uuid)`,
+    [tenantId],
+  );
+  return rows.map((r) => ({
+    operationId: r.lpco_operation_id as string,
+    toolName: r.lpco_tool_name as string,
+    operationSlug: r.lpco_operation_slug as string,
+    name: r.lpco_name as string,
+    description: (r.lpco_description as string) ?? null,
+    effect: r.lpco_effect as TenantPublishedOperation["effect"],
+    inputSchema: r.lpco_input_schema as Record<string, unknown>,
+    inputSchemaHash: (r.lpco_input_schema_hash as string) ?? null,
+    requestMappingHash: (r.lpco_request_mapping_hash as string) ?? null,
+    connectorId: r.lpco_connector_id as string,
+    publishedAt: (r.lpco_published_at as string) ?? null,
+  }));
+}
