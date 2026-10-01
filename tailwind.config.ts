@@ -71,6 +71,26 @@ const config: Config = {
         untrusted: "#140f16",
         allow: "#42e7a5",
         deny: "#ff5c75",
+
+        /**
+         * "mkt-" prefixed tokens below are the Phase 1 marketing-page design
+         * system (design/frontend-simplification): a warm, light, restrained
+         * palette used only by `src/components/marketing/**` and the public
+         * `(marketing)` route group. Deliberately additive and namespaced
+         * rather than edited in place — the unprefixed tokens above remain
+         * exactly as they are for the authenticated app and the Validation
+         * Lab's attack graph, neither of which this redesign touches.
+         */
+        "mkt-bg": "#F5F3ED",
+        "mkt-surface": "#FBFAF6",
+        "mkt-text": "#111318",
+        "mkt-text-secondary": "#626770",
+        "mkt-hairline": "rgba(17, 19, 24, 0.12)",
+        "mkt-indigo": "#4F5EF7",
+        "mkt-green": "#3F7D57",
+        "mkt-amber": "#9A6B1E",
+        "mkt-red": "#B5453D",
+        "mkt-gray": "#9CA0A6",
       },
       borderRadius: {
         DEFAULT: "0.125rem",
@@ -119,19 +139,30 @@ const config: Config = {
         "label-caps": ["0.6875rem", { lineHeight: "0.875rem", letterSpacing: "0.06em", fontWeight: "600" }],
         "mono-code": ["0.8125rem", { lineHeight: "1.25rem", letterSpacing: "-0.01em", fontWeight: "400" }],
         "mono-token": ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.04em", fontWeight: "700" }],
+
+        // Marketing type scale (design/frontend-simplification). Desktop sizes; components
+        // apply a smaller size at the `mobile` breakpoint via a responsive variant, since the
+        // required mobile range (48-58px) isn't a clean fraction of the desktop range (72-96px).
+        "mkt-eyebrow": ["0.8125rem", { lineHeight: "1.2rem", letterSpacing: "0.08em", fontWeight: "600" }],
+        "mkt-display": ["5.5rem", { lineHeight: "1.02", letterSpacing: "-0.03em", fontWeight: "600" }],
+        "mkt-display-mobile": [
+          "3.25rem",
+          { lineHeight: "1.05", letterSpacing: "-0.02em", fontWeight: "600" },
+        ],
+        "mkt-h2": ["2.75rem", { lineHeight: "1.15", letterSpacing: "-0.02em", fontWeight: "600" }],
+        "mkt-h2-mobile": ["2rem", { lineHeight: "1.2", letterSpacing: "-0.015em", fontWeight: "600" }],
+        "mkt-body": ["1.125rem", { lineHeight: "1.7", letterSpacing: "-0.006em", fontWeight: "400" }],
       },
       keyframes: {
-        "pulse-halo": {
-          "0%, 100%": { transform: "scale(1)", opacity: "0.35" },
-          "50%": { transform: "scale(1.08)", opacity: "0.6" },
-        },
-        "dash-flow": {
-          to: { strokeDashoffset: "-40" },
+        // Extremely subtle drift for the hero's background contour lines — never enough to
+        // distract from the headline. Neutralized globally under prefers-reduced-motion.
+        "contour-drift": {
+          "0%, 100%": { transform: "translate3d(0, 0, 0)" },
+          "50%": { transform: "translate3d(0, -6px, 0)" },
         },
       },
       animation: {
-        halo: "pulse-halo 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "dash-flow": "dash-flow 2.4s linear infinite",
+        "contour-drift": "contour-drift 18s ease-in-out infinite",
       },
     },
   },
