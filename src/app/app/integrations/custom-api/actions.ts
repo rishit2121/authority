@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 
 import { toCustomApiConnectorId } from "@/lib/connectors/custom-api/connection-id";
 import type { CustomOperationAuthType, CustomOperationField } from "@/lib/connectors/custom-api/types";
+import { validateOperationDefinition } from "@/lib/connectors/custom-api/validate";
 import {
   createConnectorConnection,
   disconnectConnectorConnection,
@@ -119,20 +120,31 @@ export interface CreateOperationInput {
   pathTemplate: string;
   effect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
   authType: CustomOperationAuthType;
-  argumentKey: string;
-  argumentIn: CustomOperationField["in"];
-  argumentType: CustomOperationField["type"];
-  argumentRequired: boolean;
+  /** 1-20 fields; see docs/connectors/CUSTOM_API.md for the supported shape. */
+  fields: CustomOperationField[];
+}
+
+export interface CustomApiValidationResult extends CustomApiActionResult {
+  issues?: Array<{ field: string; message: string }>;
 }
 
 /**
- * Drafts one operation with exactly one declared argument, which always
- * identifies the capability's bound resource. A full multi-field schema
- * editor is a known limitation of this release -- see the PR description --
- * everything downstream (validation, publication, immutability, execution)
- * already supports an arbitrary field list; only this form is simplified.
+ * Drafts an operation with an arbitrary (1-20) field list spanning path,
+ * query, and body locations -- structurally checked here, before the RPC is
+ * even called, by the same rules docs/connectors/CUSTOM_API.md documents and
+ * src/lib/connectors/custom-api/request-builder.ts enforces again at
+ * execution time. The database's own check (gateway.validate_custom_operation)
+ * re-verifies the cheap structural facts independently; it does not trust
+ * this call was made correctly.
  */
-export async function createCustomOperationAction(input: CreateOperationInput): Promise<CustomApiActionResult> {
+export async function createCustomOperationAction(input: CreateOperationInput): Promise<CustomApiValidationResult> {
+  const inputSchema = { schemaVersion: 1 as const, fields: input.fields };
+  const requestMapping = { schemaVersion: 1 as const };
+  const structural = validateOperationDefinition({ pathTemplate: input.pathTemplate, inputSchema, requestMapping });
+  if (!structural.ok) {
+    return { ok: false, error: structural.issues[0]?.message ?? "Invalid operation definition.", issues: structural.issues };
+  }
+
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
   const draft = await createCustomOperationDraft({
     tenantId: identity.tenant.tenantId,
@@ -144,19 +156,8 @@ export async function createCustomOperationAction(input: CreateOperationInput): 
     method: input.method,
     pathTemplate: input.pathTemplate,
     effect: input.effect,
-    inputSchema: {
-      schemaVersion: 1,
-      fields: [
-        {
-          key: input.argumentKey,
-          type: input.argumentType,
-          required: input.argumentRequired,
-          identifiesResource: true,
-          in: input.argumentIn,
-        },
-      ],
-    },
-    requestMapping: { schemaVersion: 1 },
+    inputSchema,
+    requestMapping,
     authType: input.authType,
     authConfig: { schemaVersion: 1 },
     timeoutMs: 8000,

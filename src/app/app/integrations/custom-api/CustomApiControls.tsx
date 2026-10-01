@@ -184,6 +184,93 @@ const AUTH_TYPES = ["none", "bearer", "api_key_header", "basic"] as const;
 const ARG_LOCATIONS = ["path", "query", "body"] as const;
 const ARG_TYPES = ["string", "number", "boolean"] as const;
 
+interface DraftField {
+  key: string;
+  in: (typeof ARG_LOCATIONS)[number];
+  type: (typeof ARG_TYPES)[number];
+  required: boolean;
+  identifiesResource: boolean;
+}
+
+const emptyField = (identifiesResource = false): DraftField => ({
+  key: "",
+  in: "path",
+  type: "string",
+  required: true,
+  identifiesResource,
+});
+
+function FieldRow({
+  field,
+  onChange,
+  onRemove,
+  removable,
+}: {
+  field: DraftField;
+  onChange: (next: DraftField) => void;
+  onRemove: () => void;
+  removable: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-end gap-space-sm rounded border border-outline-variant/20 p-space-sm" data-testid="custom-api-field-row">
+      <label className="flex flex-col gap-1">
+        <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Key</span>
+        <input
+          required
+          value={field.key}
+          onChange={(e) => onChange({ ...field, key: e.target.value })}
+          className={INPUT}
+          data-testid="custom-api-field-key"
+        />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Located in</span>
+        <select
+          value={field.in}
+          onChange={(e) => onChange({ ...field, in: e.target.value as DraftField["in"] })}
+          className={INPUT}
+          data-testid="custom-api-field-in"
+        >
+          {ARG_LOCATIONS.map((loc) => (
+            <option key={loc}>{loc}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Type</span>
+        <select value={field.type} onChange={(e) => onChange({ ...field, type: e.target.value as DraftField["type"] })} className={INPUT}>
+          {ARG_TYPES.map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-2 pb-1.5">
+        <input
+          type="checkbox"
+          checked={field.required}
+          disabled={field.in === "path"}
+          onChange={(e) => onChange({ ...field, required: e.target.checked })}
+        />
+        <span className="font-body-sm text-body-sm text-on-surface-variant">Required</span>
+      </label>
+      <label className="flex items-center gap-2 pb-1.5">
+        <input
+          type="checkbox"
+          checked={field.identifiesResource}
+          onChange={(e) => onChange({ ...field, identifiesResource: e.target.checked })}
+          data-testid="custom-api-field-identifies-resource"
+        />
+        <span className="font-body-sm text-body-sm text-on-surface-variant">Identifies resource</span>
+      </label>
+      {removable ? (
+        <button type="button" className={BTN} onClick={onRemove}>
+          Remove
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function NewOperationForm({ connectionId }: { connectionId: string }) {
   const { result, pending, run } = useAction();
   const [slug, setSlug] = useState("");
@@ -192,10 +279,14 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
   const [pathTemplate, setPathTemplate] = useState("/v1/orders/{orderId}");
   const [effect, setEffect] = useState<(typeof EFFECTS)[number]>("read");
   const [authType, setAuthType] = useState<(typeof AUTH_TYPES)[number]>("none");
-  const [argumentKey, setArgumentKey] = useState("orderId");
-  const [argumentIn, setArgumentIn] = useState<(typeof ARG_LOCATIONS)[number]>("path");
-  const [argumentType, setArgumentType] = useState<(typeof ARG_TYPES)[number]>("string");
-  const [argumentRequired, setArgumentRequired] = useState(true);
+  const [fields, setFields] = useState<DraftField[]>([{ ...emptyField(true), key: "orderId" }]);
+
+  const updateField = (index: number, next: DraftField) => {
+    setFields((prev) => prev.map((f, i) => (i === index ? next : f)));
+  };
+  const removeField = (index: number) => {
+    setFields((prev) => prev.filter((_, i) => i !== index));
+  };
 
   return (
     <form
@@ -211,10 +302,13 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
             pathTemplate,
             effect,
             authType,
-            argumentKey,
-            argumentIn,
-            argumentType,
-            argumentRequired,
+            fields: fields.map((f) => ({
+              key: f.key,
+              type: f.type,
+              required: f.in === "path" ? true : f.required,
+              identifiesResource: f.identifiesResource,
+              in: f.in,
+            })),
           }),
         );
       }}
@@ -263,41 +357,32 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
           </select>
         </label>
       </div>
+
       <p className="font-body-sm text-body-sm text-outline">
-        One argument, which identifies this operation&apos;s resource (a multi-field schema editor is a known
-        limitation of this release):
+        1-20 fields, spanning path/query/body (see docs/connectors/CUSTOM_API.md). Exactly one must identify the
+        resource a capability binds against.
       </p>
-      <div className="flex flex-wrap gap-space-sm">
-        <label className="flex flex-col gap-1">
-          <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Key</span>
-          <input
-            required
-            value={argumentKey}
-            onChange={(e) => setArgumentKey(e.target.value)}
-            className={INPUT}
+      <div className="flex flex-col gap-space-sm">
+        {fields.map((field, index) => (
+          <FieldRow
+            key={index}
+            field={field}
+            onChange={(next) => updateField(index, next)}
+            onRemove={() => removeField(index)}
+            removable={fields.length > 1}
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Located in</span>
-          <select value={argumentIn} onChange={(e) => setArgumentIn(e.target.value as (typeof ARG_LOCATIONS)[number])} className={INPUT}>
-            {ARG_LOCATIONS.map((loc) => (
-              <option key={loc}>{loc}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Type</span>
-          <select value={argumentType} onChange={(e) => setArgumentType(e.target.value as (typeof ARG_TYPES)[number])} className={INPUT}>
-            {ARG_TYPES.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 self-end pb-1.5">
-          <input type="checkbox" checked={argumentRequired} onChange={(e) => setArgumentRequired(e.target.checked)} />
-          <span className="font-body-sm text-body-sm text-on-surface-variant">Required</span>
-        </label>
-        <button type="submit" disabled={pending} className={`${BTN} self-end`} data-testid="custom-api-create-operation">
+        ))}
+      </div>
+      <div className="flex items-center gap-space-sm">
+        <button
+          type="button"
+          className={BTN}
+          data-testid="custom-api-add-field"
+          onClick={() => setFields((prev) => [...prev, emptyField()])}
+        >
+          Add field
+        </button>
+        <button type="submit" disabled={pending} className={BTN_PRIMARY} data-testid="custom-api-create-operation">
           Create draft
         </button>
       </div>

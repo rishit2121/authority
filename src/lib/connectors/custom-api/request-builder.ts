@@ -91,7 +91,15 @@ export function buildRequest(
   for (const field of definition.inputSchema.fields) {
     const value = validated[field.key];
     if (value === undefined) continue;
-    if (field.identifiesResource) resource = String(value);
+    if (field.identifiesResource) {
+      if (resource !== null) {
+        throw new CustomOperationValidationError(
+          "OPERATION_MISCONFIGURED",
+          "More than one field is marked identifiesResource; this operation cannot bind a single capability resource.",
+        );
+      }
+      resource = String(value);
+    }
     if (field.in === "path") {
       const asString = String(value);
       assertSafePathSegment(asString, field.key);
