@@ -7,6 +7,8 @@ import {
 import { getPublishedCustomOperation, type PublishedCustomOperation } from "@/lib/gateway/rpc-custom-operations";
 
 import { connectionIdFromCustomApiConnectorId, CUSTOM_API_CONNECTOR_PREFIX } from "./connection-id";
+import { CUSTOM_API_FIXTURE_HOSTNAME, customApiFixtureModeEnabled } from "./fixture-mode";
+import { customApiFixtureServer } from "./fixture-server";
 import { validateDestinationUrl, safeFetch, type SafeFetchInput, type SafeFetchResult } from "./network-guard";
 import { buildRequest } from "./request-builder";
 import { CustomOperationValidationError, type CustomOperationInputSchema, type CustomOperationRequestMapping } from "./types";
@@ -49,11 +51,26 @@ export interface CustomApiConnectorDeps {
   fetch: (input: SafeFetchInput) => Promise<SafeFetchResult>;
 }
 
+/**
+ * Routes exactly one reserved hostname to the in-process fixture server when
+ * fixture mode is explicitly enabled (see fixture-mode.ts); every other
+ * destination -- and the fixture hostname itself when the mode is off --
+ * always goes through the real `safeFetch`, full SSRF guard included. A
+ * production deployment with the flag unset (the only supported
+ * configuration) behaves exactly as if this function did not exist.
+ */
+async function fetchWithOptionalFixture(input: SafeFetchInput): Promise<SafeFetchResult> {
+  if (customApiFixtureModeEnabled() && input.url.hostname === CUSTOM_API_FIXTURE_HOSTNAME) {
+    return customApiFixtureServer().handle(input);
+  }
+  return safeFetch(input);
+}
+
 export const defaultCustomApiConnectorDeps: CustomApiConnectorDeps = {
   getPublishedOperation: getPublishedCustomOperation,
   getConnectionConfig: getConnectorConnectionConfig,
   resolveSecret: resolveConnectorSecret,
-  fetch: safeFetch,
+  fetch: fetchWithOptionalFixture,
 };
 
 function splitTool(tool: string): { connectionId: string; operationSlug: string } {

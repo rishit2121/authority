@@ -148,6 +148,12 @@ export default defineConfig({
       // and the mock refuses to run in production unless explicitly allowed here.
       GITHUB_EXECUTION_MODE: "mock",
       AUTHORITY_ALLOW_MOCK_GITHUB: "1",
+      // The in-process Custom API fixture server (src/lib/connectors/custom-api/fixture-server.ts),
+      // for the e2e suite only. No real third-party API is involved, and the fixture hostname it
+      // answers for resolves to nothing on the real internet; this flag pair only ever intercepts
+      // that one reserved hostname, never a tenant's real configured base URL.
+      CUSTOM_API_FIXTURE_MODE: "1",
+      AUTHORITY_ALLOW_CUSTOM_API_FIXTURE: "1",
       AUTHORITY_PUBLIC_URL: BASE_URL,
       // `next start` here is a local production build against the dev project, without the pooler CA.
       AUTHORITY_DEPLOYMENT: "local",
