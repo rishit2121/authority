@@ -7,7 +7,9 @@ export const PRIMARY_NAV: NavLink[] = [
   { label: "Product", href: "#product" },
   { label: "How it works", href: "#how-it-works" },
   { label: "Security", href: "#security" },
-  { label: "Docs", href: "#docs" },
+  // No standalone docs site exists yet; the interactive walkthrough is the closest
+  // thing to developer documentation this product currently ships.
+  { label: "Docs", href: "/demo" },
 ];
 
 export interface FooterColumn {
@@ -19,29 +21,18 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
   {
     title: "Product",
     links: [
-      { label: "Runtime Interceptor", href: "#product" },
-      { label: "Graph Telemetry", href: "#product" },
-      { label: "Policy Synthesizer", href: "#product" },
-      { label: "Token Scopes Engine", href: "#product" },
+      { label: "One task, exact authority", href: "#product" },
+      { label: "How it works", href: "#how-it-works" },
+      { label: "Tool call trace", href: "#trace" },
     ],
   },
   {
     title: "Developers",
-    links: [
-      { label: "Documentation", href: "#docs" },
-      { label: "Go & Python SDKs", href: "#docs" },
-      { label: "OIDC / SPIFFE Bridges", href: "#docs" },
-      { label: "Architecture Blueprints", href: "#docs" },
-    ],
+    links: [{ label: "Live walkthrough", href: "/demo" }],
   },
   {
     title: "Company",
-    links: [
-      { label: "Security & Trust Center", href: "#security" },
-      { label: "SOC2 Type II Attestation", href: "#how-it-works" },
-      { label: "Research Papers", href: "#" },
-      { label: "Contact Runtime Security", href: "#" },
-    ],
+    links: [{ label: "Security model", href: "#security" }],
   },
 ];
 

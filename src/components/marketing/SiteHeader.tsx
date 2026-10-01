@@ -1,59 +1,74 @@
 import Link from "next/link";
 
-import { Icon } from "@/components/ui/Icon";
+import { MobileNav } from "@/components/marketing/MobileNav";
 import { PRIMARY_NAV } from "@/lib/navigation";
+import { createClient } from "@/lib/supabase/server";
 
 import { Logo } from "./Logo";
 
-export function SiteHeader() {
+/**
+ * A lightweight, read-only session check — just "is someone signed in", not
+ * tenant or role — so the marketing header can say "Open console" instead of
+ * "Sign in" / "Start building". No tenant/membership lookup, unlike the
+ * authenticated app's `createRepositoriesForCurrentTenant`.
+ */
+async function getIsSignedIn(): Promise<boolean> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return Boolean(user);
+}
+
+export async function SiteHeader() {
+  const signedIn = await getIsSignedIn();
+
   return (
-    <header className="fixed inset-x-0 top-0 z-50 border-b border-outline-variant/30 bg-surface-container-lowest/90 shadow-[0_1px_16px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-      <div className="mx-auto flex h-[68px] w-full max-w-7xl items-center justify-between gap-space-sm px-gutter sm:px-gutter-lg">
-        <div className="flex min-w-0 items-center gap-space-lg">
-          <a href="#top" className="group flex min-w-0 items-center gap-space-md">
-            <Logo />
-            <span className="flex min-w-0 flex-col">
-              <span className="font-headline-sm text-headline-sm font-semibold tracking-tight text-on-surface transition-colors group-hover:text-primary">
-                Authority
-              </span>
-              <span className="font-label-caps text-label-caps uppercase tracking-widest text-outline">
-                Runtime Substrate
-              </span>
-            </span>
-          </a>
-
-          <div className="ml-space-xs hidden h-5 w-px bg-outline-variant/40 lg:block" />
-
-          <nav aria-label="Primary" className="hidden items-center gap-space-xl md:flex">
-            {PRIMARY_NAV.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="font-body-md text-body-md text-on-surface-variant transition-colors hover:text-on-surface"
-              >
-                {link.label}
-              </a>
-            ))}
-          </nav>
-        </div>
-
-        <div className="flex items-center gap-space-md">
-          <Link
-            href="/login"
-            className="hidden px-space-md py-space-sm font-body-md text-body-md text-on-surface-variant transition-colors hover:text-on-surface sm:inline-block"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/signup"
-            className="inline-flex h-10 items-center justify-center rounded-xl bg-primary px-space-lg font-headline-sm text-body-md font-medium text-on-primary shadow-[0_0_20px_-4px_rgba(85,216,255,0.35)] transition-all hover:bg-primary-fixed hover:shadow-[0_0_24px_-2px_rgba(85,216,255,0.5)]"
-          >
-            Start free
-          </Link>
-          <span className="ml-space-xs hidden h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary sm:flex">
-            <Icon name="person" size={18} />
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-mkt-hairline bg-mkt-surface/90 backdrop-blur-md">
+      <div className="relative mx-auto flex h-[68px] w-full max-w-[1280px] items-center justify-between px-6 md:px-10">
+        <a href="#top" className="flex items-center gap-2.5">
+          <Logo />
+          <span className="font-headline-sm text-[16px] font-semibold tracking-tight text-mkt-text">
+            Authority
           </span>
+        </a>
+
+        <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
+          {PRIMARY_NAV.map((link) => (
+            <a
+              key={link.label}
+              href={link.href}
+              className="text-[14px] text-mkt-text-secondary transition-colors hover:text-mkt-text"
+            >
+              {link.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="hidden items-center gap-5 md:flex">
+          {signedIn ? (
+            <Link
+              href="/app"
+              className="rounded-md bg-mkt-indigo px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-[#3F4CDB]"
+            >
+              Open console
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="text-[14px] text-mkt-text-secondary hover:text-mkt-text">
+                Sign in
+              </Link>
+              <Link
+                href="/signup"
+                className="rounded-md bg-mkt-indigo px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-[#3F4CDB]"
+              >
+                Start building
+              </Link>
+            </>
+          )}
         </div>
+
+        <MobileNav links={PRIMARY_NAV} signedIn={signedIn} consoleHref="/app" />
       </div>
     </header>
   );
