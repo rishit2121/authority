@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EXPECTED_SCHEMA_VERSION } from "@/lib/gateway/schema-version";
+
 const authorizeThroughGateway = vi.fn();
 const consumeCapability = vi.fn();
 const revokeCapabilityViaGateway = vi.fn();
@@ -272,7 +274,7 @@ describe("POST /api/v1/capabilities/revoke", () => {
 
 describe("health and readiness", () => {
   beforeEach(() => {
-    schemaVersion.mockResolvedValue("20260930000020");
+    schemaVersion.mockResolvedValue(EXPECTED_SCHEMA_VERSION);
   });
 
   it("liveness touches no dependency and reports no commit when Render's variable is unset", async () => {
@@ -311,7 +313,7 @@ describe("health and readiness", () => {
     expect(await stale.json()).toEqual({ status: "not_ready", gateway: "ok", schema: "mismatch" });
     schemaVersion.mockRejectedValue(new Error("no such function"));
     expect((await GET()).status).toBe(503);
-    schemaVersion.mockResolvedValue("20260930000020");
+    schemaVersion.mockResolvedValue(EXPECTED_SCHEMA_VERSION);
     expect(await (await GET()).json()).toMatchObject({ status: "ready", schema: "current" });
     delete process.env.GATEWAY_DATABASE_URL;
   });

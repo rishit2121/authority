@@ -250,17 +250,21 @@ paths:
       operationId: execute
       summary: Execute any connector operation through Authority
       tags: [connectors]
-      x-status: planned
+      x-status: stable
       description: >
-        The generic counterpart to `/github/execute` (Phase 2/4): dispatches
-        by the authorized tool's provider prefix (`stripe.*`, `gmail.*`,
-        `slack.*`, `postgres.*`, or a tenant's own `custom_<connectionId>.*`
-        operations, one opaque provider id per Custom API connection) to that
-        connector's `AuthorityConnector.execute()`,
-        through the same reserve -> dispatch -> settle -> receipt lifecycle
-        `/github/execute` already uses. `github.*` tools remain reachable at
-        their existing path; this route additionally accepts them so new
-        integrations never need a tool-specific URL.
+        The generic counterpart to `/github/execute`: dispatches by the
+        authorized tool's provider prefix (`stripe.*`, `gmail.*`, `slack.*`,
+        `postgres.*`, or a tenant's own `custom_<connectionId>.*` operations,
+        one opaque provider id per Custom API connection) to whichever
+        `AuthorityConnector` is registered for that prefix
+        (`src/lib/connectors/registry.ts`), through the same
+        reserve -> dispatch -> settle -> receipt lifecycle `/github/execute`
+        uses, generalized in `gateway.reserve_connector_execution` and its
+        siblings. Returns `501 OPERATION_NOT_SUPPORTED` for any tool whose
+        provider has no connector registered yet — as of this spec version,
+        no connector is registered here; `github.*` tools remain reachable
+        only at their existing dedicated path, not through this one, since
+        GitHub has not moved onto the shared interface (Phase 4).
       requestBody:
         required: true
         content:

@@ -56,8 +56,18 @@ export interface NormalizedConnectorRequest {
 }
 
 export interface ConnectorContext {
-  tenantId: string;
-  /** Which of the tenant's configured connections/installations for this connector to use. */
+  /**
+   * Which of the tenant's configured connections/installations for this
+   * connector to use. `connector_connections.id` is a globally unique
+   * primary key, so this alone is enough to look up the connection's own
+   * config/credentials (and, from that same row, its tenant id for
+   * verification) — callers that already have a tenant id in hand from
+   * their own session (e.g. a connection-setup UI action) are free to use
+   * it for an extra authorization check before calling in, but it is not
+   * part of this shared interface since the reserve/execute path that calls
+   * `execute()` doesn't learn the tenant id until the capability itself is
+   * resolved server-side, exactly like GitHub's own `ExecutionContext`.
+   */
   connectionId: string;
 }
 
