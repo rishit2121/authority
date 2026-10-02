@@ -142,6 +142,57 @@ export async function updateApplicationReturnUrlsAction(
   }
 }
 
+export interface NewConnectionBroker {
+  brokerId: string;
+}
+
+export async function createConnectionBrokerAction(
+  applicationId: string,
+  url: string,
+  sharedSecret: string,
+): Promise<ActionResult<NewConnectionBroker>> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("create_connection_broker", {
+      p_application_id: applicationId,
+      p_url: url,
+      p_shared_secret: sharedSecret,
+    });
+    if (error) return { ok: false, error: error.message };
+    const row = data?.[0];
+    if (!row || row.cb_status !== "ok" || !row.cb_broker_id) {
+      const messages: Record<string, string> = {
+        forbidden: "Admin role required.",
+        invalid_url: "The broker URL must be a full https:// URL.",
+        invalid_secret: "The shared secret must be 32-512 characters.",
+      };
+      return { ok: false, error: messages[row?.cb_status ?? ""] ?? "Could not register the broker." };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    return { ok: true, data: { brokerId: row.cb_broker_id } };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+export async function revokeConnectionBrokerAction(
+  applicationId: string,
+  brokerId: string,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("revoke_connection_broker", { p_broker_id: brokerId });
+    if (error) return { ok: false, error: error.message };
+    if (data !== "ok") {
+      return { ok: false, error: data === "forbidden" ? "Admin role required." : "Broker not found." };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
 export async function grantConnectionDelegationAction(
   applicationId: string,
   connectionId: string,

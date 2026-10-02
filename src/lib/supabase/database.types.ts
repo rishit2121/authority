@@ -965,6 +965,53 @@ export type Database = {
           },
         ];
       };
+      connection_brokers: {
+        Row: {
+          application_id: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          secret_vault_id: string;
+          status: string;
+          tenant_id: string;
+          url: string;
+        };
+        Insert: {
+          application_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          secret_vault_id: string;
+          status?: string;
+          tenant_id: string;
+          url: string;
+        };
+        Update: {
+          application_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          secret_vault_id?: string;
+          status?: string;
+          tenant_id?: string;
+          url?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connection_brokers_application_id_tenant_id_fkey";
+            columns: ["application_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "applications";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
       connection_delegations: {
         Row: {
           connection_id: string;
@@ -1143,6 +1190,9 @@ export type Database = {
       };
       connector_connections: {
         Row: {
+          auth_mode: string;
+          broker_connection_ref: string | null;
+          broker_id: string | null;
           config: Json;
           config_version: number;
           connected_at: string;
@@ -1165,6 +1215,9 @@ export type Database = {
           verified_account_ref: string | null;
         };
         Insert: {
+          auth_mode?: string;
+          broker_connection_ref?: string | null;
+          broker_id?: string | null;
           config?: Json;
           config_version?: number;
           connected_at?: string;
@@ -1187,6 +1240,9 @@ export type Database = {
           verified_account_ref?: string | null;
         };
         Update: {
+          auth_mode?: string;
+          broker_connection_ref?: string | null;
+          broker_id?: string | null;
           config?: Json;
           config_version?: number;
           connected_at?: string;
@@ -4933,6 +4989,13 @@ export type Database = {
           was_created: boolean;
         }[];
       };
+      create_connection_broker: {
+        Args: { p_application_id: string; p_shared_secret: string; p_url: string };
+        Returns: {
+          cb_status: string;
+          cb_broker_id: string | null;
+        }[];
+      };
       create_task: {
         Args: {
           p_agent_id: string;
@@ -5077,6 +5140,10 @@ export type Database = {
       revoke_capability: {
         Args: { p_capability_id: string; p_reason: string };
         Returns: undefined;
+      };
+      revoke_connection_broker: {
+        Args: { p_broker_id: string };
+        Returns: string;
       };
       revoke_connection_delegation: {
         Args: { p_connection_id: string; p_customer_id: string };

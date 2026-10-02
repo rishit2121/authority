@@ -6,6 +6,10 @@ import {
   type BackendCredentialRow,
 } from "@/components/application/BackendCredentialsPanel";
 import {
+  ConnectionBrokersPanel,
+  type ConnectionBrokerRow,
+} from "@/components/application/ConnectionBrokersPanel";
+import {
   ConnectionDelegationPanel,
   type CustomerOption,
   type OrganizationConnectionRow,
@@ -34,28 +38,34 @@ export default async function ApplicationDetailPage({
     .maybeSingle();
   if (!application || !identity.tenant.tenantId) notFound();
 
-  const [credentialsResult, customersResult, orgConnectionsResult, delegationsResult] = await Promise.all([
-    context.supabase
-      .from("developer_backend_credentials")
-      .select("id, key_prefix, status, created_at, last_used_at, revoked_at, revocation_reason")
-      .eq("application_id", applicationId)
-      .order("created_at", { ascending: false }),
-    context.supabase
-      .from("customers")
-      .select("id, external_id, display_label, status, created_at")
-      .eq("application_id", applicationId)
-      .order("created_at", { ascending: false }),
-    context.supabase
-      .from("connector_connections")
-      .select("id, connector_id, status, verified_account_ref")
-      .eq("owner_kind", "organization")
-      .neq("status", "disconnected")
-      .order("created_at", { ascending: false }),
-    context.supabase
-      .from("connection_delegations")
-      .select("connection_id, customer_id")
-      .is("revoked_at", null),
-  ]);
+  const [credentialsResult, customersResult, orgConnectionsResult, delegationsResult, brokersResult] =
+    await Promise.all([
+      context.supabase
+        .from("developer_backend_credentials")
+        .select("id, key_prefix, status, created_at, last_used_at, revoked_at, revocation_reason")
+        .eq("application_id", applicationId)
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("customers")
+        .select("id, external_id, display_label, status, created_at")
+        .eq("application_id", applicationId)
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, connector_id, status, verified_account_ref")
+        .eq("owner_kind", "organization")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connection_delegations")
+        .select("connection_id, customer_id")
+        .is("revoked_at", null),
+      context.supabase
+        .from("connection_brokers")
+        .select("id, url, status, created_at")
+        .eq("application_id", applicationId)
+        .order("created_at", { ascending: false }),
+    ]);
 
   const customersById = new Map((customersResult.data ?? []).map((c) => [c.id, c]));
 
@@ -123,6 +133,13 @@ export default async function ApplicationDetailPage({
     label: c.display_label ?? c.external_id,
   }));
 
+  const brokers: ConnectionBrokerRow[] = (brokersResult.data ?? []).map((b) => ({
+    id: b.id,
+    url: b.url,
+    status: b.status as "active" | "revoked",
+    createdAt: b.created_at,
+  }));
+
   return (
     <div className="flex flex-col gap-space-lg">
       <PageHeader
@@ -134,6 +151,7 @@ export default async function ApplicationDetailPage({
       <BackendCredentialsPanel applicationId={applicationId} credentials={credentials} />
       <ReturnUrlsForm applicationId={applicationId} initialUrls={application.allowed_return_urls ?? []} />
       <CustomersPanel customers={customers} />
+      <ConnectionBrokersPanel applicationId={applicationId} brokers={brokers} />
       <ConnectionDelegationPanel
         applicationId={applicationId}
         connections={orgConnections}
