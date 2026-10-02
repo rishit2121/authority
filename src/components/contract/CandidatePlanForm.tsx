@@ -208,7 +208,14 @@ export function CandidatePlanForm({
     });
   }
 
-  const hasAccepted = (validation?.acceptedNodeIds.length ?? 0) > 0;
+  // `includedNodeIds` (accepted OR requires_review), not `acceptedNodeIds`
+  // alone -- a plan whose only node is flagged requires_review (every
+  // Custom API operation always is: externalCommunication unconditionally
+  // forces this, see plan-validator.ts) is still eligible to compile, and
+  // proposeContractAction's own gate checks includedNodeIds for exactly
+  // this reason. Gating this button on acceptedNodeIds alone made it
+  // impossible to ever propose a contract for such a plan at all.
+  const hasAccepted = (validation?.includedNodeIds.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -344,7 +351,7 @@ export function CandidatePlanForm({
           onClick={handlePropose}
           disabled={pending || !hasAccepted}
           aria-busy={pending}
-          title={!hasAccepted ? "Validate first — at least one node must be accepted" : undefined}
+          title={!hasAccepted ? "Validate first — at least one node must be accepted or flagged for review" : undefined}
           className="flex h-11 items-center gap-2 rounded-lg bg-primary px-space-lg font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed disabled:cursor-not-allowed disabled:opacity-70"
         >
           {pending ? "Proposing…" : "Propose contract"}

@@ -112,14 +112,14 @@ export default defineConfig({
     },
 
     /**
-     * The Custom API connector wizard, like the GitHub suite, signs in itself and changes tenant-wide
-     * state (a new connection, a credential, a published operation) — kept off the authenticated
-     * project's shared session for the same reason, and after "github" so the two admin-state-mutating
-     * suites never overlap.
+     * The Custom API connector wizard and its full-workflow proof change tenant-wide state (new
+     * connections, credentials, published operations, tasks, contracts) using the same pre-authenticated
+     * owner.a session as the "authenticated" project — kept in their own project, after "github", so
+     * the admin-state-mutating suites never overlap each other or the shared "authenticated" session.
      */
     {
       name: "custom-api",
-      testMatch: /custom-api-connector\.spec\.ts/,
+      testMatch: /custom-api-(connector|full-workflow)\.spec\.ts/,
       dependencies: ["setup", "authenticated", "github"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
