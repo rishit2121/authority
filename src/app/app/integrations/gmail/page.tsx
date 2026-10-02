@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { Icon } from "@/components/ui/Icon";
+import { missingGoogleOAuthConfig } from "@/lib/connectors/gmail/config";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 import { ConnectConnectionForm, ConnectionCard } from "./GmailControls";
@@ -13,6 +14,26 @@ const STATUS_STYLE: Record<string, string> = {
   needs_attention: "border-deny/40 bg-deny/10 text-deny",
   disconnected: "border-outline-variant/40 bg-surface-container-high text-on-surface-variant",
 };
+
+const ERROR_MESSAGES: Record<string, string> = {
+  forbidden: "That request didn't come from this deployment. Try connecting again.",
+  invalid_connection: "That connection could not be found. Try connecting again.",
+  connection_not_found: "That connection was not found or is disconnected.",
+  not_started_here: "That sign-in didn't start from this browser. Try connecting again.",
+  invalid_state: "That sign-in session expired or was tampered with. Try connecting again.",
+  oauth_denied: "Google sign-in was cancelled or denied.",
+  oauth_exchange_failed: "Google didn't accept that sign-in. Try connecting again.",
+};
+
+function friendlyGmailError(code: string, canAdmin: boolean): string {
+  if (code === "not_configured") {
+    const missing = missingGoogleOAuthConfig();
+    return canAdmin
+      ? `Gmail isn't configured for this deployment yet. Set ${missing.join(" and ")} in the server environment (or GMAIL_FIXTURE_MODE=1 for local testing), then try again.`
+      : "Gmail isn't configured for this deployment yet. Ask an administrator to set it up.";
+  }
+  return ERROR_MESSAGES[code] ?? "Something went wrong connecting to Google. Try connecting again.";
+}
 
 export interface GmailConnectionRow {
   id: string;
@@ -83,7 +104,7 @@ export default async function GmailIntegrationPage({
           role="alert"
           className="rounded-lg border border-deny/40 bg-deny/10 px-space-md py-2.5 font-body-sm text-body-sm text-deny"
         >
-          Connection failed: {error}
+          {friendlyGmailError(error, canAdmin)}
         </div>
       ) : null}
 
