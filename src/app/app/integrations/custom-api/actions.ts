@@ -5,7 +5,12 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 
 import { toCustomApiConnectorId } from "@/lib/connectors/custom-api/connection-id";
-import type { CustomOperationAuthType, CustomOperationField } from "@/lib/connectors/custom-api/types";
+import { buildRequest } from "@/lib/connectors/custom-api/request-builder";
+import {
+  CustomOperationValidationError,
+  type CustomOperationAuthType,
+  type CustomOperationField,
+} from "@/lib/connectors/custom-api/types";
 import { validateOperationDefinition } from "@/lib/connectors/custom-api/validate";
 import { createConnectorConnection, disconnectConnectorConnection } from "@/lib/gateway/rpc-connectors";
 import {
@@ -133,6 +138,8 @@ export interface CreateOperationInput {
   pathTemplate: string;
   effect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
   authType: CustomOperationAuthType;
+  /** Required, and used, only when authType is "api_key_header" — the header this operation's API key is sent in (e.g. "X-Api-Key"). */
+  headerName?: string;
   /** 1-20 fields; see docs/connectors/CUSTOM_API.md for the supported shape. */
   fields: CustomOperationField[];
 }
@@ -182,13 +189,86 @@ export async function createCustomOperationAction(
     inputSchema,
     requestMapping,
     authType: input.authType,
-    authConfig: { schemaVersion: 1 },
+    authConfig:
+      input.authType === "api_key_header" && input.headerName
+        ? { schemaVersion: 1, headerName: input.headerName }
+        : { schemaVersion: 1 },
     timeoutMs: 8000,
     invocationLimit: null,
   });
   revalidatePath(PAGE);
   if (draft.status !== "ok") return { ok: false, error: friendly(draft.status) };
   return { ok: true, message: "Draft created." };
+}
+
+export interface PreviewRequestInput {
+  baseUrl: string;
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  pathTemplate: string;
+  authType: CustomOperationAuthType;
+  headerName?: string;
+  fields: CustomOperationField[];
+  /** Raw text as typed in the preview form, keyed by field.key; coerced to each field's declared type before building the request. */
+  sampleValues: Record<string, string>;
+}
+
+export interface PreviewRequestResult extends CustomApiActionResult {
+  preview?: { method: string; url: string; headers: Record<string, string>; body: string | undefined };
+}
+
+/**
+ * Builds the exact request this operation would send, from sample values
+ * typed into the draft form — using the SAME `buildRequest` the real
+ * connector calls at execution time (src/lib/connectors/custom-api/
+ * request-builder.ts), so a preview can never show a shape the connector
+ * would not actually produce. No secret is ever resolved or shown: auth
+ * headers are not part of `buildRequest`'s own output (the real connector
+ * adds them in a separate step, after this one, only at execution time), so
+ * this preview substitutes a label for the auth header instead of a value.
+ */
+export async function previewCustomOperationAction(
+  input: PreviewRequestInput,
+): Promise<PreviewRequestResult> {
+  if (!input.baseUrl) {
+    return { ok: false, error: "Set this connection's base URL before previewing a request." };
+  }
+  const args: Record<string, unknown> = {};
+  for (const field of input.fields) {
+    const raw = input.sampleValues[field.key];
+    if (raw === undefined || raw === "") continue;
+    if (field.type === "number") args[field.key] = Number(raw);
+    else if (field.type === "boolean") args[field.key] = raw === "true";
+    else args[field.key] = raw;
+  }
+
+  try {
+    const built = buildRequest(
+      {
+        connectionId: "preview",
+        baseUrl: input.baseUrl,
+        method: input.method,
+        pathTemplate: input.pathTemplate,
+        inputSchema: { schemaVersion: 1, fields: input.fields },
+        requestMapping: { schemaVersion: 1 },
+      },
+      args,
+    );
+    const headers = { ...built.headers };
+    if (input.authType === "bearer") headers.authorization = "Bearer <resolved at request time>";
+    else if (input.authType === "basic") headers.authorization = "Basic <resolved at request time>";
+    else if (input.authType === "api_key_header" && input.headerName) {
+      headers[input.headerName] = "<resolved at request time>";
+    }
+    return { ok: true, preview: { method: built.method, url: built.url, headers, body: built.body } };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof CustomOperationValidationError
+          ? error.message
+          : "Could not build a preview with these sample values.",
+    };
+  }
 }
 
 export async function validateCustomOperationAction(operationId: string): Promise<CustomApiActionResult> {

@@ -116,6 +116,20 @@ class StripeFixtureServer {
       return json(200, { ...refund, status: "succeeded", currency: pi.currency });
     }
 
+    // Stripe's own cheapest authenticated GET -- what the real connector's
+    // verifyInstallation() calls to confirm a key actually works, without
+    // reading or writing any tenant data.
+    if (input.method === "GET" && input.url.pathname === "/v1/balance") {
+      if (!input.headers.authorization) {
+        return stripeError(401, "authentication_required", "No valid API key provided.");
+      }
+      return json(200, {
+        object: "balance",
+        available: [{ amount: 0, currency: "usd" }],
+        pending: [{ amount: 0, currency: "usd" }],
+      });
+    }
+
     return stripeError(404, "resource_missing", "no such route on the fixture API");
   };
 }

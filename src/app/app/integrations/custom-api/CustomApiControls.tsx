@@ -7,12 +7,14 @@ import {
   createCustomOperationAction,
   deleteCustomOperationDraftAction,
   disconnectCustomApiConnectionAction,
+  previewCustomOperationAction,
   publishCustomOperationAction,
   retireCustomOperationAction,
   setCustomApiSecretAction,
   updateCustomApiBaseUrlAction,
   validateCustomOperationAction,
   type CustomApiActionResult,
+  type PreviewRequestResult,
 } from "./actions";
 import type { ConnectionRow, OperationRow } from "./page";
 
@@ -23,10 +25,10 @@ const BTN_PRIMARY =
 const INPUT =
   "rounded-lg border border-outline-variant/40 bg-surface-container-low px-space-sm py-1.5 font-body-sm text-body-sm text-on-surface placeholder:text-outline";
 
-function useAction() {
-  const [result, setResult] = useState<CustomApiActionResult | null>(null);
+function useAction<T extends CustomApiActionResult = CustomApiActionResult>() {
+  const [result, setResult] = useState<T | null>(null);
   const [pending, start] = useTransition();
-  const run = (fn: () => Promise<CustomApiActionResult>) =>
+  const run = (fn: () => Promise<T>) =>
     start(async () => {
       setResult(await fn());
     });
@@ -284,7 +286,97 @@ function FieldRow({
   );
 }
 
-function NewOperationForm({ connectionId }: { connectionId: string }) {
+function RequestPreview({
+  baseUrl,
+  method,
+  pathTemplate,
+  authType,
+  headerName,
+  fields,
+  sampleValues,
+  onSampleValueChange,
+}: {
+  baseUrl: string | null;
+  method: (typeof METHODS)[number];
+  pathTemplate: string;
+  authType: (typeof AUTH_TYPES)[number];
+  headerName: string;
+  fields: DraftField[];
+  sampleValues: Record<string, string>;
+  onSampleValueChange: (key: string, value: string) => void;
+}) {
+  const { result, pending, run } = useAction<PreviewRequestResult>();
+
+  return (
+    <div className="flex flex-col gap-space-sm rounded border border-outline-variant/20 p-space-sm">
+      <p className="font-body-sm text-body-sm font-medium text-on-surface">Preview with sample values</p>
+      <div className="flex flex-wrap gap-space-sm">
+        {fields
+          .filter((f) => f.key)
+          .map((f) => (
+            <label key={f.key} className="flex flex-col gap-1">
+              <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">
+                {f.key}
+              </span>
+              <input
+                value={sampleValues[f.key] ?? ""}
+                onChange={(e) => onSampleValueChange(f.key, e.target.value)}
+                className={`${INPUT} w-36`}
+                data-testid={`custom-api-sample-${f.key}`}
+              />
+            </label>
+          ))}
+      </div>
+      <div>
+        <button
+          type="button"
+          disabled={pending}
+          className={BTN}
+          data-testid="custom-api-preview-request"
+          onClick={() =>
+            run(() =>
+              previewCustomOperationAction({
+                baseUrl: baseUrl ?? "",
+                method,
+                pathTemplate,
+                authType,
+                headerName,
+                fields: fields
+                  .filter((f) => f.key)
+                  .map((f) => ({
+                    key: f.key,
+                    type: f.type,
+                    required: f.in === "path" ? true : f.required,
+                    identifiesResource: f.identifiesResource,
+                    in: f.in,
+                  })),
+                sampleValues,
+              }),
+            )
+          }
+        >
+          Preview request
+        </button>
+      </div>
+      {result?.ok && result.preview ? (
+        <pre
+          className="overflow-x-auto rounded bg-surface-container-high p-space-sm font-mono-code text-[11px] text-on-surface"
+          data-testid="custom-api-preview-output"
+        >
+          {result.preview.method} {result.preview.url}
+          {"\n"}
+          {Object.entries(result.preview.headers)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join("\n")}
+          {result.preview.body ? `\n\n${result.preview.body}` : ""}
+        </pre>
+      ) : null}
+      {result && !result.ok ? <Result result={result} /> : null}
+    </div>
+  );
+}
+
+function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; baseUrl: string | null }) {
   const { result, pending, run } = useAction();
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
@@ -292,13 +384,18 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
   const [pathTemplate, setPathTemplate] = useState("/v1/orders/{orderId}");
   const [effect, setEffect] = useState<(typeof EFFECTS)[number]>("read");
   const [authType, setAuthType] = useState<(typeof AUTH_TYPES)[number]>("none");
+  const [headerName, setHeaderName] = useState("");
   const [fields, setFields] = useState<DraftField[]>([{ ...emptyField(true), key: "orderId" }]);
+  const [sampleValues, setSampleValues] = useState<Record<string, string>>({});
 
   const updateField = (index: number, next: DraftField) => {
     setFields((prev) => prev.map((f, i) => (i === index ? next : f)));
   };
   const removeField = (index: number) => {
     setFields((prev) => prev.filter((_, i) => i !== index));
+  };
+  const setSampleValue = (key: string, value: string) => {
+    setSampleValues((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -315,6 +412,7 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
             pathTemplate,
             effect,
             authType,
+            headerName: authType === "api_key_header" ? headerName : undefined,
             fields: fields.map((f) => ({
               key: f.key,
               type: f.type,
@@ -395,11 +493,28 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
             ))}
           </select>
         </label>
+        {authType === "api_key_header" ? (
+          <label className="flex flex-col gap-1">
+            <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">
+              Header name
+            </span>
+            <input
+              required
+              value={headerName}
+              onChange={(e) => setHeaderName(e.target.value)}
+              placeholder="X-Api-Key"
+              className={INPUT}
+              data-testid="custom-api-header-name"
+            />
+          </label>
+        ) : null}
       </div>
 
       <p className="font-body-sm text-body-sm text-outline">
-        1-20 fields, spanning path/query/body (see docs/connectors/CUSTOM_API.md). Exactly one must identify
-        the resource a capability binds against.
+        1-20 fields, spanning path/query/body. Required/optional and the field&apos;s type (string, number, or
+        boolean) are the only input constraints enforced. Exactly one field must be marked &quot;Identifies
+        resource&quot; — that value is what a capability binds against — and every path-located field is
+        always required.
       </p>
       <div className="flex flex-col gap-space-sm">
         {fields.map((field, index) => (
@@ -421,6 +536,20 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
         >
           Add field
         </button>
+      </div>
+
+      <RequestPreview
+        baseUrl={baseUrl}
+        method={method}
+        pathTemplate={pathTemplate}
+        authType={authType}
+        headerName={headerName}
+        fields={fields}
+        sampleValues={sampleValues}
+        onSampleValueChange={setSampleValue}
+      />
+
+      <div className="flex items-center gap-space-sm">
         <button
           type="submit"
           disabled={pending}
@@ -432,6 +561,58 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
       </div>
       <Result result={result} />
     </form>
+  );
+}
+
+function UseThisOperation({ operation }: { operation: OperationRow }) {
+  const scope = operation.toolName.slice(operation.toolName.indexOf(".") + 1);
+  const authorizeBody = JSON.stringify(
+    {
+      taskId: "<your task id>",
+      tool: operation.toolName,
+      operation: scope,
+      resource: "<the identifying value, e.g. an order id>",
+      arguments: { "...": "..." },
+      idempotencyKey: "<a key unique to this call>",
+    },
+    null,
+    2,
+  );
+  const executeBody = JSON.stringify(
+    {
+      capability: "<the token from the authorize response>",
+      tool: operation.toolName,
+      operation: scope,
+      resource: "<the same identifying value>",
+      arguments: { "...": "..." },
+      idempotencyKey: "<a key unique to this call>",
+    },
+    null,
+    2,
+  );
+  return (
+    <details className="mt-1.5 w-full">
+      <summary className="cursor-pointer text-[12px] font-medium text-outline marker:content-none">
+        <span className="inline-flex items-center gap-1">
+          <span>›</span> Use this operation
+        </span>
+      </summary>
+      <div className="mt-2 flex flex-col gap-space-sm">
+        <p className="font-body-sm text-body-sm text-outline">
+          1. Authorize the call (mints a single-use capability):
+        </p>
+        <pre className="overflow-x-auto rounded bg-surface-container-high p-space-sm font-mono-code text-[11px] text-on-surface">
+          {`POST /api/v1/authorize\nAuthorization: Bearer <agent runtime key>\n\n${authorizeBody}`}
+        </pre>
+        <p className="font-body-sm text-body-sm text-outline">2. Execute it with the issued capability:</p>
+        <pre className="overflow-x-auto rounded bg-surface-container-high p-space-sm font-mono-code text-[11px] text-on-surface">
+          {`POST /api/v1/execute\nAuthorization: Bearer <agent runtime key>\n\n${executeBody}`}
+        </pre>
+        <p className="font-body-sm text-body-sm text-outline">
+          See docs/api/RUNTIME_API.md and docs/api/OPENAPI.yaml for the full request/response contract.
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -457,6 +638,7 @@ function OperationRowView({
         <span className="ml-2 font-body-sm text-body-sm text-outline">
           {operation.toolName} · {operation.effect} · auth: {operation.authType}
         </span>
+        {operation.status === "published" ? <UseThisOperation operation={operation} /> : null}
       </div>
       <div className="flex items-center gap-space-sm">
         <span
@@ -552,28 +734,34 @@ export function ConnectionCard({
       <Result result={result} />
 
       {canAdmin ? (
-        <div className="mt-space-md flex flex-col gap-space-sm">
-          <BaseUrlForm connectionId={connection.id} baseUrl={connection.baseUrl} />
-          <SecretForm connectionId={connection.id} />
+        <div className="mt-space-md flex flex-col gap-space-md">
+          <div className="flex flex-col gap-space-sm">
+            <p className="font-label-caps text-[11px] uppercase tracking-wider text-outline">
+              1 · Connection
+            </p>
+            <BaseUrlForm connectionId={connection.id} baseUrl={connection.baseUrl} />
+          </div>
+          <div className="flex flex-col gap-space-sm">
+            <p className="font-label-caps text-[11px] uppercase tracking-wider text-outline">
+              2 · Authentication
+            </p>
+            <SecretForm connectionId={connection.id} />
+          </div>
         </div>
       ) : null}
 
-      <div className="mt-space-md">
-        <h3 className="font-headline-sm text-body-sm font-semibold text-on-surface">Operations</h3>
+      <div className="mt-space-md flex flex-col gap-space-sm">
+        <p className="font-label-caps text-[11px] uppercase tracking-wider text-outline">3 · Operations</p>
         {connection.operations.length === 0 ? (
-          <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">No operations defined yet.</p>
+          <p className="font-body-sm text-body-sm text-on-surface-variant">No operations defined yet.</p>
         ) : (
-          <ul className="mt-1 divide-y divide-outline-variant/20" data-testid="custom-api-operations">
+          <ul className="divide-y divide-outline-variant/20" data-testid="custom-api-operations">
             {connection.operations.map((op) => (
               <OperationRowView key={op.id} operation={op} canDevelop={canDevelop} canAdmin={canAdmin} />
             ))}
           </ul>
         )}
-        {canDevelop ? (
-          <div className="mt-space-sm">
-            <NewOperationForm connectionId={connection.id} />
-          </div>
-        ) : null}
+        {canDevelop ? <NewOperationForm connectionId={connection.id} baseUrl={connection.baseUrl} /> : null}
       </div>
     </section>
   );

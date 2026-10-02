@@ -4,29 +4,155 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill, type StatusTone } from "@/components/ui/StatusPill";
-import type { IntegrationStatus } from "@/lib/domain";
+import { loadGithubOverview } from "@/lib/github/read-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
-const STATUS_LABELS: Record<IntegrationStatus, string> = {
-  connected: "Connected",
-  warning: "Needs attention",
-  not_connected: "Not connected",
+interface CatalogEntry {
+  id: string;
+  name: string;
+  description: string;
+  /** null = not yet built in this deployment; renders "Coming soon" with no link. */
+  href: string | null;
+  logo: { src: string; alt: string };
+}
+
+/**
+ * The full connector catalog, including entries with no implementation yet
+ * in this deployment. `href: null` is the only thing that distinguishes a
+ * "Coming soon" card from a real one — there is no separate "available"
+ * flag to keep in sync with it.
+ */
+const CATALOG: CatalogEntry[] = [
+  {
+    id: "github",
+    name: "GitHub",
+    description: "Install the GitHub App, allow repositories, and bind tasks to them.",
+    href: "/app/integrations/github",
+    logo: { src: "/logos/github.svg", alt: "" },
+  },
+  {
+    id: "custom-api",
+    name: "Custom API",
+    description: "Connect any HTTPS API your tenant controls and publish schema-constrained operations.",
+    href: "/app/integrations/custom-api",
+    logo: { src: "/logos/custom-api.svg", alt: "" },
+  },
+  {
+    id: "stripe",
+    name: "Stripe",
+    description: "Retrieve payments and customers, list charges, and issue refunds.",
+    href: "/app/integrations/stripe",
+    logo: { src: "/logos/stripe.svg", alt: "" },
+  },
+  {
+    id: "slack",
+    name: "Slack",
+    description: "Post messages and list channels in a connected workspace.",
+    href: "/app/integrations/slack",
+    logo: { src: "/logos/slack.svg", alt: "" },
+  },
+  {
+    id: "gmail",
+    name: "Gmail",
+    description: "Send email from a connected Google account.",
+    href: "/app/integrations/gmail",
+    logo: { src: "/logos/gmail.svg", alt: "" },
+  },
+  {
+    id: "postgresql",
+    name: "PostgreSQL",
+    description: "Run named, parameterized queries against your own database.",
+    href: "/app/integrations/postgres",
+    logo: { src: "/logos/postgresql.svg", alt: "" },
+  },
+];
+
+const CONNECTION_STATUS_LABEL: Record<string, string> = {
+  active: "Active",
+  suspended: "Suspended",
+  permission_drift: "Needs attention",
+  needs_attention: "Needs attention",
 };
 
-const STATUS_TONE: Record<IntegrationStatus, StatusTone> = {
-  connected: "positive",
-  warning: "attention",
-  not_connected: "muted",
+const CONNECTION_STATUS_TONE: Record<string, StatusTone> = {
+  active: "positive",
+  suspended: "attention",
+  permission_drift: "negative",
+  needs_attention: "negative",
 };
+
+interface ConnectionRow {
+  id: string;
+  name: string;
+  status: string;
+  href: string;
+}
+
+interface RawConnectionRow {
+  id: string;
+  name: string;
+  status: string;
+}
+
+function toConnectionRows(rows: RawConnectionRow[] | null, label: string, href: string): ConnectionRow[] {
+  return (rows ?? []).map((c) => ({ id: c.id, name: `${label} · ${c.name}`, status: c.status, href }));
+}
 
 export default async function IntegrationsPage() {
-  const { identity, repositories } = await createRepositoriesForCurrentTenant("/app/integrations");
-  const integrations = await repositories.integrations.listByTenant(identity.tenant.tenantId);
+  const { context } = await createRepositoriesForCurrentTenant("/app/integrations");
 
-  // GitHub's authoritative, live (mock-execution) status lives on its own
-  // connector page and card below — this generic table is simulated registry
-  // metadata only, so GitHub's row here would otherwise contradict that card.
-  const registryTools = integrations.filter((integration) => integration.provider !== "github");
+  const [{ installation }, customApiResult, stripeResult, slackResult, gmailResult, postgresResult] =
+    await Promise.all([
+      loadGithubOverview(context.supabase),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .like("connector_id", "custom\\_%")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .eq("connector_id", "stripe")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .eq("connector_id", "slack")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .eq("connector_id", "gmail")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .like("connector_id", "postgres\\_%")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+    ]);
+
+  const connections: ConnectionRow[] = [
+    ...(installation
+      ? [
+          {
+            id: `github-${installation.id}`,
+            name: `GitHub · ${installation.accountLogin}`,
+            status: installation.status,
+            href: "/app/integrations/github",
+          },
+        ]
+      : []),
+    ...toConnectionRows(customApiResult.data, "Custom API", "/app/integrations/custom-api"),
+    ...toConnectionRows(stripeResult.data, "Stripe", "/app/integrations/stripe"),
+    ...toConnectionRows(slackResult.data, "Slack", "/app/integrations/slack"),
+    ...toConnectionRows(gmailResult.data, "Gmail", "/app/integrations/gmail"),
+    ...toConnectionRows(postgresResult.data, "PostgreSQL", "/app/integrations/postgres"),
+  ];
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -35,156 +161,84 @@ export default async function IntegrationsPage() {
         description="Connect the services agents may access through Authority."
       />
 
-      <section aria-labelledby="connected-integrations" className="flex flex-col gap-3">
-        <h2 id="connected-integrations" className="text-[15px] font-semibold text-ink">
-          Connected integrations
+      <section aria-labelledby="connector-catalog" className="flex flex-col gap-3">
+        <h2 id="connector-catalog" className="text-[15px] font-semibold text-ink">
+          Connectors
         </h2>
-        <Link
-          href="/app/integrations/github"
-          data-testid="github-integration-link"
-          className="flex items-center justify-between rounded-[10px] border border-line bg-paper-raised p-5 transition-colors hover:bg-black/[0.02]"
-        >
-          <span>
-            <h3 className="text-[15px] font-semibold text-ink">GitHub connector</h3>
-            <span className="block text-[13px] text-ink-soft">
-              Install the GitHub App, allow repositories and bind tasks. Real, least-privilege execution.
-            </span>
-          </span>
-          <Icon name="arrow_forward" size={16} className="text-ink-soft" />
-        </Link>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {CATALOG.map((entry) => {
+            const card = (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a small, locally bundled, static brand mark; next/image's overhead buys nothing here. */}
+                  <img
+                    src={entry.logo.src}
+                    alt={entry.logo.alt}
+                    width={36}
+                    height={36}
+                    className="shrink-0"
+                  />
+                  {entry.href ? (
+                    <Icon name="arrow_forward" size={16} className="text-ink-soft" />
+                  ) : (
+                    <StatusPill tone="muted">Coming soon</StatusPill>
+                  )}
+                </div>
+                <h3 className="mt-3 text-[15px] font-semibold text-ink">{entry.name}</h3>
+                <p className="mt-1 text-[13px] text-ink-soft">{entry.description}</p>
+              </>
+            );
+            const className =
+              "flex flex-col rounded-[14px] border border-line bg-paper-raised p-6 transition-colors" +
+              (entry.href ? " hover:bg-black/[0.02]" : " opacity-70");
+            return entry.href ? (
+              <Link
+                key={entry.id}
+                href={entry.href}
+                data-testid={`${entry.id}-integration-link`}
+                className={className}
+              >
+                {card}
+              </Link>
+            ) : (
+              <div key={entry.id} data-testid={`${entry.id}-integration-coming-soon`} className={className}>
+                {card}
+              </div>
+            );
+          })}
+        </div>
       </section>
 
-      <Link
-        href="/app/integrations/custom-api"
-        data-testid="custom-api-integration-link"
-        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
-      >
-        <span>
-          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
-            Custom API connector
-          </span>
-          <span className="block font-body-sm text-body-sm text-on-surface-variant">
-            Connect any HTTPS API your tenant controls, define schema-constrained operations, and publish them
-            once validated. Real, SSRF-protected execution.
-          </span>
-        </span>
-        <Icon name="arrow_forward" size={16} />
-      </Link>
-
-      <Link
-        href="/app/integrations/stripe"
-        data-testid="stripe-integration-link"
-        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
-      >
-        <span>
-          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
-            Stripe connector
-          </span>
-          <span className="block font-body-sm text-body-sm text-on-surface-variant">
-            Retrieve payments and customers, list charges, and issue refunds. Real execution against
-            Stripe&apos;s own API; refunds always require approval.
-          </span>
-        </span>
-        <Icon name="arrow_forward" size={16} />
-      </Link>
-
-      <Link
-        href="/app/integrations/slack"
-        data-testid="slack-integration-link"
-        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
-      >
-        <span>
-          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
-            Slack connector
-          </span>
-          <span className="block font-body-sm text-body-sm text-on-surface-variant">
-            Post messages and list channels in a connected workspace. Real execution against Slack&apos;s own
-            Web API.
-          </span>
-        </span>
-        <Icon name="arrow_forward" size={16} />
-      </Link>
-
-      <Link
-        href="/app/integrations/gmail"
-        data-testid="gmail-integration-link"
-        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
-      >
-        <span>
-          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
-            Gmail connector
-          </span>
-          <span className="block font-body-sm text-body-sm text-on-surface-variant">
-            Send email from a connected Google account via OAuth. Always requires human review before sending.
-          </span>
-        </span>
-        <Icon name="arrow_forward" size={16} />
-      </Link>
-
-      <Link
-        href="/app/integrations/postgres"
-        data-testid="postgres-integration-link"
-        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
-      >
-        <span>
-          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
-            PostgreSQL connector
-          </span>
-          <span className="block font-body-sm text-body-sm text-on-surface-variant">
-            Define named, parameterized queries against your own database and publish them once validated.
-            Real, statement-timeout-bounded execution; private network destinations are allowed.
-          </span>
-        </span>
-        <Icon name="arrow_forward" size={16} />
-      </Link>
-
-      {integrations.length === 0 ? (
-        <EmptyState
-          icon="token"
-          heading="No integrations configured"
-          description="Connect GitHub to let agents act on real repositories under least-privilege authority."
-        />
-      ) : (
-        <section aria-labelledby="available-tools" className="flex flex-col gap-3">
-          <h2 id="available-tools" className="text-[15px] font-semibold text-ink">
-            Available tools
-          </h2>
-
-          <div
-            role="note"
-            className="flex items-start gap-2.5 rounded-lg border border-line bg-paper px-3.5 py-2.5"
-          >
-            <Icon name="lock" size={15} className="mt-0.5 shrink-0 text-ink-soft" />
-            <p className="text-[13px] text-ink-soft">
-              Simulated metadata only. No OAuth token, password, API key or other credential is collected or
-              stored here — there is no &quot;Connect&quot; action that reaches a real provider yet.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {registryTools.map((integration) => (
-              <article
-                key={integration.id}
-                className="flex flex-col gap-2 rounded-[10px] border border-line bg-paper-raised p-4"
+      <section aria-labelledby="connections" className="flex flex-col gap-3">
+        <h2 id="connections" className="text-[15px] font-semibold text-ink">
+          Connections
+        </h2>
+        {connections.length === 0 ? (
+          <EmptyState
+            icon="token"
+            heading="No connections yet"
+            description="Choose a connector above to get started."
+          />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {connections.map((connection) => (
+              <Link
+                key={connection.id}
+                href={connection.href}
+                className="flex items-center justify-between rounded-[10px] border border-line bg-paper-raised p-5 transition-colors hover:bg-black/[0.02]"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="flex items-center gap-2 text-[14px] font-semibold capitalize text-ink">
-                    <Icon name="token" size={15} className="text-ink-soft" />
-                    {integration.provider}
-                  </h3>
-                  <StatusPill tone={STATUS_TONE[integration.status]}>
-                    {STATUS_LABELS[integration.status]}
+                <span className="text-[14px] font-medium text-ink">{connection.name}</span>
+                <span className="flex items-center gap-3">
+                  <StatusPill tone={CONNECTION_STATUS_TONE[connection.status] ?? "muted"}>
+                    {CONNECTION_STATUS_LABEL[connection.status] ?? connection.status}
                   </StatusPill>
-                </div>
-                <p className="text-[13px] text-ink-soft">{integration.displayName}</p>
-                <p className="text-[11px] text-ink-soft">
-                  Available in the tool registry · No live connector configured
-                </p>
-              </article>
+                  <Icon name="arrow_forward" size={16} className="text-ink-soft" />
+                </span>
+              </Link>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
     </div>
   );
 }
