@@ -33,20 +33,25 @@ export async function GET(
   const fail = (reason: string) =>
     NextResponse.redirect(new URL(`/connect/error?reason=${encodeURIComponent(reason)}`, base));
 
-  const session = await resolveConnectionSession(token);
-  if (session.status !== "ok" || !session.connectorId) return fail("session_not_found_or_expired");
+  let started: ReturnType<typeof startGmailOAuth>;
+  try {
+    const session = await resolveConnectionSession(token);
+    if (session.status !== "ok" || !session.connectorId) return fail("session_not_found_or_expired");
 
-  if (session.connectorId !== "gmail") {
-    // Only Gmail is wired to Mode A's embedded OAuth flow in this pass; see
-    // docs/connectors for which providers support an embedded connection
-    // today versus requiring the dashboard-operated or broker path.
-    return fail("provider_not_supported_for_embedded_connect");
+    if (session.connectorId !== "gmail") {
+      // Only Gmail is wired to Mode A's embedded OAuth flow in this pass; see
+      // docs/connectors for which providers support an embedded connection
+      // today versus requiring the dashboard-operated or broker path.
+      return fail("provider_not_supported_for_embedded_connect");
+    }
+
+    started = startGmailOAuth({
+      sessionToken: token,
+      redirectUri: `${base}/api/connectors/gmail/embedded-callback`,
+    });
+  } catch {
+    return fail("connection_unavailable");
   }
-
-  const started = startGmailOAuth({
-    sessionToken: token,
-    redirectUri: `${base}/api/connectors/gmail/embedded-callback`,
-  });
   if (started.status !== "ok" || !started.started) return fail(started.status);
 
   const response = NextResponse.redirect(started.started.authorizeUrl);

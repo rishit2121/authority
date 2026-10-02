@@ -14,6 +14,7 @@ const MESSAGES: Record<string, string> = {
   oauth_denied: "The sign-in was cancelled or denied.",
   oauth_exchange_failed: "The provider did not accept that sign-in.",
   session_already_resolved: "This connection link was already used.",
+  connection_unavailable: "The connection service is temporarily unavailable. Try again shortly.",
 };
 
 export default async function ConnectErrorPage({

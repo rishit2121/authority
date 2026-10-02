@@ -51,7 +51,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Re-resolve the session: confirms it is still pending/not expired right
   // now (not just when /connect/[token] first redirected here), and gives
   // us the allowlisted return URL to send the browser back to.
-  const session = await resolveConnectionSession(sessionToken);
+  let session: Awaited<ReturnType<typeof resolveConnectionSession>>;
+  try {
+    session = await resolveConnectionSession(sessionToken);
+  } catch {
+    return fail("connection_unavailable");
+  }
   if (session.status !== "ok" || !session.returnUrl) return fail("session_not_found_or_expired");
 
   const code = params.get("code");
