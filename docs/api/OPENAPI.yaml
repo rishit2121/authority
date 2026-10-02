@@ -658,7 +658,12 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/CustomerTaskCreated" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
-        "403": { description: CONNECTION_NOT_USABLE_BY_CUSTOMER — a named connection does not belong to, or is not delegated to, this customer. }
+        "403":
+          {
+            description: CONNECTION_NOT_USABLE_BY_CUSTOMER — a named connection does not belong to,
+            or is not delegated to,
+            this customer.,
+          }
         "404": { description: CUSTOMER_NOT_FOUND or AGENT_NOT_FOUND. }
 
   /connections/sessions:

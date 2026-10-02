@@ -11,6 +11,7 @@ export const DOCS_NAV: DocsNavItem[] = [
   { label: "Tool filtering", href: "/docs/tool-filtering" },
   { label: "Authorize and execute", href: "/docs/authorize-and-execute" },
   { label: "Approvals and replanning", href: "/docs/approvals-and-replanning" },
+  { label: "Customer connections", href: "/docs/customer-connections" },
   {
     label: "Connector guides",
     href: "/docs/connectors",
