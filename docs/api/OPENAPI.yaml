@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Authority Runtime API
-  version: "1.1.0"
+  version: "1.2.0"
   summary: >
     The public contract between an external agent (or anything acting on its
     behalf — an ordinary HTTP client, the official SDKs, or the MCP bridge)
@@ -72,6 +72,12 @@ tags:
     description: Task-bound sessions — an optional, short-lived stand-in for the agent credential.
   - name: manifests
     description: Contract-filtered tool manifests.
+  - name: customers
+    description: >
+      The developer API: an application backend creates its own external
+      customers, opens or registers their provider connections, and starts
+      tasks on their behalf. Authenticated by a backend credential, never an
+      agent credential, task session, or dashboard login.
 
 paths:
   /health:
@@ -470,6 +476,269 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
 
+  /customers:
+    post:
+      operationId: createOrResolveCustomer
+      summary: Create or resolve an external customer
+      tags: [customers]
+      x-status: stable
+      security:
+        - backendCredential: []
+      description: |
+        Your own backend calls this with the external id it already uses for
+        this person in your own system — never email, never anything your
+        agent or an end user supplies directly. Idempotent: calling this
+        again with the same external id always resolves the same customer,
+        never creates a second one. The resulting customer is scoped to the
+        application your backend credential belongs to; it is never visible
+        to, or creatable by, a different application in the same tenant.
+
+        This customer never needs, and cannot be given, an Authority
+        dashboard login.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [externalId]
+              additionalProperties: false
+              properties:
+                externalId: { type: string, minLength: 1, maxLength: 200 }
+                displayLabel: { type: string, maxLength: 200 }
+                metadata: { type: object }
+      responses:
+        "200":
+          description: An existing customer, resolved by external id.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerCreated" }
+        "201":
+          description: A new customer was created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerCreated" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+
+  /customers/{customerId}/connections:
+    get:
+      operationId: listCustomerConnections
+      summary: List one customer's usable connections
+      tags: [customers]
+      x-status: stable
+      security:
+        - backendCredential: []
+      description: |
+        Connections this customer owns directly, plus any organization-owned
+        connection currently delegated to them. Never another customer's
+        connections, even within the same application or tenant.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The customer's connections.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connections:
+                    type: array
+                    items: { $ref: "#/components/schemas/CustomerConnection" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: CUSTOMER_NOT_FOUND — unknown, or belongs to a different application. }
+
+  /customers/{customerId}/connections/broker:
+    post:
+      operationId: registerBrokerConnection
+      summary: Register an existing, broker-managed connection (Mode B)
+      tags: [customers]
+      x-status: stable
+      security:
+        - backendCredential: []
+      description: |
+        For an application that already manages its own provider OAuth
+        client and token storage. No token or secret is accepted here —
+        Authority asks the registered broker (dashboard Settings →
+        application → connection brokers) for a short-lived access token at
+        execution time, every time, and never stores one locally for this
+        connection. `brokerConnectionRef` is whatever identifier your own
+        broker endpoint needs to find the right account; Authority never
+        interprets it.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connectorId, brokerId, brokerConnectionRef, verifiedAccountRef]
+              additionalProperties: false
+              properties:
+                connectorId: { type: string, minLength: 1, maxLength: 64 }
+                brokerId: { type: string, format: uuid }
+                brokerConnectionRef: { type: string, minLength: 1, maxLength: 200 }
+                verifiedAccountRef:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: The account identity your own backend has already verified (e.g. an email address).
+      responses:
+        "201":
+          description: The registered connection.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connectionId: { type: string, format: uuid }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: CUSTOMER_NOT_FOUND or broker not found for this application. }
+
+  /customers/{customerId}/tasks:
+    post:
+      operationId: createCustomerTask
+      summary: Create a customer-scoped task with explicit connections
+      tags: [customers]
+      x-status: stable
+      security:
+        - backendCredential: []
+      description: |
+        Creates the task row and pins every requested connector binding
+        atomically, before any contract compilation or activation can see
+        it. Every connectionId must already belong to this exact customer,
+        or be an organization connection explicitly delegated to them — a
+        request naming a connection this customer cannot use fails the
+        whole call, and no task is created half-bound. Compiling, proposing
+        and activating the task's authority contract, and starting the
+        agent's own task session, remain the existing dashboard/runtime
+        workflows, unchanged by this endpoint.
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, intent]
+              additionalProperties: false
+              properties:
+                agentId: { type: string, format: uuid }
+                intent: { type: string, minLength: 1, maxLength: 4000 }
+                connections:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [connectorId, connectionId]
+                    properties:
+                      connectorId: { type: string }
+                      connectionId: { type: string, format: uuid }
+                idempotencyKey: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        "200":
+          description: An existing task, resolved by idempotency key.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerTaskCreated" }
+        "201":
+          description: A new task was created.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CustomerTaskCreated" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: CONNECTION_NOT_USABLE_BY_CUSTOMER — a named connection does not belong to, or is not delegated to, this customer. }
+        "404": { description: CUSTOMER_NOT_FOUND or AGENT_NOT_FOUND. }
+
+  /connections/sessions:
+    post:
+      operationId: createConnectionSession
+      summary: Open an embedded connection session (Mode A)
+      tags: [customers]
+      x-status: stable
+      security:
+        - backendCredential: []
+      description: |
+        For an application with no existing provider connection to reuse.
+        Returns an opaque URL your backend redirects the customer's browser
+        to — they authorize the provider directly; they never see or need
+        an Authority credential. `returnUrl` must exactly match one already
+        registered on your application (dashboard Settings → application);
+        it is never a pattern, so this can never become an open redirect.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, connectorId, returnUrl]
+              additionalProperties: false
+              properties:
+                customerId: { type: string, format: uuid }
+                connectorId: { type: string, minLength: 1, maxLength: 64 }
+                returnUrl: { type: string, format: uri }
+      responses:
+        "201":
+          description: The session was opened.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId: { type: string, format: uuid }
+                  url:
+                    type: string
+                    description: Path to redirect the customer's browser to. Relative to your Authority deployment's own origin.
+                  expiresAt: { type: string, format: date-time }
+        "400": { description: RETURN_URL_NOT_ALLOWED — not registered on this application. }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: CUSTOMER_NOT_FOUND. }
+
+  /connections/sessions/{sessionId}:
+    get:
+      operationId: getConnectionSessionStatus
+      summary: Read connection-session status
+      tags: [customers]
+      x-status: stable
+      security:
+        - backendCredential: []
+      description: |
+        Poll this after redirecting the customer back, to find out whether
+        the connection actually completed and, if so, which connection id
+        was created. Scoped to your own application — one application's
+        backend can never read another application's session status even
+        within the same tenant.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The session's current status.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [pending, completed, expired, cancelled, denied] }
+                  connectorId: { type: string }
+                  connectionId: { type: string, nullable: true }
+                  expiresAt: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "404": { description: Unknown session for this application. }
+
 components:
   securitySchemes:
     agentCredential:
@@ -485,6 +754,16 @@ components:
         An optional, short-lived stand-in for an agent credential, bound to
         one task and contract version. Grants no tool authority by itself;
         accepted anywhere an agent credential is, for that one task.
+    backendCredential:
+      type: http
+      scheme: bearer
+      bearerFormat: "authority_dk_<64 hex chars>"
+      description: >
+        Server-side-only: your own application backend, never an agent,
+        browser, or end user. Authenticates the `/customers` and
+        `/connections/sessions` developer API only — it is never accepted
+        on `/authorize`, `/execute`, or anywhere an agent credential or task
+        session is, and the reverse is also true.
 
   headers:
     XRequestId:
@@ -700,6 +979,34 @@ components:
             reason: { type: string }
             message: { type: string }
             requestId: { type: string, format: uuid }
+
+    CustomerCreated:
+      type: object
+      required: [customerId, wasCreated]
+      properties:
+        customerId: { type: string, format: uuid }
+        wasCreated: { type: boolean }
+
+    CustomerConnection:
+      type: object
+      required: [connectionId, connectorId, status, ownerKind, createdAt]
+      properties:
+        connectionId: { type: string, format: uuid }
+        connectorId: { type: string }
+        status: { type: string }
+        ownerKind: { type: string, enum: [organization, customer] }
+        verifiedAccountRef:
+          type: string
+          nullable: true
+          description: The provider's own account identity, once verified (e.g. an email address).
+        createdAt: { type: string, format: date-time }
+
+    CustomerTaskCreated:
+      type: object
+      required: [taskId, wasCreated]
+      properties:
+        taskId: { type: string, format: uuid }
+        wasCreated: { type: boolean }
 
     ToolManifest:
       type: object
