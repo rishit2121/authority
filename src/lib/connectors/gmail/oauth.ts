@@ -22,7 +22,16 @@ export const STATE_COOKIE = "authority_gmail_state";
 export const PKCE_COOKIE = "authority_gmail_pkce";
 export const COOKIE_MAX_AGE_SECONDS = 15 * 60;
 
-const GMAIL_SEND_SCOPE = "https://www.googleapis.com/auth/gmail.send";
+/**
+ * Full Gmail account access, not just `gmail.send`. The OAuth grant is
+ * intentionally broad so a reconnect is never needed again as more
+ * operations are added to the connector (../connector.ts) -- Authority's own
+ * capability/contract system, not this scope, is what decides which of the
+ * connector's fixed, individually-audited operations an agent may actually
+ * call for a given task. A broad grant here never widens what an agent can
+ * do; only adding a new operation to the connector does that.
+ */
+const GMAIL_SCOPE = "https://mail.google.com/";
 const NONCE_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 const b64url = (b: Buffer) => b.toString("base64url");
@@ -55,7 +64,7 @@ export function startGmailOAuth(input: { connectionId: string; redirectUri: stri
   url.searchParams.set("client_id", cfg!.clientId);
   url.searchParams.set("redirect_uri", input.redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", GMAIL_SEND_SCOPE);
+  url.searchParams.set("scope", GMAIL_SCOPE);
   // Both are required to reliably get a refresh token back: Google issues
   // one only on a user's first consent, or every time when prompt=consent
   // forces re-consent -- without this, a reconnect after a lost refresh

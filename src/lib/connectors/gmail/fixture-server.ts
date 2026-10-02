@@ -6,14 +6,27 @@ import type { SafeFetchInput, SafeFetchResult } from "../custom-api/network-guar
  * The in-process fake Google OAuth token endpoint + Gmail API, reachable
  * only at `GMAIL_FIXTURE_HOSTNAME` and only when `gmailFixtureModeEnabled()`
  * is true (see fixture-mode.ts). Handles both the authorization-code and
- * refresh-token grant types (POST /token) and the one Gmail send endpoint
- * (POST /gmail/v1/users/me/messages/send) -- Gmail's own connector equivalent
- * of ../stripe/fixture-server.ts.
+ * refresh-token grant types (POST /token), the Gmail send endpoint
+ * (POST /gmail/v1/users/me/messages/send), and the three read endpoints
+ * (GET .../messages, GET .../messages/{id}, GET .../labels) -- Gmail's own
+ * connector equivalent of ../stripe/fixture-server.ts.
  */
 export interface FixtureSentMessage {
   raw: string;
   authorization: string | null;
 }
+
+const FIXTURE_MESSAGES: Record<string, { id: string; threadId: string; snippet: string }> = {
+  "fixture-msg-read-1": {
+    id: "fixture-msg-read-1",
+    threadId: "fixture-thread-read-1",
+    snippet: "Hello from the fixture inbox.",
+  },
+};
+const FIXTURE_LABELS = [
+  { id: "INBOX", name: "INBOX", type: "system" },
+  { id: "SENT", name: "SENT", type: "system" },
+];
 
 class GmailFixtureServer {
   sentMessages: FixtureSentMessage[] = [];
@@ -64,6 +77,31 @@ class GmailFixtureServer {
       if (!body.raw) return json(400, { error: { code: 400, message: "Missing raw message" } });
       this.sentMessages.push({ raw: body.raw, authorization: auth });
       return json(200, { id: `fixture-msg-${this.sentMessages.length}`, threadId: "fixture-thread-1" });
+    }
+
+    if (input.method === "GET" && input.url.pathname === "/gmail/v1/users/me/messages") {
+      if (input.headers.authorization !== "Bearer fixture-access-token") {
+        return json(401, { error: { code: 401, message: "Invalid Credentials" } });
+      }
+      const ids = Object.values(FIXTURE_MESSAGES).map((m) => ({ id: m.id, threadId: m.threadId }));
+      return json(200, { messages: ids, resultSizeEstimate: ids.length });
+    }
+
+    const messageMatch = /^\/gmail\/v1\/users\/me\/messages\/([^/]+)$/.exec(input.url.pathname);
+    if (input.method === "GET" && messageMatch) {
+      if (input.headers.authorization !== "Bearer fixture-access-token") {
+        return json(401, { error: { code: 401, message: "Invalid Credentials" } });
+      }
+      const found = FIXTURE_MESSAGES[messageMatch[1]];
+      if (!found) return json(404, { error: { code: 404, message: "Not Found" } });
+      return json(200, found);
+    }
+
+    if (input.method === "GET" && input.url.pathname === "/gmail/v1/users/me/labels") {
+      if (input.headers.authorization !== "Bearer fixture-access-token") {
+        return json(401, { error: { code: 401, message: "Invalid Credentials" } });
+      }
+      return json(200, { labels: FIXTURE_LABELS });
     }
 
     return json(404, { error: { code: 404, message: "no such route on the fixture API" } });

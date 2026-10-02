@@ -82,8 +82,9 @@ export default async function GmailIntegrationPage({
           Gmail
         </h1>
         <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Send one email to a named recipient from the connected Google account — always requires human review
-          first, unconditionally, because it leaves the organization.
+          Read, search, and send mail from the connected Google account — a fixed, audited set of operations;
+          sending an email always requires human review first, unconditionally, because it leaves the
+          organization.
         </p>
       </header>
 
@@ -95,8 +96,49 @@ export default async function GmailIntegrationPage({
         <p className="font-body-md text-body-sm text-on-surface-variant">
           Gmail uses Google&apos;s own OAuth consent screen, not a pasted credential — Authority never sees
           your password. Only a long-lived refresh token is stored, in Supabase Vault; a short-lived access
-          token is requested fresh for every send and never persisted.
+          token is requested fresh for every call and never persisted. The grant covers the whole mailbox, but
+          an agent can only ever call the fixed operations below — Authority&apos;s own authorization decides
+          which of those a given task may actually use, not the breadth of this grant.
         </p>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">
+          Supported operations
+        </span>
+        <ul className="flex flex-col gap-1.5">
+          {[
+            { name: "List messages", description: "query, max results → matching message ids", kind: "read" },
+            { name: "Get message", description: "message ID → full content", kind: "read" },
+            { name: "List labels", description: "→ the mailbox's labels", kind: "read" },
+            {
+              name: "Send email",
+              description: "recipient, subject, body → sent message",
+              kind: "write",
+              approval: "Always requires approval",
+            },
+          ].map((op) => (
+            <li
+              key={op.name}
+              className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-outline-variant/30 bg-surface-container-low px-2.5 py-1.5"
+            >
+              <span className="font-body-sm text-body-sm font-medium text-on-surface">{op.name}</span>
+              <span className="font-body-sm text-[12px] text-on-surface-variant">{op.description}</span>
+              <span
+                className={`ml-auto rounded px-1.5 py-0.5 font-mono-code text-[10px] uppercase tracking-wide ${
+                  op.kind === "write" ? "bg-secondary/10 text-secondary" : "bg-allow/10 text-allow"
+                }`}
+              >
+                {op.kind}
+              </span>
+              {op.approval ? (
+                <span className="rounded bg-deny/10 px-1.5 py-0.5 font-mono-code text-[10px] uppercase tracking-wide text-deny">
+                  {op.approval}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {error ? (

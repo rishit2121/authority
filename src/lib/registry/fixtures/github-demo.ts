@@ -65,11 +65,16 @@ import type { RegistryData } from "../types";
  * `identifiesResource` is ever consulted). Renaming this file is a separate
  * cleanup, deferred to avoid touching
  * `src/tests/integration/gateway-support.ts`'s regex read of this exact path
- * for `registryVersion`.
+ * for `registryVersion`. `gmail.list_messages`, `gmail.get_message`, and
+ * `gmail.list_labels` were added alongside `gmail.send_email` once the
+ * Gmail connector's own OAuth grant widened from `gmail.send`-only to full
+ * mailbox access (src/lib/connectors/gmail/oauth.ts) — the broader grant on
+ * its own authorizes nothing; these three new, individually-audited read
+ * operations are what actually make any of that access callable.
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
-  registryVersion: "github-demo-2026-10-02c",
+  registryVersion: "github-demo-2026-10-02d",
   operations: [
     {
       id: "github.get_issue",
@@ -253,6 +258,51 @@ export const githubDemoRegistry: RegistryData = {
         "The recipient must be identifiable from the task's own intent or trusted inputs, never invented.",
       ],
       effects: ["Sends one email to the named recipient; this leaves the organization and cannot be undone."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "gmail.list_messages",
+      provider: "gmail",
+      sideEffect: "read",
+      resourceType: "email",
+      dataSensitivity: "confidential",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [
+        { key: "query", type: "string", required: false, identifiesResource: false },
+        { key: "max_results", type: "number", required: false, identifiesResource: false },
+      ],
+      preconditions: [],
+      effects: ["Returns up to 50 matching message ids and snippets from across the connected mailbox."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "gmail.get_message",
+      provider: "gmail",
+      sideEffect: "read",
+      resourceType: "email",
+      dataSensitivity: "confidential",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "message_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: [],
+      effects: ["Returns one message's full content, including headers and body."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "gmail.list_labels",
+      provider: "gmail",
+      sideEffect: "read",
+      resourceType: "email",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [],
+      preconditions: [],
+      effects: ["Returns the labels defined in the connected mailbox."],
       alternativeOperationIds: [],
     },
     {
@@ -482,6 +532,15 @@ export const githubDemoRegistry: RegistryData = {
       riskCost: 3,
       resourceBreadth: 1,
       allowsExternalCommunication: true,
+    },
+    {
+      id: "gmail.read_scope",
+      provider: "gmail",
+      operations: ["gmail.list_messages", "gmail.get_message", "gmail.list_labels"],
+      classification: "read",
+      riskCost: 2,
+      resourceBreadth: 3,
+      allowsExternalCommunication: false,
     },
     {
       id: "stripe.refunds_write",

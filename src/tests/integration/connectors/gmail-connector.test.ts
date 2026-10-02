@@ -161,6 +161,66 @@ describe("Gmail connector (in-memory fixture API, real database)", () => {
     expect(fixtureApi.requests.map((r) => r.path)).toEqual(["/token", "/gmail/v1/users/me/messages/send"]);
   });
 
+  it("list_messages: a correctly scoped capability lists messages across the mailbox", async () => {
+    const fx = await mkTask("list-messages", ["gmail.list_messages"]);
+    const args = { query: "is:unread" };
+    const token = await authorize(fx, "gmail.list_messages", args, "inbox");
+    const result = await run(fx, token, "gmail.list_messages", args, "inbox");
+    expect(result.http).toBe(200);
+    expect(result.body.data).toMatchObject({
+      messages: [{ id: "fixture-msg-read-1", threadId: "fixture-thread-read-1" }],
+    });
+  });
+
+  it("get_message: a correctly scoped capability returns the fixture message's content", async () => {
+    const fx = await mkTask("get-message", ["gmail.get_message"]);
+    const token = await authorize(
+      fx,
+      "gmail.get_message",
+      { message_id: "fixture-msg-read-1" },
+      "fixture-msg-read-1",
+    );
+    const ok = await run(
+      fx,
+      token,
+      "gmail.get_message",
+      { message_id: "fixture-msg-read-1" },
+      "fixture-msg-read-1",
+    );
+    expect(ok.http).toBe(200);
+    expect(ok.body.data).toMatchObject({
+      id: "fixture-msg-read-1",
+      snippet: "Hello from the fixture inbox.",
+    });
+  });
+
+  it("get_message: a capability scoped to one message id cannot be replayed against a different one", async () => {
+    const fx = await mkTask("get-message-blocked", ["gmail.get_message"]);
+    const token = await authorize(
+      fx,
+      "gmail.get_message",
+      { message_id: "fixture-msg-read-1" },
+      "fixture-msg-read-1",
+    );
+    const blocked = await run(
+      fx,
+      token,
+      "gmail.get_message",
+      { message_id: "some-other-message" },
+      "some-other-message",
+    );
+    expect(blocked.http).toBe(403);
+    expect(blocked.body.error).toMatchObject({ code: "SCOPE_MISMATCH" });
+  });
+
+  it("list_labels: a correctly scoped capability lists the mailbox's labels", async () => {
+    const fx = await mkTask("list-labels", ["gmail.list_labels"]);
+    const token = await authorize(fx, "gmail.list_labels", {}, "labels");
+    const result = await run(fx, token, "gmail.list_labels", {}, "labels");
+    expect(result.http).toBe(200);
+    expect(result.body.data).toMatchObject({ labels: [{ id: "INBOX" }, { id: "SENT" }] });
+  });
+
   it("a header-injection attempt in the recipient is rejected before any request is built", async () => {
     const fx = await mkTask("header-injection", ["gmail.send_email"]);
     const args = { to: "victim@example.com\r\nBcc: attacker@evil.com", subject: "hi" };
