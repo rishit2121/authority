@@ -30,7 +30,11 @@ export function CustomersPanel({ customers }: { customers: CustomerRow[] }) {
       ) : (
         <ul className="flex flex-col gap-2">
           {customers.map((c) => (
-            <li key={c.id} className="flex flex-col gap-1.5 rounded-lg border border-line bg-paper p-3.5">
+            <li
+              key={c.id}
+              className="flex flex-col gap-1.5 rounded-lg border border-line bg-paper p-3.5"
+              data-testid={`customer-${c.externalId}`}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-mono-code text-[12px] text-ink">{c.displayLabel ?? c.externalId}</span>
                 <StatusPill tone={c.status === "active" ? "positive" : "muted"}>{c.status}</StatusPill>

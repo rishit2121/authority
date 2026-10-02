@@ -60,7 +60,10 @@ function NewCredentialModal({ plaintextSecret, onDone }: { plaintextSecret: stri
           </p>
         </div>
 
-        <code className="break-all rounded-lg border border-line bg-paper px-3 py-2.5 font-mono-code text-[12px] text-ink">
+        <code
+          className="break-all rounded-lg border border-line bg-paper px-3 py-2.5 font-mono-code text-[12px] text-ink"
+          data-testid="backend-credential-secret"
+        >
           {plaintextSecret}
         </code>
 
@@ -80,6 +83,7 @@ function NewCredentialModal({ plaintextSecret, onDone }: { plaintextSecret: stri
             type="button"
             onClick={onDone}
             className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+            data-testid="backend-credential-secret-done"
           >
             Done
           </button>
@@ -150,12 +154,14 @@ export function BackendCredentialsPanel({
             onChange={(e) => setName(e.target.value)}
             placeholder="Label (optional)"
             className="rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 text-[13px] text-ink"
+            data-testid="backend-credential-name"
           />
           <button
             type="button"
             onClick={handleCreate}
             disabled={pending}
             className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-black/[0.03] disabled:opacity-50"
+            data-testid="backend-credential-issue"
           >
             <Icon name="key" size={15} />
             Issue credential
@@ -187,6 +193,7 @@ export function BackendCredentialsPanel({
             <li
               key={credential.id}
               className="flex flex-col gap-2 rounded-lg border border-line bg-paper p-3.5"
+              data-testid={`backend-credential-${credential.id}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <code className="font-mono-code text-[12px] text-ink">{credential.keyPrefix}…</code>
@@ -211,6 +218,7 @@ export function BackendCredentialsPanel({
                         onChange={(event) => setReason(event.target.value)}
                         placeholder="Revocation reason"
                         className="rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 text-[13px] text-ink"
+                        data-testid={`backend-credential-revoke-reason-${credential.id}`}
                       />
                       <div className="flex gap-2">
                         <button
@@ -218,6 +226,7 @@ export function BackendCredentialsPanel({
                           onClick={() => handleRevoke(credential.id)}
                           disabled={pending}
                           className="rounded-lg border border-deny/40 bg-deny/10 px-2.5 py-1 text-[12px] font-medium text-deny disabled:opacity-50"
+                          data-testid={`backend-credential-confirm-revoke-${credential.id}`}
                         >
                           Confirm revoke
                         </button>
@@ -238,6 +247,7 @@ export function BackendCredentialsPanel({
                       type="button"
                       onClick={() => setRevokingId(credential.id)}
                       className="self-start text-[12px] font-medium text-deny underline"
+                      data-testid={`backend-credential-revoke-${credential.id}`}
                     >
                       Revoke
                     </button>

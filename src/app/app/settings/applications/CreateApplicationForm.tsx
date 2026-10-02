@@ -46,6 +46,7 @@ export function CreateApplicationForm() {
             onChange={(e) => setName(e.target.value)}
             placeholder="Acme Web"
             className={INPUT}
+            data-testid="application-name"
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -57,6 +58,7 @@ export function CreateApplicationForm() {
             placeholder="acme-web"
             pattern="^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
             className={INPUT}
+            data-testid="application-slug"
           />
         </label>
         <label className="flex flex-col gap-1">
@@ -67,6 +69,7 @@ export function CreateApplicationForm() {
             value={environment}
             onChange={(e) => setEnvironment(e.target.value as (typeof ENVIRONMENTS)[number])}
             className={INPUT}
+            data-testid="application-environment"
           >
             {ENVIRONMENTS.map((env) => (
               <option key={env} value={env}>
@@ -75,7 +78,7 @@ export function CreateApplicationForm() {
             ))}
           </select>
         </label>
-        <button type="submit" disabled={pending} className={BTN_PRIMARY}>
+        <button type="submit" disabled={pending} className={BTN_PRIMARY} data-testid="application-create">
           Create
         </button>
       </form>

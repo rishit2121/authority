@@ -52,6 +52,7 @@ export default async function ApplicationsPage() {
               key={app.id}
               href={`/app/settings/applications/${app.id}`}
               className="flex items-center justify-between rounded-[10px] border border-line bg-paper-raised p-5 transition-colors hover:bg-black/[0.02]"
+              data-testid={`application-${app.id}`}
             >
               <div className="flex flex-col gap-1">
                 <span className="text-[14px] font-semibold text-ink">{app.name}</span>

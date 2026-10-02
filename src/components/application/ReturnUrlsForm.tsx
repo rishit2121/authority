@@ -34,6 +34,7 @@ export function ReturnUrlsForm({
         rows={4}
         placeholder="https://app.acme.com/settings/integrations"
         className="rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 font-mono-code text-[12px] text-ink"
+        data-testid="application-return-urls"
       />
       {error ? (
         <p role="alert" className="text-[13px] text-deny">
@@ -66,6 +67,7 @@ export function ReturnUrlsForm({
           });
         }}
         className="self-start rounded-lg border border-line-strong px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-black/[0.03] disabled:opacity-50"
+        data-testid="application-return-urls-save"
       >
         Save
       </button>
