@@ -1,7 +1,9 @@
 import "server-only";
 
+import { requestBrokerAccessToken } from "@/lib/connectors/broker/client";
 import { sanitizeResource } from "@/lib/gateway/argument-audit";
 import { getConnectorConnectionConfig, resolveConnectorSecret } from "@/lib/gateway/rpc-connector-secrets";
+import { resolveConnectionBroker } from "@/lib/gateway/rpc-connection-brokers";
 
 import {
   fetchWithOptionalFixture,
@@ -143,6 +145,8 @@ export interface GmailConnectorDeps {
   resolveSecret: typeof resolveConnectorSecret;
   fetch: (input: SafeFetchInput) => Promise<SafeFetchResult>;
   refreshAccessToken: typeof refreshGmailAccessToken;
+  resolveBroker: typeof resolveConnectionBroker;
+  requestBrokerToken: typeof requestBrokerAccessToken;
 }
 
 export const defaultGmailConnectorDeps: GmailConnectorDeps = {
@@ -150,6 +154,8 @@ export const defaultGmailConnectorDeps: GmailConnectorDeps = {
   resolveSecret: resolveConnectorSecret,
   fetch: fetchWithOptionalFixture,
   refreshAccessToken: refreshGmailAccessToken,
+  resolveBroker: resolveConnectionBroker,
+  requestBrokerToken: requestBrokerAccessToken,
 };
 
 function splitTool(tool: string): GmailOperationSlug {
@@ -177,8 +183,35 @@ export function createGmailConnector(
    * to fail cleanly as a definite `failed`, not `indeterminate` -- before
    * `execute()` calls `context.beforeWrite()`. Only the send call itself,
    * below, is the point after which a crash must settle as indeterminate.
+   *
+   * A broker-mode connection (Mode B) holds no refresh token here at all --
+   * every call asks the registered broker for a fresh, short-lived token
+   * instead, used only for this one call and never persisted. A managed
+   * connection (Mode A, or dashboard-operated) is unchanged: Authority's
+   * own stored refresh token, exchanged the same way as always.
    */
   async function accessTokenFor(connectionId: string): Promise<string> {
+    // A managed connection -- the overwhelming common case, and every
+    // connection that existed before this feature -- never calls the
+    // broker resolver at all: that table and function are only ever
+    // consulted for a connection actually marked auth_mode = 'broker'.
+    const connection = await deps.getConnectionConfig(connectionId);
+    if (connection?.authMode === "broker") {
+      const broker = await deps.resolveBroker(connectionId);
+      if (broker.status !== "ok" || !broker.url || !broker.secret || !broker.brokerConnectionRef) {
+        throw new Error(`BROKER_UNAVAILABLE_${broker.status.toUpperCase()}`);
+      }
+      const result = await deps.requestBrokerToken({
+        brokerUrl: broker.url,
+        brokerSecret: broker.secret,
+        connectionId,
+        connectorId: GMAIL_CONNECTOR_ID,
+        brokerConnectionRef: broker.brokerConnectionRef,
+      });
+      if (result.status !== "ok") throw new Error(`BROKER_TOKEN_${result.reason}`);
+      return result.token.accessToken;
+    }
+
     const refreshToken = await refreshTokenFor(connectionId);
     return deps.refreshAccessToken(refreshToken, deps.fetch);
   }

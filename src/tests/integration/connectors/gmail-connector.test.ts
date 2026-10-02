@@ -346,7 +346,12 @@ describe("Gmail connector (in-memory fixture API, real database)", () => {
           args,
           idempotencyKey: key("exec"),
         },
-        { ...defaultConnectorExecutorDeps, deadlineMs: 150 },
+        // Wide enough to comfortably clear the real round trips before the
+        // send itself (credential resolution, now including the auth-mode
+        // lookup every accessTokenFor() call makes) against the real
+        // hosted dev database -- still far shorter than the send's promise,
+        // which never resolves at all, so the deadline still fires on it.
+        { ...defaultConnectorExecutorDeps, deadlineMs: 2000 },
       );
       expect(result.http).toBe(504);
       expect(result.body.error).toMatchObject({ code: "EXECUTION_INDETERMINATE" });

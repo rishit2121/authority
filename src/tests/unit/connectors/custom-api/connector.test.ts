@@ -52,6 +52,7 @@ function harness(opOver: Partial<PublishedCustomOperation> = {}, over: Partial<C
       status: "active",
       config: { baseUrl: "https://api.example.com" },
       lastVerifiedAt: "2026-10-01T00:00:00Z",
+      authMode: "managed",
     }),
   );
   const getPublishedOperation = vi.fn(
@@ -201,7 +202,12 @@ describe("Custom API connector", () => {
 
     it("reports not_configured when no base URL is set", async () => {
       const { connector, getConnectionConfig } = harness();
-      getConnectionConfig.mockResolvedValueOnce({ status: "active", config: {}, lastVerifiedAt: null });
+      getConnectionConfig.mockResolvedValueOnce({
+        status: "active",
+        config: {},
+        lastVerifiedAt: null,
+        authMode: "managed",
+      });
       const health = await connector.verifyInstallation({ connectionId: CONNECTION_ID });
       expect(health.status).toBe("not_configured");
       expect(health.reasons).toContain("BASE_URL_NOT_CONFIGURED");
@@ -213,6 +219,7 @@ describe("Custom API connector", () => {
         status: "active",
         config: { baseUrl: "http://insecure.example.com" },
         lastVerifiedAt: null,
+        authMode: "managed",
       });
       const health = await connector.verifyInstallation({ connectionId: CONNECTION_ID });
       expect(health.status).toBe("not_configured");
