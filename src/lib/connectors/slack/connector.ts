@@ -117,6 +117,33 @@ function parseSlackEnvelope(bodyText: string): SlackEnvelope {
   }
 }
 
+/**
+ * Best-effort label for which Slack workspace a bot token belongs to, so the
+ * dashboard can show it instead of a bare "verified" badge. Takes the
+ * plaintext token directly -- callers here already have it in hand from the
+ * form submission that is about to store it. Returns null on any failure;
+ * an unlabelled connection is still a working one, and this must never be
+ * why saving a token fails.
+ */
+export async function fetchSlackWorkspaceLabel(
+  botToken: string,
+  fetchImpl: (input: SafeFetchInput) => Promise<SafeFetchResult> = fetchWithOptionalFixture,
+): Promise<string | null> {
+  try {
+    const response = await fetchImpl({
+      url: new URL(`https://${apiHostname()}/api/auth.test`),
+      method: "POST",
+      headers: { authorization: `Bearer ${botToken}` },
+      timeoutMs: 10_000,
+    });
+    const envelope = parseSlackEnvelope(response.bodyText);
+    if (!envelope.ok) return null;
+    return typeof envelope.team === "string" ? envelope.team : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createSlackConnector(
   deps: SlackConnectorDeps = defaultSlackConnectorDeps,
 ): AuthorityConnector {

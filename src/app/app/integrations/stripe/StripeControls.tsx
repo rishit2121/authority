@@ -259,6 +259,11 @@ export function ConnectionCard({
       <div className="flex flex-wrap items-center justify-between gap-space-sm">
         <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">{connection.name}</h2>
         <div className="flex items-center gap-space-sm">
+          {connection.connectedAccount ? (
+            <span className="rounded border border-outline-variant/30 px-2 py-0.5 font-mono-code text-[11px] text-outline">
+              {connection.connectedAccount}
+            </span>
+          ) : null}
           {connection.mode ? (
             <span className="rounded border border-outline-variant/30 px-2 py-0.5 font-mono-code text-[11px] text-outline">
               {connection.mode === "test" ? "Test mode" : "Live mode"}

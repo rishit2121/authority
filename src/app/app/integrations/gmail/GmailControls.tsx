@@ -132,7 +132,11 @@ export function ConnectionCard({
                 : "border-outline-variant/40 bg-surface-container-high text-on-surface-variant"
             }`}
           >
-            {connection.oauthConnected ? "Google account connected" : "Not connected to Google"}
+            {connection.oauthConnected
+              ? connection.connectedEmail
+                ? `Connected as ${connection.connectedEmail}`
+                : "Google account connected"
+              : "Not connected to Google"}
           </span>
           <span className={`rounded border px-2 py-0.5 font-mono-code text-[11px] ${statusStyle}`}>
             {connection.status}

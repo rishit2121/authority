@@ -2,7 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { STRIPE_CONNECTOR_ID, stripeConnector } from "@/lib/connectors/stripe/connector";
+import {
+  fetchStripeAccountLabel,
+  STRIPE_CONNECTOR_ID,
+  stripeConnector,
+} from "@/lib/connectors/stripe/connector";
 import type { ConnectorHealthResult } from "@/lib/connectors/types";
 import { setConnectorSecret, updateConnectorConnectionConfig } from "@/lib/gateway/rpc-connector-secrets";
 import {
@@ -108,6 +112,20 @@ async function saveAndVerify(
     status: healthStatus,
     reasons: health.reasons,
   });
+
+  if (healthStatus === "active") {
+    // Best-effort, after verification has already succeeded: a failure here
+    // must never turn an otherwise-successful connect into an error.
+    const accountLabel = await fetchStripeAccountLabel(plaintextSecret);
+    if (accountLabel) {
+      await updateConnectorConnectionConfig({
+        tenantId: identity.tenant.tenantId,
+        userId: identity.userId,
+        connectionId,
+        config: { mode, connectedAccount: accountLabel },
+      });
+    }
+  }
   revalidatePath(PAGE);
 
   if (healthStatus === "active") {
