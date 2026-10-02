@@ -1,25 +1,14 @@
 import type { Metadata } from "next";
 
-import { Icon } from "@/components/ui/Icon";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { hasConnectorSecret } from "@/lib/gateway/rpc-connector-secrets";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 import { ConnectConnectionForm, ConnectionCard } from "./StripeControls";
+import { toDisplayStatus, type StripeConnectionRow } from "./status";
 
 export const metadata: Metadata = { title: "Stripe connector" };
-
-const STATUS_STYLE: Record<string, string> = {
-  active: "border-allow/30 bg-allow/10 text-allow",
-  suspended: "border-secondary/40 bg-secondary/10 text-secondary",
-  needs_attention: "border-deny/40 bg-deny/10 text-deny",
-  disconnected: "border-outline-variant/40 bg-surface-container-high text-on-surface-variant",
-};
-
-export interface StripeConnectionRow {
-  id: string;
-  name: string;
-  status: string;
-  environment: string;
-}
 
 export default async function StripeIntegrationPage() {
   const { identity, context } = await createRepositoriesForCurrentTenant("/app/integrations/stripe");
@@ -27,67 +16,75 @@ export default async function StripeIntegrationPage() {
 
   const { data: connections } = await context.supabase
     .from("connector_connections")
-    .select("id, name, status, environment")
+    .select("id, name, status, config, last_verified_at")
     .eq("connector_id", "stripe")
     .order("created_at", { ascending: false });
 
-  const rows: StripeConnectionRow[] = (connections ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    status: c.status,
-    environment: c.environment,
-  }));
+  const rows: StripeConnectionRow[] = await Promise.all(
+    (connections ?? []).map(async (c) => {
+      const config = (c.config as Record<string, unknown> | null) ?? {};
+      const mode = config.mode === "test" || config.mode === "live" ? config.mode : null;
+      const hasSecret = await hasConnectorSecret(c.id, "api_key");
+      return {
+        id: c.id,
+        name: c.name,
+        mode,
+        hasSecret,
+        lastVerifiedAt: c.last_verified_at,
+        displayStatus: toDisplayStatus(c.status, hasSecret, c.last_verified_at),
+      };
+    }),
+  );
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <header>
-        <h1 className="font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-          Stripe
-        </h1>
-        <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Retrieve payments and customers, list a customer&apos;s charges, and issue refunds — a fixed,
-          audited set of operations against Stripe&apos;s own API, never an arbitrary request an agent
-          constructs itself. A refund always requires the financial-impact approval rule, unconditionally.
-        </p>
-      </header>
+      <PageHeader
+        title="Stripe"
+        description="Retrieve payments and customers, list charges, and issue refunds — a fixed, audited set of operations against Stripe's own API."
+      />
 
-      <div
-        role="note"
-        className="flex items-start gap-space-sm rounded-lg border border-outline-variant/30 bg-surface-container px-space-md py-2.5"
-      >
-        <Icon name="lock" size={15} className="mt-0.5 shrink-0 text-outline" />
-        <p className="font-body-md text-body-sm text-on-surface-variant">
+      <details className="group rounded-[10px] border border-line bg-paper px-3.5 py-2.5">
+        <summary className="cursor-pointer text-[13px] font-medium text-ink-soft marker:content-none">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block transition-transform group-open:rotate-90">›</span>
+            Security details
+          </span>
+        </summary>
+        <p className="mt-2 text-[13px] text-ink-soft">
           Your secret key is stored in Supabase Vault and resolved only at the moment a connector dispatches
-          an authorized request — it is never returned to this browser or logged. Use a test-mode key (
-          <code className="font-mono-code">sk_test_…</code>) until you are ready to connect a live account.
+          an authorized request — it is never returned to this browser or logged. Prefer a{" "}
+          <a
+            href="https://docs.stripe.com/keys#limit-access"
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            restricted key
+          </a>{" "}
+          scoped to only the permissions below (Payment Intents: read, Customers: read, Charges: read,
+          Refunds: write) over a broad secret key. A refund always requires the financial-impact approval
+          rule, unconditionally — the payment ID and amount in a refund request come from the agent&apos;s own
+          request and are checked against the task&apos;s contract before Authority ever builds the Stripe
+          request.
         </p>
-      </div>
+      </details>
 
       {canAdmin ? <ConnectConnectionForm /> : null}
 
       {rows.length === 0 ? (
-        <section
-          className="rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low p-space-lg"
-          data-testid="stripe-not-connected"
-        >
-          <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-            No connections yet
-          </h2>
-          <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-            {canAdmin
-              ? "Create a connection above, then set its secret key."
-              : "An admin has not connected Stripe yet."}
-          </p>
-        </section>
+        <EmptyState
+          icon="token"
+          heading="No connections yet"
+          description={
+            canAdmin
+              ? "Connect a Stripe account above to get started."
+              : "An admin has not connected Stripe yet."
+          }
+        />
       ) : (
         <div className="flex flex-col gap-space-md">
           {rows.map((connection) => (
-            <ConnectionCard
-              key={connection.id}
-              connection={connection}
-              statusStyle={STATUS_STYLE[connection.status] ?? STATUS_STYLE.disconnected}
-              canAdmin={canAdmin}
-            />
+            <ConnectionCard key={connection.id} connection={connection} canAdmin={canAdmin} />
           ))}
         </div>
       )}
