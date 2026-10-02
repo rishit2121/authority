@@ -6,7 +6,8 @@ import { installDemoWorkspaceAction } from "@/app/app/actions";
 import { Icon } from "@/components/ui/Icon";
 
 /**
- * Shown when a tenant has no agents or tasks yet.
+ * Shown alongside the primary onboarding steps, as a secondary, optional
+ * path, for a tenant with no agents or tasks yet.
  *
  * The three statements below are load-bearing, not decorative: this button
  * mutates real database rows in this tenant, and a user must know exactly
@@ -19,33 +20,26 @@ export function EmptyWorkspace() {
   }, {});
 
   return (
-    <div className="flex flex-col items-center gap-space-lg rounded-xl border border-outline-variant/30 bg-surface-container-low px-space-lg py-space-2xl text-center">
-      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-container-high text-outline">
-        <Icon name="smart_toy" size={22} />
-      </span>
-
-      <div className="flex max-w-md flex-col gap-space-sm">
-        <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-          No agents or tasks have been configured
-        </h2>
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          This workspace is otherwise real — your account and tenant membership are genuine. You can install a
-          simulated demo workspace to see how Authority evaluates a task, or wait until your team creates its
-          first agent and task.
+    <div className="flex flex-col gap-4 rounded-[10px] border border-line bg-paper-raised p-5">
+      <div className="flex flex-col gap-1.5">
+        <h2 className="text-[15px] font-semibold text-ink">Prefer to explore with sample data first?</h2>
+        <p className="text-[13px] text-ink-soft">
+          Install a simulated demo workspace to see how Authority evaluates a task before connecting your own
+          agent.
         </p>
       </div>
 
-      <ul className="flex max-w-md flex-col gap-space-xs text-left font-body-sm text-body-sm text-on-surface-variant">
+      <ul className="flex flex-col gap-1.5 text-[13px] text-ink-soft">
         <li className="flex items-start gap-2">
-          <Icon name="check_circle" size={14} className="mt-0.5 shrink-0 text-outline" />
+          <Icon name="check_circle" size={14} className="mt-0.5 shrink-0 text-ink-soft" />
           Creates only local Authority database records, scoped to this workspace.
         </li>
         <li className="flex items-start gap-2">
-          <Icon name="check_circle" size={14} className="mt-0.5 shrink-0 text-outline" />
+          <Icon name="check_circle" size={14} className="mt-0.5 shrink-0 text-ink-soft" />
           Does not contact GitHub, Stripe, Gmail, Slack or any external service.
         </li>
         <li className="flex items-start gap-2">
-          <Icon name="check_circle" size={14} className="mt-0.5 shrink-0 text-outline" />
+          <Icon name="check_circle" size={14} className="mt-0.5 shrink-0 text-ink-soft" />
           Stores no external credentials of any kind.
         </li>
       </ul>
@@ -55,7 +49,7 @@ export function EmptyWorkspace() {
           type="submit"
           disabled={pending}
           aria-busy={pending}
-          className="flex h-11 items-center justify-center gap-2 rounded-lg bg-primary px-space-lg font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed disabled:cursor-not-allowed disabled:opacity-70"
+          className="flex h-10 items-center justify-center gap-2 rounded-lg border border-line-strong px-4 text-[14px] font-medium text-ink transition-colors hover:bg-black/[0.03] disabled:cursor-not-allowed disabled:opacity-70"
         >
           <Icon name="smart_toy" size={16} />
           {pending ? "Installing…" : "Install demo workspace"}
@@ -63,7 +57,7 @@ export function EmptyWorkspace() {
       </form>
 
       {state.error ? (
-        <p role="alert" className="font-body-sm text-body-sm text-deny">
+        <p role="alert" className="text-[13px] text-deny">
           {state.error}
         </p>
       ) : null}

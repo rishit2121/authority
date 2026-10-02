@@ -15,28 +15,19 @@ export function Panel({
   accent?: "neutral" | "cyan" | "rose";
 }) {
   const border =
-    accent === "cyan"
-      ? "border-primary/30"
-      : accent === "rose"
-        ? "border-deny/35"
-        : "border-outline-variant/30";
+    accent === "cyan" ? "border-signal/30" : accent === "rose" ? "border-deny/35" : "border-line";
 
   return (
     <section
       id={id}
       aria-labelledby={id ? `${id}-heading` : undefined}
-      className={`rounded-xl border ${border} bg-surface-container`}
+      className={`rounded-[10px] border ${border} bg-paper-raised`}
     >
-      <header className="border-b border-outline-variant/25 px-space-lg py-space-md">
-        <h2
-          id={id ? `${id}-heading` : undefined}
-          className="font-headline-sm text-headline-sm font-semibold text-on-surface"
-        >
+      <header className="border-b border-line px-space-lg py-space-md">
+        <h2 id={id ? `${id}-heading` : undefined} className="text-[15px] font-semibold text-ink">
           {title}
         </h2>
-        {subtitle ? (
-          <p className="mt-0.5 font-body-sm text-body-sm text-on-surface-variant">{subtitle}</p>
-        ) : null}
+        {subtitle ? <p className="mt-0.5 text-[13px] text-ink-soft">{subtitle}</p> : null}
       </header>
       <div className="p-space-lg">{children}</div>
     </section>
@@ -47,8 +38,8 @@ export function Panel({
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <dt className="font-label-caps text-label-caps uppercase tracking-widest text-outline">{label}</dt>
-      <dd className="mt-1 font-mono-code text-[12px] text-on-surface">{children}</dd>
+      <dt className="text-[11px] uppercase tracking-wide text-ink-soft">{label}</dt>
+      <dd className="mt-1 font-mono-code text-[12px] text-ink">{children}</dd>
     </div>
   );
 }

@@ -82,7 +82,7 @@ test.describe.serial("candidate plan / contract lifecycle", () => {
 
   test("no contract yet shows the pending panel with a create CTA", async ({ page }) => {
     await page.goto(`/app/tasks/${taskId}`);
-    await expect(page.getByRole("heading", { name: "Task Authority Contract" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Task contract" })).toBeVisible();
     await expect(page.getByText(/no contract has been proposed for this task yet/i)).toBeVisible();
     await expect(page.getByRole("link", { name: "Create authority contract" })).toBeVisible();
   });

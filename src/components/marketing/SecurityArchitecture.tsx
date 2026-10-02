@@ -1,71 +1,50 @@
-import { Section } from "@/components/ui/Section";
-import { SectionHeading } from "@/components/ui/SectionHeading";
+import { HairlineDivider } from "@/components/marketing/HairlineDivider";
+import { MarketingContainer } from "@/components/marketing/MarketingContainer";
+import { SectionHeading } from "@/components/marketing/SectionHeading";
 
-function Connector() {
-  return <span className="mx-auto h-6 w-0.5 bg-outline-variant/40" />;
-}
+const POINTS = [
+  {
+    title: "Deterministic authority boundary",
+    body: "A task's permitted tools, operations and resources are resolved by policy, not guessed by a model. The boundary is computed once, compiled into a contract, and checked the same way every time.",
+  },
+  {
+    title: "Temporary capabilities",
+    body: "Every permission is short-lived and scoped to one task. There is no standing grant left behind once the work is done.",
+  },
+  {
+    title: "No standing agent credentials",
+    body: "Agents never hold long-lived keys to the systems they act on. Each tool call is authorized individually, at the moment it happens.",
+  },
+  {
+    title: "Complete decision trace",
+    body: "Every allow, constraint, approval and denial is recorded — a full, auditable record of what an agent was permitted to do, and why.",
+  },
+];
 
 export function SecurityArchitecture() {
   return (
-    <Section id="security">
-      <SectionHeading
-        align="center"
-        eyebrow="System Invariant"
-        title="Models advise. Policy enforces."
-        description="Never trust an LLM to self-enforce its boundaries. Authority places physical cryptographic guards outside the model execution container."
-        className="mx-auto max-w-2xl mb-space-2xl"
-      />
+    <section id="security" className="py-20 md:py-28">
+      <MarketingContainer>
+        <SectionHeading title="The security model" />
 
-      <div className="mx-auto flex max-w-4xl flex-col gap-3">
-        <div className="flex items-center justify-between rounded-lg border border-outline-variant/30 bg-surface-container p-space-md">
-          <span className="font-headline-sm text-body-md font-semibold text-on-surface">
-            1. User &amp; Validated Intent
-          </span>
-          <span className="font-mono-code text-[11px] text-allow">SOURCE_OF_TRUTH</span>
+        <div className="mt-12 grid grid-cols-1 gap-x-16 gap-y-10 md:grid-cols-2">
+          {POINTS.map((point) => (
+            <div key={point.title} className="flex flex-col gap-2">
+              <h3 className="font-headline-lg text-[19px] font-semibold text-mkt-text">{point.title}</h3>
+              <p className="text-[15px] leading-relaxed text-mkt-text-secondary">{point.body}</p>
+            </div>
+          ))}
         </div>
 
-        <Connector />
+        <HairlineDivider className="my-10" />
 
-        <div className="flex flex-col justify-between gap-2 rounded-lg border border-error/30 bg-untrusted p-space-lg md:flex-row md:items-center">
-          <div>
-            <span className="block font-mono-token text-[10px] uppercase text-error">
-              Untrusted execution boundary
-            </span>
-            <span className="font-headline-sm text-body-md font-semibold text-on-surface">
-              Autonomous Agent Reasoning Loop (LLM)
-            </span>
-          </div>
-          <span className="font-mono-code text-[11px] text-error">PROPOSES_ACTIONS_ONLY</span>
-        </div>
-
-        <Connector />
-
-        <div className="flex flex-col justify-between gap-4 rounded-xl border-2 border-primary/50 bg-surface-container-high p-space-xl shadow-2xl md:flex-row md:items-center">
-          <div>
-            <span className="block font-mono-token text-[10px] font-bold uppercase text-primary">
-              Authority enforcement substrate
-            </span>
-            <span className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-              Cryptographic Runtime Gateway
-            </span>
-            <p className="mt-1 font-body-sm text-body-sm text-on-surface-variant">
-              Contract Synthesis · Policy Evaluation · JIT Credential Injection · Revocation
-            </p>
-          </div>
-          <span className="shrink-0 rounded bg-primary px-3 py-1.5 font-mono-code text-[11px] font-medium text-on-primary">
-            ZERO-TRUST MEDIATION
-          </span>
-        </div>
-
-        <Connector />
-
-        <div className="flex flex-col items-start justify-between gap-2 rounded-lg border border-outline-variant/30 bg-surface-container p-space-md sm:flex-row sm:items-center">
-          <span className="font-headline-sm text-body-md font-semibold text-on-surface">
-            External Tool APIs &amp; Datastores (GitHub, Databases, Slack)
-          </span>
-          <span className="font-mono-code text-[11px] text-outline">PROTECTED_TARGETS</span>
-        </div>
-      </div>
-    </Section>
+        <p className="max-w-2xl text-[14px] leading-relaxed text-mkt-text-secondary">
+          Authority can also use a model (Jev) to flag unusual or risky requests. This signal is{" "}
+          <strong className="text-mkt-text">advisory only</strong> unless a workspace explicitly turns on
+          enforcement — a model is never the security boundary itself. The deterministic contract above
+          remains authoritative at all times.
+        </p>
+      </MarketingContainer>
+    </section>
   );
 }

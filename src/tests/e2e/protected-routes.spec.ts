@@ -41,7 +41,7 @@ test.describe("protected routes", () => {
     await page.goto("/app/tasks/demo-task");
     // The task investigation view's own headings must be absent entirely, not
     // merely hidden by CSS.
-    await expect(page.getByText("Task Authority Contract")).toHaveCount(0);
+    await expect(page.getByText("Task contract")).toHaveCount(0);
     await expect(page.getByRole("navigation", { name: "Control plane" })).toHaveCount(0);
   });
 

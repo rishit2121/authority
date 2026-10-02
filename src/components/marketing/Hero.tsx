@@ -1,61 +1,70 @@
-import Link from "next/link";
-
-import { AuthorityGraph } from "@/components/graph/AuthorityGraph";
-import { Icon } from "@/components/ui/Icon";
-import { StatusDot } from "@/components/ui/StatusDot";
+import { InkButton } from "@/components/marketing/InkButton";
+import { InkOutlineButton } from "@/components/marketing/InkOutlineButton";
+import { HeroAuthorityGraph } from "@/components/marketing/graph/HeroAuthorityGraph";
 
 export function Hero() {
+  // Background and the field-line system both live on the shared wrapper in page.tsx, not here —
+  // this section must stay transparent so the lines show through underneath it. No bottom border
+  // either: whitespace and the continuing lines are the transition into the next section.
   return (
-    <section
-      id="top"
-      className="relative mx-auto flex w-full max-w-[1280px] items-center px-margin py-space-2xl md:min-h-[780px] md:px-margin-lg"
-    >
-      <div className="grid w-full grid-cols-1 items-center gap-space-2xl lg:grid-cols-12">
-        <div className="z-10 flex flex-col items-start lg:col-span-5">
-          <div className="mb-space-lg inline-flex items-center gap-space-sm rounded-full border border-outline-variant/30 bg-surface-container px-space-md py-1 shadow-sm">
-            <StatusDot className="bg-allow" />
-            <span className="font-mono-token text-mono-token uppercase tracking-wider text-allow">
-              Runtime Authorization for AI Agents
+    <section id="top" className="relative">
+      {/* Not MarketingContainer: the hero's 1320px content width is wider than that shared
+          1120px container, and stacking two max-w-* utilities on one element is unreliable
+          (whichever Tailwind happens to emit last in the stylesheet wins, not the one that
+          looks like an "override" in the className string) — it caused a real ~24px
+          horizontal-overflow bug at 1024px during the hero/header correction. */}
+      <div className="mx-auto w-full max-w-[1320px] px-6 md:px-10">
+        {/* `fr` tracks, not `%`: percentage tracks are sized against the full container width
+            and ignore `gap`, so `43%_57%` plus a column gap overflowed the container by exactly
+            the gap width. `fr` tracks correctly share the space left over after the gap.
+
+            `items-start`, not `items-center`: centering the grid vertically within a tall
+            min-height box was pushing the headline ~150px lower than intended, since the whole
+            row centered around the taller graph column rather than the text column aligning to
+            the top on its own.
+
+            Note that this min-height is rarely the binding constraint any more: now that the
+            graph has its own fixed 580px centering wrapper (see HeroAuthorityGraph), the row's
+            natural content height already exceeds any reasonable floor here on every normal
+            viewport. It only matters as a fallback on unusually short viewports — the real
+            control over the hero's total height (and therefore how much blank space sits below
+            it) is this `py` clamp plus the graph wrapper's own min-height. */}
+        <div className="grid min-h-[min(100svh-64px,620px)] grid-cols-1 items-start gap-10 py-[clamp(3rem,6vh,5rem)] lg:grid-cols-[43fr_57fr] lg:gap-x-16">
+          {/* Left column — text, left-aligned on desktop. DOM order (text, then graph) already
+              matches both layouts: stacked text-then-graph on mobile, left/right columns on
+              desktop — no order-* reordering needed. Its own small padding-top is independent of
+              the graph column's height, so the two can't drag each other out of position. */}
+          <div className="flex flex-col items-start lg:pt-[clamp(2rem,5vh,4rem)]">
+            <span className="font-headline-sm text-[13px] uppercase tracking-[0.12em] text-ink-soft">
+              Control plane for AI agents
             </span>
+
+            <h1 className="mt-5 font-display-serif text-[clamp(4rem,6.3vw,6.8rem)] font-normal leading-[0.91] tracking-[-0.035em] text-ink">
+              Let agents act.
+              <br />
+              Keep authority
+              <br />
+              bounded.
+            </h1>
+
+            <p className="mt-8 max-w-[34rem] text-[clamp(1.05rem,1.4vw,1.25rem)] leading-[1.55] text-ink-soft">
+              Turn each task into the minimum authority an agent needs—then verify every tool call at runtime.
+            </p>
+
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <InkButton href="/signup">Start building</InkButton>
+              <InkOutlineButton href="/demo">See a tool call</InkOutlineButton>
+            </div>
+
+            <p className="mt-6 font-mono-code text-[12px] tracking-wide text-ink-soft">
+              Temporary permissions · Exact resources · Complete decision trace
+            </p>
           </div>
 
-          <h1 className="mb-space-lg font-display-lg text-[2.75rem] font-semibold leading-[1.08] tracking-[-0.035em] text-on-surface md:text-[3.75rem]">
-            Give every AI agent <span className="text-primary">exactly</span> the authority its task requires.
-          </h1>
-
-          <p className="mb-space-xl max-w-xl font-body-lg text-body-lg text-on-surface-variant">
-            Your agent proposes actions. The control plane independently verifies each request against user
-            intent and company policy, grants the smallest temporary capability, and blocks everything else.
-          </p>
-
-          <div className="flex w-full flex-wrap items-center gap-space-md sm:w-auto">
-            <Link
-              href="/signup"
-              className="inline-flex items-center justify-center rounded-lg bg-on-surface px-space-xl py-3 font-headline-sm text-body-md font-medium text-surface-container-lowest shadow-[0_1px_12px_rgba(255,255,255,0.2)] transition-all hover:bg-white hover:shadow-[0_2px_20px_rgba(255,255,255,0.35)]"
-            >
-              Start free — no waitlist
-            </Link>
-            <a
-              href="/demo"
-              className="group inline-flex items-center justify-center rounded-lg border border-outline-variant/40 bg-surface-container px-space-lg py-3 font-body-md text-body-md text-on-surface transition-all hover:border-outline-variant/80 hover:bg-surface-container-high"
-            >
-              See how it works
-              <Icon
-                name="arrow_forward"
-                size={16}
-                className="ml-1 transition-transform group-hover:translate-x-0.5"
-              />
-            </a>
+          {/* Right column — hero authority visualization. */}
+          <div className="w-full">
+            <HeroAuthorityGraph />
           </div>
-
-          <div className="mt-space-xl flex items-center gap-2 border-t border-outline-variant/20 pt-space-lg font-mono-code text-[0.75rem] text-outline">
-            <Icon name="verified_user" size={14} className="text-primary" />
-            <span>Any model · Any framework · MCP &amp; API tools · No standing credentials</span>
-          </div>
-        </div>
-
-        <div className="relative w-full lg:col-span-7">
-          <AuthorityGraph />
         </div>
       </div>
     </section>

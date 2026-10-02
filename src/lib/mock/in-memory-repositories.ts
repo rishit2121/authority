@@ -10,6 +10,7 @@ import type {
   Principal,
   Task,
   TaskAuthorityContract,
+  TaskListFilters,
   Tenant,
   ToolRequest,
 } from "@/lib/domain";
@@ -122,9 +123,15 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
     tasks: {
       findById: async (id: Id) => dataset.tasks.find((t) => t.id === id) ?? null,
       listByTenant: async (tenantId: Id) => dataset.tasks.filter((t) => t.tenantId === tenantId),
-      listByTenantPaged: async (tenantId: Id, options?: PageOptions) =>
+      listByTenantPaged: async (tenantId: Id, options?: PageOptions, filters?: TaskListFilters) =>
         paginateArray(
-          dataset.tasks.filter((t) => t.tenantId === tenantId),
+          dataset.tasks.filter(
+            (t) =>
+              t.tenantId === tenantId &&
+              (!filters?.status || t.status === filters.status) &&
+              (!filters?.agentId || t.agentId === filters.agentId) &&
+              (!filters?.search || t.intent.toLowerCase().includes(filters.search.toLowerCase())),
+          ),
           options,
         ),
     },
@@ -135,6 +142,16 @@ export function createInMemoryRepositories(dataset: MockDataset = defaultDataset
       findById: async (contractId: Id) => dataset.contracts.find((c) => c.id === contractId) ?? null,
       listByTaskId: async (taskId: Id) =>
         dataset.contracts.filter((c) => c.taskId === taskId).sort((a, b) => b.version - a.version),
+      listLatestByTaskIds: async (taskIds: readonly Id[]) => {
+        const idSet = new Set(taskIds);
+        const latestByTask = new Map<Id, TaskAuthorityContract>();
+        for (const contract of [...dataset.contracts].sort((a, b) => b.version - a.version)) {
+          if (idSet.has(contract.taskId) && !latestByTask.has(contract.taskId)) {
+            latestByTask.set(contract.taskId, contract);
+          }
+        }
+        return latestByTask;
+      },
     },
     plans: {
       findByTaskId: async (taskId: Id) => dataset.plans.find((p) => p.taskId === taskId) ?? null,

@@ -1,16 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
+import { resetDemoWorkspaceAction } from "@/app/app/actions";
 import { Icon } from "@/components/ui/Icon";
-import { TENANT_ROLE_LABELS, type TenantRole } from "@/lib/auth/tenant-context";
+import { TENANT_ROLE_LABELS, type TenantEnvironment, type TenantRole } from "@/lib/auth/tenant-context";
 
 export interface UserMenuIdentity {
   displayName: string;
   email: string;
   initials: string;
   role: TenantRole;
+  /** Used only to decide whether "Reset demo data" appears — the server action itself
+   *  re-verifies the tenant and role regardless of what this menu renders. */
+  environment: TenantEnvironment;
 }
 
 /**
@@ -121,6 +125,10 @@ export function UserMenu({
 }
 
 function MenuItems({ identity, roleLabel }: { identity: UserMenuIdentity; roleLabel: string }) {
+  // Demo-seeded tenants are development-environment ones in this codebase's own demo installer.
+  // The server action re-verifies the tenant and role independently of this check.
+  const canResetDemoData = identity.environment === "development" && identity.role !== "viewer";
+
   return (
     <>
       <div className="border-b border-outline-variant/30 px-space-md py-2.5">
@@ -140,6 +148,8 @@ function MenuItems({ identity, roleLabel }: { identity: UserMenuIdentity; roleLa
         Profile and settings
       </Link>
 
+      {canResetDemoData ? <ResetDemoDataMenuItem /> : null}
+
       {/*
         POST, not a link: a GET sign-out can be fired by any third-party page
         embedding it, which would let another site end the user's session.
@@ -155,5 +165,38 @@ function MenuItems({ identity, roleLabel }: { identity: UserMenuIdentity; roleLa
         </button>
       </form>
     </>
+  );
+}
+
+/**
+ * Replaces the old per-page `DemoDataNotice` banners (one "Demo data" badge
+ * lives on the workspace selector instead; see `WorkspaceSelector.tsx`) — the
+ * one real action that notice used to expose, reset, now lives in this
+ * existing menu rather than being repeated on six separate pages.
+ */
+function ResetDemoDataMenuItem() {
+  const [state, formAction, pending] = useActionState(async (_previous: { error?: string }) => {
+    const result = await resetDemoWorkspaceAction();
+    return result.ok ? {} : { error: result.error ?? "Could not reset demo data." };
+  }, {});
+
+  return (
+    <form action={formAction} className="border-t border-outline-variant/30">
+      <button
+        type="submit"
+        role="menuitem"
+        disabled={pending}
+        aria-busy={pending}
+        className="flex w-full items-center gap-2.5 px-space-md py-2.5 text-left font-body-sm text-[13px] text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <Icon name="cancel" size={15} />
+        {pending ? "Resetting demo data…" : "Reset demo data"}
+      </button>
+      {state.error ? (
+        <p role="alert" className="px-space-md pb-2 font-body-sm text-[12px] text-deny">
+          {state.error}
+        </p>
+      ) : null}
+    </form>
   );
 }

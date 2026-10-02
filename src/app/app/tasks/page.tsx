@@ -1,13 +1,18 @@
 import Link from "next/link";
 
-import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
-import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
-import { TaskTraceTable } from "@/components/dashboard/TaskTraceTable";
+import { TaskFilters } from "@/components/dashboard/TaskFilters";
+import { TasksTable, type TaskRow } from "@/components/dashboard/TasksTable";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
-import { TENANT_ROLE_LABELS } from "@/lib/auth/tenant-context";
+import { PageHeader } from "@/components/ui/PageHeader";
+import type { TaskStatus } from "@/lib/domain";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 const PAGE_SIZE = 25;
+
+function firstParam(value: string | string[] | undefined): string {
+  return typeof value === "string" ? value : "";
+}
 
 export default async function TasksPage({
   searchParams,
@@ -16,68 +21,71 @@ export default async function TasksPage({
 }) {
   const { identity, repositories } = await createRepositoriesForCurrentTenant("/app/tasks");
   const params = await searchParams;
-  const cursorParam = params.cursor;
-  const cursor = typeof cursorParam === "string" ? cursorParam : undefined;
+  const cursor = firstParam(params.cursor) || undefined;
+  const status = firstParam(params.status);
+  const agentId = firstParam(params.agent);
+  const search = firstParam(params.q);
 
-  const [agents, principals, page] = await Promise.all([
+  const [agents, page] = await Promise.all([
     repositories.agents.listByTenant(identity.tenant.tenantId),
-    repositories.principals.listByTenant(identity.tenant.tenantId),
-    repositories.tasks.listByTenantPaged(identity.tenant.tenantId, { limit: PAGE_SIZE, cursor }),
+    repositories.tasks.listByTenantPaged(
+      identity.tenant.tenantId,
+      { limit: PAGE_SIZE, cursor },
+      {
+        status: (status as TaskStatus) || undefined,
+        agentId: agentId || undefined,
+        search: search || undefined,
+      },
+    ),
   ]);
 
-  const taskIds = page.items.map((task) => task.id);
-  const decisionCounts = await repositories.decisions.countByTaskIds(taskIds);
+  const contracts = await repositories.contracts.listLatestByTaskIds(page.items.map((task) => task.id));
+  const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? "Unknown agent";
 
-  const agentName = (id: string) => agents.find((a) => a.id === id)?.name ?? "unknown-agent";
-  const principalName = (id: string) => principals.find((p) => p.id === id)?.displayName ?? "unknown";
+  const rows: TaskRow[] = page.items.map((task) => ({
+    task,
+    agentName: agentName(task.agentId),
+    contract: contracts.get(task.id) ?? null,
+  }));
 
-  const traces = page.items.map((task) => {
-    const counts = decisionCounts.get(task.id) ?? { total: 0, blocked: 0 };
-    return {
-      task,
-      agentName: agentName(task.agentId),
-      principalName: principalName(task.principalId),
-      decisionCount: counts.total,
-      blockedCount: counts.blocked,
-    };
-  });
-
-  const hasAnyTasks = cursor !== undefined || page.items.length > 0;
-  const canManageDemoData = identity.role !== "viewer" && TENANT_ROLE_LABELS[identity.role] !== undefined;
+  const hasFilters = Boolean(status || agentId || search);
+  const hasAnyTasks = cursor !== undefined || hasFilters || rows.length > 0;
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <header className="flex flex-wrap items-center justify-between gap-space-md">
-        <div>
-          <h1 className="font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-            Tasks
-          </h1>
-          <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-            Every delegated task and the authority it received.
-          </p>
-        </div>
-        <Link
-          href="/app/tasks/new"
-          className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-space-lg py-2.5 font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed"
-        >
-          <Icon name="account_tree" size={16} />
-          New task
-        </Link>
-      </header>
+      <PageHeader
+        title="Tasks"
+        description="Every delegated task and the authority it received."
+        primaryAction={{ label: "New task", href: "/app/tasks/new" }}
+      />
 
       {!hasAnyTasks ? (
-        <EmptyWorkspace />
+        <EmptyState
+          icon="account_tree"
+          heading="No tasks yet"
+          description="Create a task to see the authority an agent needs before it acts."
+          action={{ label: "Create task", href: "/app/tasks/new" }}
+        />
       ) : (
         <>
-          <DemoDataNotice showReset={canManageDemoData} />
-          <TaskTraceTable traces={traces} />
+          <TaskFilters agents={agents} status={status} agentId={agentId} search={search} />
+
+          {rows.length === 0 ? (
+            <EmptyState
+              icon="data_object"
+              heading="No tasks match these filters"
+              description="Try a different status, agent, or search term."
+            />
+          ) : (
+            <TasksTable rows={rows} />
+          )}
 
           {cursor || page.nextCursor ? (
             <nav aria-label="Task pages" className="flex items-center justify-between gap-space-md">
               {cursor ? (
                 <Link
                   href="/app/tasks"
-                  className="font-body-sm text-body-sm text-on-surface-variant underline decoration-outline/40 underline-offset-2 hover:text-on-surface"
+                  className="text-[13px] text-ink-soft underline decoration-line-strong underline-offset-2 hover:text-ink"
                 >
                   Back to first page
                 </Link>
@@ -87,7 +95,7 @@ export default async function TasksPage({
               {page.nextCursor ? (
                 <Link
                   href={`/app/tasks?cursor=${encodeURIComponent(page.nextCursor)}`}
-                  className="inline-flex items-center gap-1 font-body-sm text-body-sm text-primary-container hover:underline"
+                  className="inline-flex items-center gap-1 text-[13px] font-medium text-ink hover:underline"
                 >
                   Next page
                   <Icon name="arrow_forward" size={13} />

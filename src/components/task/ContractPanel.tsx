@@ -44,7 +44,7 @@ export function ContractPanel({ contract }: { contract: TaskAuthorityContract })
   return (
     <Panel
       id="contract"
-      title="Task Authority Contract"
+      title="Task contract"
       subtitle={`${contract.id} · spec ${contract.specVersion} · v${contract.version} · derived from trusted user intent before the agent acted`}
       accent={currentlyActive ? "cyan" : "neutral"}
     >

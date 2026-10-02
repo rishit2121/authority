@@ -17,15 +17,23 @@ export interface DashboardNavGroup {
   items: DashboardNavItem[];
 }
 
-/** Sidebar sections for the control plane, grouped by what they're for. */
+/**
+ * Sidebar sections for the control plane, grouped by what they're for
+ * (design/frontend-simplification). The visible label for `/app/runtime` is
+ * "Tool calls" — it explains the page to a developer more directly than
+ * "Runtime" does — but the route itself is unchanged, so bookmarks, the
+ * existing Playwright coverage's URL assertions, and every internal link
+ * still work.
+ */
 export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   {
-    label: "Monitor",
+    label: "Workspace",
     items: [
       { label: "Overview", href: "/app", icon: "account_tree" },
       { label: "Tasks", href: "/app/tasks", icon: "data_object", badgeKey: "tasksActive" },
       { label: "Agents", href: "/app/agents", icon: "smart_toy" },
-      { label: "Runtime", href: "/app/runtime", icon: "bolt" },
+      { label: "Tool calls", href: "/app/runtime", icon: "bolt" },
+      { label: "Approvals", href: "/app/approvals", icon: "mark_chat_read", badgeKey: "approvalsPending" },
     ],
   },
   {
@@ -39,11 +47,10 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
         badgeKey: "integrationWarnings",
         badgeTone: "warning",
       },
-      { label: "Approvals", href: "/app/approvals", icon: "mark_chat_read", badgeKey: "approvalsPending" },
     ],
   },
   {
-    label: "Validate",
+    label: "Test",
     items: [{ label: "Validation Lab", href: "/app/validation", icon: "science" }],
   },
   {

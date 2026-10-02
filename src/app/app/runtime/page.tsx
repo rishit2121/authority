@@ -1,6 +1,9 @@
 import { RevokeCapabilityButton } from "@/components/runtime/RevokeCapabilityButton";
 import { SemanticEvidenceDetail } from "@/components/semantic/SemanticEvidenceDetail";
 import { SemanticShadowBadge } from "@/components/semantic/SemanticShadowBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusRow } from "@/components/ui/StatusRow";
 import { presentDecisionStatus } from "@/lib/authorization/decision-status";
 import type { DecisionStatus } from "@/lib/domain";
 import { buildRuntimeRows, decisionTrace, type RuntimeRow } from "@/lib/runtime/dashboard-model";
@@ -138,6 +141,8 @@ export default async function RuntimePage({
     agentNames: new Map(agents.map((a) => [a.id, a.name])),
   });
 
+  const search = params.search?.trim().toLowerCase();
+
   const rows = all
     .filter((r) => !params.agentId || r.agentId === params.agentId)
     .filter((r) => !params.taskId || r.taskId === params.taskId)
@@ -148,38 +153,56 @@ export default async function RuntimePage({
     .filter((r) => !params.degraded || r.degraded === (params.degraded === "yes"))
     .filter((r) => !params.risk || (r.evidence?.riskLevel ?? "not_evaluated") === params.risk)
     .filter((r) => !params.provider || r.evidence?.provider === params.provider)
-    .filter((r) => !params.disagreement || r.evidence?.disagreement === params.disagreement);
+    .filter((r) => !params.disagreement || r.evidence?.disagreement === params.disagreement)
+    .filter(
+      (r) =>
+        !search ||
+        r.tool.toLowerCase().includes(search) ||
+        r.agentName.toLowerCase().includes(search) ||
+        (r.resource ?? "").toLowerCase().includes(search),
+    );
 
   const tools = Array.from(new Set(all.map((r) => r.tool))).sort();
   const providers = Array.from(new Set([...evidenceByDecision.values()].map((e) => e.provider))).sort();
   const health = summarizeHealth([...evidenceByDecision.values()]);
 
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const callsToday = all.filter((r) => new Date(r.createdAt) >= today).length;
+  const allowedCount = all.filter((r) => r.final === "allow" || r.final === "allow_constrained").length;
+  const deniedCount = all.filter((r) => r.final === "deny").length;
+  const awaitingApprovalCount = all.filter((r) => r.final === "require_approval").length;
+
   return (
     <div className="flex flex-col gap-space-lg">
-      <header>
-        <h1 className="font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-          Runtime authorization
-        </h1>
-        <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Decisions from <code>POST /api/v1/authorize</code>, shown as three separate results: deterministic,
-          semantic and the final composed decision.
-        </p>
-      </header>
+      <PageHeader
+        title="Tool calls"
+        description="Every authorization request, its decision, and the authority issued."
+      />
+
+      <StatusRow
+        items={[
+          { label: "Calls today", value: callsToday },
+          { label: "Allowed", value: allowedCount },
+          { label: "Denied", value: deniedCount, emphasis: "attention" },
+          { label: "Awaiting approval", value: awaitingApprovalCount },
+        ]}
+      />
 
       <p
         data-testid="simulation-notice"
-        className="max-w-3xl rounded-lg border border-secondary/40 bg-secondary/10 p-space-md font-body-sm text-body-sm text-on-surface"
+        className="max-w-3xl rounded-lg border border-line bg-paper-raised p-4 text-[13px] text-ink"
       >
         <strong>Simulation — no external tool was executed.</strong> Capabilities are issued and consumed
         against a simulated endpoint; nothing here reflects a real GitHub, Stripe or other side effect.
       </p>
       <p
         data-testid="semantic-shadow-notice"
-        className="max-w-3xl rounded-lg border border-outline-variant/30 bg-surface-container-low p-space-md font-body-sm text-body-sm text-on-surface-variant"
+        className="max-w-3xl rounded-lg border border-line bg-paper p-4 text-[13px] text-ink-soft"
       >
-        In <strong>shadow</strong> mode semantic risk is recorded but never changes a decision. In{" "}
-        <strong>enforce</strong> mode it can only narrow a deterministic allow. The mode that produced each
-        decision is shown on its row.
+        In <strong>shadow</strong> mode the AI risk signal is recorded but never changes a decision — advisory
+        only. In <strong>enforce</strong> mode it can only narrow a deterministic allow. The mode that
+        produced each decision is shown on its row.
       </p>
 
       {health.length > 0 ? (
@@ -199,103 +222,144 @@ export default async function RuntimePage({
         </ul>
       ) : null}
 
-      <form className="flex flex-wrap items-center gap-2" method="get">
-        <select name="agentId" defaultValue={params.agentId ?? ""} aria-label="Agent" className={select}>
-          <option value="">All agents</option>
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-        <select name="tool" defaultValue={params.tool ?? ""} aria-label="Tool" className={select}>
-          <option value="">All tools</option>
-          {tools.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
-          name="outcome"
-          defaultValue={params.outcome ?? ""}
-          aria-label="Final decision"
-          className={select}
-        >
-          <option value="">Any final decision</option>
-          {["allow", "allow_constrained", "clarify", "replan", "require_approval", "deny"].map((o) => (
-            <option key={o} value={o}>
-              {o}
-            </option>
-          ))}
-        </select>
-        <select name="mode" defaultValue={params.mode ?? ""} aria-label="Enforcement mode" className={select}>
-          <option value="">Any mode</option>
-          {["off", "shadow", "enforce"].map((m) => (
-            <option key={m} value={m}>
-              semantic {m}
-            </option>
-          ))}
-        </select>
-        <select
-          name="capability"
-          defaultValue={params.capability ?? ""}
-          aria-label="Capability state"
-          className={select}
-        >
-          <option value="">Any capability state</option>
-          {["active", "consumed", "revoked", "expired", "none"].map((s) => (
-            <option key={s} value={s}>
-              capability {s}
-            </option>
-          ))}
-        </select>
-        <select name="degraded" defaultValue={params.degraded ?? ""} aria-label="Degraded" className={select}>
-          <option value="">Degraded or not</option>
-          <option value="yes">Degraded / fail-closed</option>
-          <option value="no">Not degraded</option>
-        </select>
-        <select name="risk" defaultValue={params.risk ?? ""} aria-label="Semantic risk" className={select}>
-          <option value="">Any semantic risk</option>
-          {[...RISK_ORDER, "not_evaluated"].map((r) => (
-            <option key={r} value={r}>
-              {r.replace("_", " ")}
-            </option>
-          ))}
-        </select>
-        <select
-          name="provider"
-          defaultValue={params.provider ?? ""}
-          aria-label="Semantic provider"
-          className={select}
-        >
-          <option value="">Any provider</option>
-          {providers.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <select
-          name="disagreement"
-          defaultValue={params.disagreement ?? ""}
-          aria-label="Disagreement"
-          className={select}
-        >
-          <option value="">Any disagreement</option>
-          <option value="semantic_flags_permitted">Semantic flags a permitted request</option>
-          <option value="semantic_clears_denied">Semantic clears a denied request</option>
-        </select>
-        <button
-          type="submit"
-          className="rounded border border-outline-variant/40 bg-surface-container-high px-3 py-1 font-label-sm text-label-sm text-on-surface"
-        >
-          Filter
-        </button>
+      <form className="flex flex-col gap-3" method="get">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            name="outcome"
+            defaultValue={params.outcome ?? ""}
+            aria-label="Final decision"
+            className={select}
+          >
+            <option value="">Any final decision</option>
+            {["allow", "allow_constrained", "clarify", "replan", "require_approval", "deny"].map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <select name="agentId" defaultValue={params.agentId ?? ""} aria-label="Agent" className={select}>
+            <option value="">All agents</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="search"
+            name="search"
+            defaultValue={params.search ?? ""}
+            aria-label="Search tool calls"
+            placeholder="Search tool, agent, resource…"
+            className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+          />
+          <button
+            type="submit"
+            className="rounded border border-outline-variant/40 bg-surface-container-high px-3 py-1 font-label-sm text-label-sm text-on-surface"
+          >
+            Filter
+          </button>
+        </div>
+
+        <details>
+          <summary className="w-fit cursor-pointer font-label-sm text-label-sm text-on-surface-variant underline-offset-2 hover:underline">
+            More filters
+          </summary>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <select name="tool" defaultValue={params.tool ?? ""} aria-label="Tool" className={select}>
+              <option value="">All tools</option>
+              {tools.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <select
+              name="mode"
+              defaultValue={params.mode ?? ""}
+              aria-label="Enforcement mode"
+              className={select}
+            >
+              <option value="">Any mode</option>
+              {["off", "shadow", "enforce"].map((m) => (
+                <option key={m} value={m}>
+                  semantic {m}
+                </option>
+              ))}
+            </select>
+            <select
+              name="capability"
+              defaultValue={params.capability ?? ""}
+              aria-label="Capability state"
+              className={select}
+            >
+              <option value="">Any capability state</option>
+              {["active", "consumed", "revoked", "expired", "none"].map((s) => (
+                <option key={s} value={s}>
+                  capability {s}
+                </option>
+              ))}
+            </select>
+            <select
+              name="degraded"
+              defaultValue={params.degraded ?? ""}
+              aria-label="Degraded"
+              className={select}
+            >
+              <option value="">Degraded or not</option>
+              <option value="yes">Degraded / fail-closed</option>
+              <option value="no">Not degraded</option>
+            </select>
+            <select
+              name="risk"
+              defaultValue={params.risk ?? ""}
+              aria-label="Semantic risk"
+              className={select}
+            >
+              <option value="">Any semantic risk</option>
+              {[...RISK_ORDER, "not_evaluated"].map((r) => (
+                <option key={r} value={r}>
+                  {r.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+            <select
+              name="provider"
+              defaultValue={params.provider ?? ""}
+              aria-label="Semantic provider"
+              className={select}
+            >
+              <option value="">Any provider</option>
+              {providers.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <select
+              name="disagreement"
+              defaultValue={params.disagreement ?? ""}
+              aria-label="Disagreement"
+              className={select}
+            >
+              <option value="">Any disagreement</option>
+              <option value="semantic_flags_permitted">Semantic flags a permitted request</option>
+              <option value="semantic_clears_denied">Semantic clears a denied request</option>
+            </select>
+          </div>
+        </details>
       </form>
 
       {rows.length === 0 ? (
-        <p className="font-body-sm text-body-sm text-outline">No runtime authorization requests match.</p>
+        all.length === 0 ? (
+          <EmptyState
+            icon="bolt"
+            heading="No tool calls yet"
+            description="Authorization requests from registered agents will appear here."
+          />
+        ) : (
+          <p className="text-[13px] text-ink-soft">No tool calls match these filters.</p>
+        )
       ) : (
         <div className="overflow-auto rounded-xl border border-outline-variant/30 bg-surface-container">
           <table className="w-full min-w-[1240px] border-collapse text-left">

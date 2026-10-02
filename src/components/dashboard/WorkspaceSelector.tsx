@@ -102,8 +102,13 @@ export function WorkspaceSelector({
           <span className="block truncate font-body-md text-body-md font-medium text-on-surface">
             {active.name}
           </span>
-          <span className="block truncate font-body-sm text-[11px] text-on-surface-variant">
+          <span className="flex min-w-0 items-center gap-1.5 truncate font-body-sm text-[11px] text-on-surface-variant">
             {TENANT_ENVIRONMENT_LABELS[active.environment]} · {TENANT_ROLE_LABELS[active.role]}
+            {active.environment === "development" ? (
+              <span className="rounded border border-line-strong px-1 py-px text-[10px] font-medium text-ink-soft">
+                Demo data
+              </span>
+            ) : null}
           </span>
         </span>
         <Icon

@@ -122,7 +122,7 @@ test.describe.serial("semantic shadow mode", () => {
     page,
   }) => {
     await page.goto("/app/settings");
-    await expect(page.getByRole("heading", { name: "Semantic risk evaluation" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI risk signal" })).toBeVisible();
     await expect(page.getByTestId("enforcement-grade")).toContainText("not production-grade");
     await expect(page.getByTestId("api-key-status")).toContainText("never entered, stored or displayed here");
     await expect(page.locator('input[type="password"]')).toHaveCount(0);
