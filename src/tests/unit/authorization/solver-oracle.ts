@@ -11,7 +11,7 @@ import type { SolverInput, SolverObjectiveScore, SolverOutcome } from "@/lib/aut
  * coverage), for every generated small registry.
  */
 
-const ORACLE_MAX_PERMISSIONS = 18; // 2^18 = 262,144 — fine for a one-off test-time brute force.
+const ORACLE_MAX_PERMISSIONS = 21; // 2^21 = 2,097,152 — fine for a one-off test-time brute force.
 
 function compareScore(a: SolverObjectiveScore, b: SolverObjectiveScore): number {
   return (
