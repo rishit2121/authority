@@ -4,8 +4,13 @@ import { z } from "zod";
 
 import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
 import { toolArgumentsSchema, toolNameSchema } from "@/lib/domain";
-import { authorizeThroughGateway } from "@/lib/gateway/pipeline";
-import { gatewayRegistry } from "@/lib/gateway/risk-class";
+import { authorizeThroughGateway, defaultPipelineDeps } from "@/lib/gateway/pipeline";
+import { tenantForTask } from "@/lib/gateway/rpc";
+import {
+  gatewayRegistry,
+  riskClassForRegistry,
+  registryRequiresApprovalForRegistry,
+} from "@/lib/gateway/risk-class";
 import {
   UNAUTHENTICATED,
   contractForError,
@@ -17,6 +22,7 @@ import {
   readJsonBody,
 } from "@/lib/gateway/http";
 import { failureContract, toAgentResponse } from "@/lib/gateway/response";
+import { buildTenantRegistry } from "@/lib/registry";
 
 /**
  * `POST /api/v1/authorize` — the ONLY supported runtime authorization path.
@@ -49,8 +55,6 @@ const requestSchema = z
   })
   .strict();
 
-const registryVersion = gatewayRegistry.registryVersion;
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const requestId = newRequestId();
 
@@ -74,19 +78,39 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const input = parsed.data;
 
   try {
-    const result = await authorizeThroughGateway({
-      credentialSecret,
-      taskId: input.taskId,
-      tool: input.tool,
-      operation: input.operation,
-      resource: input.resource,
-      arguments: input.arguments,
-      planNodeId: input.planNodeId,
-      idempotencyKey: input.idempotencyKey,
-      maxUses: input.maxUses,
-      registryVersion,
-      compilerVersion: COMPILER_VERSION,
-    });
+    // Side-effect-free, called once in addition to (not instead of) the
+    // credential resolution `authorizeThroughGateway` already does
+    // internally — see gateway.tenant_for_task's own comment. A tenant with
+    // no published Custom API operations gets back the exact same registry
+    // (and registryVersion) every caller got before this lookup existed; an
+    // unresolvable task (null) falls back the same way, and is rejected by
+    // the deterministic pipeline's own task/contract lookup regardless.
+    const tenantId = await tenantForTask(input.taskId);
+    const registry = tenantId ? await buildTenantRegistry(tenantId) : null;
+    const registryVersion = registry?.registryVersion ?? gatewayRegistry.registryVersion;
+
+    const result = await authorizeThroughGateway(
+      {
+        credentialSecret,
+        taskId: input.taskId,
+        tool: input.tool,
+        operation: input.operation,
+        resource: input.resource,
+        arguments: input.arguments,
+        planNodeId: input.planNodeId,
+        idempotencyKey: input.idempotencyKey,
+        maxUses: input.maxUses,
+        registryVersion,
+        compilerVersion: COMPILER_VERSION,
+      },
+      registry
+        ? {
+            ...defaultPipelineDeps,
+            riskClassFor: (tool) => riskClassForRegistry(registry, tool),
+            registryRequiresApproval: (tool) => registryRequiresApprovalForRegistry(registry, tool),
+          }
+        : defaultPipelineDeps,
+    );
 
     if (result.kind === "failure") return jsonError(failureContract(result.status), requestId);
 

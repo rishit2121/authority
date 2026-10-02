@@ -51,6 +51,23 @@ export default async function IntegrationsPage() {
         <Icon name="arrow_forward" size={16} />
       </Link>
 
+      <Link
+        href="/app/integrations/custom-api"
+        data-testid="custom-api-integration-link"
+        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
+      >
+        <span>
+          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
+            Custom API connector
+          </span>
+          <span className="block font-body-sm text-body-sm text-on-surface-variant">
+            Connect any HTTPS API your tenant controls, define schema-constrained operations, and publish them
+            once validated. Real, SSRF-protected execution.
+          </span>
+        </span>
+        <Icon name="arrow_forward" size={16} />
+      </Link>
+
       {integrations.length === 0 ? (
         <EmptyWorkspace />
       ) : (

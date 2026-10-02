@@ -4,6 +4,7 @@ import { CircuitBreaker } from "@/lib/semantic/circuit-breaker";
 import { MockSemanticRiskProvider } from "@/lib/semantic/mock-provider";
 import { authorizeThroughGateway, type AuthorizeInput, type PipelineDeps } from "@/lib/gateway/pipeline";
 import type { CommitResult, PrepareResult } from "@/lib/gateway/rpc";
+import { registryRequiresApproval, riskClassFor } from "@/lib/gateway/risk-class";
 
 const prepared = (over: Partial<PrepareResult> = {}): PrepareResult => ({
   status: "ok",
@@ -66,6 +67,8 @@ function deps(over: Partial<PipelineDeps> & { p?: Partial<PrepareResult>; c?: Pa
     approval: vi.fn().mockResolvedValue({ status: "ok", approvalId: null }) as never,
     createProvider: provider as never,
     breakerFor: () => new CircuitBreaker(),
+    riskClassFor,
+    registryRequiresApproval,
     ...over,
   };
   return { d, prepare, commit, provider };

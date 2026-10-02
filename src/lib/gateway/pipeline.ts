@@ -58,6 +58,19 @@ export interface PipelineDeps {
   approval: typeof approvalForRequest;
   createProvider: (name: string, model: string) => SemanticRiskProvider;
   breakerFor: (key: string) => CircuitBreaker;
+  /**
+   * Both default to the GitHub-fixture-only registry (risk-class.ts's own
+   * module-level instance) for every existing call site. A caller that has
+   * already resolved this request's tenant (the `/api/v1/authorize` route
+   * does, from `input.taskId`, before calling this function at all) injects
+   * tenant-scoped versions here instead, so a tenant's published Custom API
+   * operations get the same risk-classification and registry-approval
+   * treatment a GitHub operation would, rather than silently falling back to
+   * the "unknown tool" defaults (fail-safe "high" risk, but a lax "no
+   * registry-required approval").
+   */
+  riskClassFor: typeof riskClassFor;
+  registryRequiresApproval: typeof registryRequiresApproval;
 }
 
 export const defaultPipelineDeps: PipelineDeps = {
@@ -66,6 +79,8 @@ export const defaultPipelineDeps: PipelineDeps = {
   approval: approvalForRequest,
   createProvider: createSemanticProvider,
   breakerFor,
+  riskClassFor,
+  registryRequiresApproval,
 };
 
 /**
@@ -89,7 +104,7 @@ export async function authorizeThroughGateway(
   input: AuthorizeInput,
   deps: PipelineDeps = defaultPipelineDeps,
 ): Promise<PipelineResult> {
-  const riskClass = riskClassFor(input.tool);
+  const riskClass = deps.riskClassFor(input.tool);
   const maxUses = input.maxUses ?? 1;
   const argumentAudit = buildArgumentAudit(input.arguments);
   const resource = sanitizeResource(input.resource);
@@ -146,7 +161,7 @@ export async function authorizeThroughGateway(
     tokenHash: token.hash,
     evidence,
     gatewayVersion: GATEWAY_VERSION,
-    registryRequiresApproval: registryRequiresApproval(input.tool),
+    registryRequiresApproval: deps.registryRequiresApproval(input.tool),
   });
   if (commit.status !== "ok") return { kind: "failure", status: commit.status };
 

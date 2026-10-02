@@ -12,6 +12,34 @@ import {
 } from "@/app/app/tasks/[taskId]/contract/actions";
 import { Icon } from "@/components/ui/Icon";
 
+export interface AvailableCustomTool {
+  toolName: string;
+  connectionName: string;
+  operationName: string;
+  effect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
+  /** A stable prefix of the operation id -- what every capability/contract/manifest actually pins; a published definition can never change under the same tool name. */
+  version: string;
+  fields: Array<{ key: string; type: string; required: boolean; in: "path" | "query" | "body" }>;
+}
+
+const PLACEHOLDER_FOR_TYPE: Record<string, unknown> = { string: "", number: 0, boolean: false };
+
+function exampleNodeFor(tool: AvailableCustomTool, sequence: number): object {
+  const args: Record<string, unknown> = {};
+  for (const field of tool.fields) args[field.key] = PLACEHOLDER_FOR_TYPE[field.type] ?? "";
+  return {
+    id: `${tool.toolName.replace(/[^a-z0-9]+/gi, "-")}-${sequence}`,
+    sequence,
+    tool: tool.toolName,
+    arguments: args,
+    dependencies: [],
+    declaredOutputs: [],
+    dataFlowRefs: [],
+    expectedSideEffect: tool.effect,
+    maxInvocations: 1,
+  };
+}
+
 function exampleCandidatePlan(taskId: string): string {
   return JSON.stringify(
     {
@@ -77,7 +105,13 @@ const STATUS_STYLE: Record<string, string> = {
   replan: "border-outline-variant/40 bg-surface-container-high text-on-surface-variant",
 };
 
-export function CandidatePlanForm({ taskId }: { taskId: string }) {
+export function CandidatePlanForm({
+  taskId,
+  availableCustomTools = [],
+}: {
+  taskId: string;
+  availableCustomTools?: AvailableCustomTool[];
+}) {
   const router = useRouter();
   const [planText, setPlanText] = useState(exampleCandidatePlan(taskId));
   const [validation, setValidation] = useState<ValidatePlanResult | null>(null);
@@ -90,6 +124,19 @@ export function CandidatePlanForm({ taskId }: { taskId: string }) {
   } | null>(null);
   const [aiWarning, setAiWarning] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function insertTool(tool: AvailableCustomTool) {
+    setError(null);
+    try {
+      const current = JSON.parse(planText) as { nodes?: Array<{ sequence?: number }> };
+      const nodes = Array.isArray(current.nodes) ? current.nodes : [];
+      const nextSequence = nodes.reduce((max, n) => Math.max(max, n.sequence ?? 0), -1) + 1;
+      const next = { ...current, taskId, nodes: [...nodes, exampleNodeFor(tool, nextSequence)] };
+      setPlanText(JSON.stringify(next, null, 2));
+    } catch {
+      setError("Fix the plan JSON before inserting another tool — it isn't currently valid.");
+    }
+  }
 
   function loadExample() {
     setPlanText(exampleCandidatePlan(taskId));
@@ -161,7 +208,14 @@ export function CandidatePlanForm({ taskId }: { taskId: string }) {
     });
   }
 
-  const hasAccepted = (validation?.acceptedNodeIds.length ?? 0) > 0;
+  // `includedNodeIds` (accepted OR requires_review), not `acceptedNodeIds`
+  // alone -- a plan whose only node is flagged requires_review (every
+  // Custom API operation always is: externalCommunication unconditionally
+  // forces this, see plan-validator.ts) is still eligible to compile, and
+  // proposeContractAction's own gate checks includedNodeIds for exactly
+  // this reason. Gating this button on acceptedNodeIds alone made it
+  // impossible to ever propose a contract for such a plan at all.
+  const hasAccepted = (validation?.includedNodeIds.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -198,6 +252,51 @@ export function CandidatePlanForm({ taskId }: { taskId: string }) {
             {aiWarning ? <p className="font-body-sm text-[12px] text-deny">{aiWarning}</p> : null}
           </div>
         </div>
+      ) : null}
+
+      {availableCustomTools.length > 0 ? (
+        <section
+          aria-labelledby="available-custom-tools-heading"
+          className="rounded-xl border border-outline-variant/30 bg-surface-container"
+          data-testid="available-custom-tools"
+        >
+          <header className="border-b border-outline-variant/25 px-space-lg py-space-md">
+            <h2
+              id="available-custom-tools-heading"
+              className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+            >
+              Published Custom API operations for this workspace
+            </h2>
+            <p className="mt-0.5 font-body-sm text-body-sm text-on-surface-variant">
+              Every tool name below is pinned and immutable — the same definition an administrator published
+              is what executes, and what this plan&apos;s contract and capabilities will reference.
+            </p>
+          </header>
+          <ul className="divide-y divide-outline-variant/20">
+            {availableCustomTools.map((tool) => (
+              <li
+                key={tool.toolName}
+                className="flex flex-wrap items-center justify-between gap-space-sm px-space-lg py-space-sm"
+                data-testid={`available-tool-${tool.toolName}`}
+              >
+                <div>
+                  <span className="font-mono-code text-[12px] text-on-surface">{tool.toolName}</span>
+                  <span className="ml-2 font-body-sm text-body-sm text-on-surface-variant">
+                    {tool.connectionName} · {tool.operationName} · {tool.effect} · version {tool.version}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => insertTool(tool)}
+                  className="rounded-lg border border-outline-variant/40 bg-surface-container-high px-space-md py-1.5 font-body-sm text-body-sm font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
+                  data-testid={`insert-tool-${tool.toolName}`}
+                >
+                  Insert into plan
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
 
       <div className="flex flex-col gap-space-xs">
@@ -252,7 +351,11 @@ export function CandidatePlanForm({ taskId }: { taskId: string }) {
           onClick={handlePropose}
           disabled={pending || !hasAccepted}
           aria-busy={pending}
-          title={!hasAccepted ? "Validate first — at least one node must be accepted" : undefined}
+          title={
+            !hasAccepted
+              ? "Validate first — at least one node must be accepted or flagged for review"
+              : undefined
+          }
           className="flex h-11 items-center gap-2 rounded-lg bg-primary px-space-lg font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed disabled:cursor-not-allowed disabled:opacity-70"
         >
           {pending ? "Proposing…" : "Propose contract"}

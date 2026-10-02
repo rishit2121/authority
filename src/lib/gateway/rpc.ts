@@ -244,3 +244,12 @@ export async function gatewayPing(): Promise<boolean> {
   const rows = await gatewayQuery<{ ping: boolean }>(`select gateway.ping() as ping`);
   return rows[0]?.ping === true;
 }
+
+/** Side-effect-free; returns null for an unknown or deleted task. See gateway.tenant_for_task's own comment for why this exists alongside credential resolution rather than replacing it. */
+export async function tenantForTask(taskId: string): Promise<string | null> {
+  const rows = await gatewayQuery<{ tenant_for_task: string | null }>(
+    `select gateway.tenant_for_task($1::uuid) as tenant_for_task`,
+    [taskId],
+  );
+  return rows[0]?.tenant_for_task ?? null;
+}

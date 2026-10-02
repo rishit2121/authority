@@ -49,7 +49,7 @@ import type { Json } from "@/lib/supabase/database.types";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { RepositoryError } from "@/lib/persistence/errors";
 import { loadCandidatePlanForActivation } from "@/lib/persistence/supabase/load-candidate-plan-for-activation";
-import { githubDemoRegistry, loadRegistry } from "@/lib/registry";
+import { buildTenantRegistry } from "@/lib/registry";
 
 /**
  * Server actions for the candidate-plan / contract-proposal workflow.
@@ -92,14 +92,23 @@ function presentActionError(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
-const registry = loadRegistry(githubDemoRegistry);
-
-async function loadActivePolicies(taskId: string) {
+/**
+ * Loads this task's active policies and the registry this tenant's plan
+ * should be checked against -- the GitHub fixture plus whatever Custom API
+ * operations this tenant has published (see src/lib/registry/tenant.ts).
+ * Every registry-dependent action builds its own tenant-scoped instance
+ * through this helper rather than sharing one process-global registry,
+ * since which custom operations are available differs per tenant.
+ */
+async function loadActivePoliciesAndRegistry(taskId: string) {
   const { repositories, identity } = await createRepositoriesForCurrentTenant(
     `/app/tasks/${taskId}/contract/new`,
   );
-  const allPolicies = await repositories.policies.listByTenant(identity.tenant.tenantId);
-  return allPolicies.filter((p) => p.status === "active");
+  const [allPolicies, registry] = await Promise.all([
+    repositories.policies.listByTenant(identity.tenant.tenantId),
+    buildTenantRegistry(identity.tenant.tenantId),
+  ]);
+  return { activePolicies: allPolicies.filter((p) => p.status === "active"), registry, identity };
 }
 
 export interface ValidatePlanResult {
@@ -121,7 +130,7 @@ export async function validateCandidatePlanAction(
   rawPlan: unknown,
 ): Promise<ActionResult<ValidatePlanResult>> {
   try {
-    const activePolicies = await loadActivePolicies(taskId);
+    const { activePolicies, registry } = await loadActivePoliciesAndRegistry(taskId);
     const parsed = candidatePlanSchema.safeParse(rawPlan);
     if (!parsed.success) {
       return {
@@ -235,7 +244,10 @@ export async function proposeContractAction(
     const { repositories, identity, context } = await createRepositoriesForCurrentTenant(
       `/app/tasks/${taskId}/contract/new`,
     );
-    const allPolicies = await repositories.policies.listByTenant(identity.tenant.tenantId);
+    const [allPolicies, registry] = await Promise.all([
+      repositories.policies.listByTenant(identity.tenant.tenantId),
+      buildTenantRegistry(identity.tenant.tenantId),
+    ]);
     const activePolicies = allPolicies.filter((p) => p.status === "active");
 
     const parsed = candidatePlanSchema.safeParse(rawPlan);
@@ -529,7 +541,10 @@ export async function generatePlanWithAiAction(taskId: string): Promise<ActionRe
       return { ok: false, error: "That task could not be found." };
     }
 
-    const allPolicies = await repositories.policies.listByTenant(identity.tenant.tenantId);
+    const [allPolicies, registry] = await Promise.all([
+      repositories.policies.listByTenant(identity.tenant.tenantId),
+      buildTenantRegistry(identity.tenant.tenantId),
+    ]);
     const activePolicies = allPolicies.filter((p) => p.status === "active");
 
     const trustedInput = buildTrustedTaskInput({
@@ -668,6 +683,7 @@ export async function activateContractAction(taskId: string, contractId: string)
       return { ok: false, error: "This contract predates activation support and cannot be activated." };
     }
 
+    const registry = await buildTenantRegistry(identity.tenant.tenantId);
     const supportedRegistryVersions = [registry.registryVersion];
     const supportedCompilerVersions = [COMPILER_VERSION];
     if (!supportedRegistryVersions.includes(contract.registryVersion)) {
