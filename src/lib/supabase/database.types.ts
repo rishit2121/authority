@@ -200,6 +200,63 @@ export type Database = {
           },
         ];
       };
+      applications: {
+        Row: {
+          allowed_return_urls: string[];
+          created_at: string;
+          created_by: string | null;
+          environment: Database["public"]["Enums"]["tenant_environment"];
+          id: string;
+          name: string;
+          service_principal_id: string | null;
+          slug: string;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          allowed_return_urls?: string[];
+          created_at?: string;
+          created_by?: string | null;
+          environment?: Database["public"]["Enums"]["tenant_environment"];
+          id?: string;
+          name: string;
+          service_principal_id?: string | null;
+          slug: string;
+          status?: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          allowed_return_urls?: string[];
+          created_at?: string;
+          created_by?: string | null;
+          environment?: Database["public"]["Enums"]["tenant_environment"];
+          id?: string;
+          name?: string;
+          service_principal_id?: string | null;
+          slug?: string;
+          status?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "applications_service_principal_id_tenant_id_fkey";
+            columns: ["service_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "applications_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       approvals: {
         Row: {
           assigned_approver_principal_id: string | null;
@@ -908,6 +965,117 @@ export type Database = {
           },
         ];
       };
+      connection_delegations: {
+        Row: {
+          connection_id: string;
+          created_at: string;
+          created_by: string | null;
+          customer_id: string;
+          id: string;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          connection_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          customer_id: string;
+          id?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          connection_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          customer_id?: string;
+          id?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connection_delegations_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connection_delegations_customer_id_tenant_id_fkey";
+            columns: ["customer_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      connection_sessions: {
+        Row: {
+          application_id: string;
+          completed_at: string | null;
+          connector_id: string;
+          created_at: string;
+          created_connection_id: string | null;
+          customer_id: string;
+          expires_at: string;
+          id: string;
+          nonce_hash: string;
+          return_url: string;
+          status: Database["public"]["Enums"]["connection_session_status"];
+          tenant_id: string;
+          token_hash: string;
+        };
+        Insert: {
+          application_id: string;
+          completed_at?: string | null;
+          connector_id: string;
+          created_at?: string;
+          created_connection_id?: string | null;
+          customer_id: string;
+          expires_at: string;
+          id?: string;
+          nonce_hash: string;
+          return_url: string;
+          status?: Database["public"]["Enums"]["connection_session_status"];
+          tenant_id: string;
+          token_hash: string;
+        };
+        Update: {
+          application_id?: string;
+          completed_at?: string | null;
+          connector_id?: string;
+          created_at?: string;
+          created_connection_id?: string | null;
+          customer_id?: string;
+          expires_at?: string;
+          id?: string;
+          nonce_hash?: string;
+          return_url?: string;
+          status?: Database["public"]["Enums"]["connection_session_status"];
+          tenant_id?: string;
+          token_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "connection_sessions_application_id_tenant_id_fkey";
+            columns: ["application_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "applications";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connection_sessions_customer_id_tenant_id_fkey";
+            columns: ["customer_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
       connector_connection_secrets: {
         Row: {
           connection_id: string;
@@ -989,9 +1157,12 @@ export type Database = {
           id: string;
           last_verified_at: string | null;
           name: string;
+          owner_customer_id: string | null;
+          owner_kind: string;
           status: Database["public"]["Enums"]["connector_connection_status"];
           tenant_id: string;
           updated_at: string;
+          verified_account_ref: string | null;
         };
         Insert: {
           config?: Json;
@@ -1008,9 +1179,12 @@ export type Database = {
           id?: string;
           last_verified_at?: string | null;
           name: string;
+          owner_customer_id?: string | null;
+          owner_kind?: string;
           status?: Database["public"]["Enums"]["connector_connection_status"];
           tenant_id: string;
           updated_at?: string;
+          verified_account_ref?: string | null;
         };
         Update: {
           config?: Json;
@@ -1027,11 +1201,21 @@ export type Database = {
           id?: string;
           last_verified_at?: string | null;
           name?: string;
+          owner_customer_id?: string | null;
+          owner_kind?: string;
           status?: Database["public"]["Enums"]["connector_connection_status"];
           tenant_id?: string;
           updated_at?: string;
+          verified_account_ref?: string | null;
         };
         Relationships: [
+          {
+            foreignKeyName: "connector_connections_owner_customer_id_tenant_id_fkey";
+            columns: ["owner_customer_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id", "tenant_id"];
+          },
           {
             foreignKeyName: "connector_connections_connected_by_principal_id_tenant_id_fkey";
             columns: ["connected_by_principal_id", "tenant_id"];
@@ -1513,6 +1697,123 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "principals";
             referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
+      customers: {
+        Row: {
+          application_id: string;
+          created_at: string;
+          display_label: string | null;
+          external_id: string;
+          id: string;
+          metadata: Json;
+          status: string;
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          application_id: string;
+          created_at?: string;
+          display_label?: string | null;
+          external_id: string;
+          id?: string;
+          metadata?: Json;
+          status?: string;
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          application_id?: string;
+          created_at?: string;
+          display_label?: string | null;
+          external_id?: string;
+          id?: string;
+          metadata?: Json;
+          status?: string;
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customers_application_id_tenant_id_fkey";
+            columns: ["application_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "applications";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "customers_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      developer_backend_credentials: {
+        Row: {
+          application_id: string;
+          created_at: string;
+          created_by: string | null;
+          environment: Database["public"]["Enums"]["tenant_environment"];
+          id: string;
+          key_hash: string;
+          key_prefix: string;
+          last_used_at: string | null;
+          name: string | null;
+          revocation_reason: string | null;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          status: string;
+          tenant_id: string;
+        };
+        Insert: {
+          application_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          environment?: Database["public"]["Enums"]["tenant_environment"];
+          id?: string;
+          key_hash: string;
+          key_prefix: string;
+          last_used_at?: string | null;
+          name?: string | null;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          status?: string;
+          tenant_id: string;
+        };
+        Update: {
+          application_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          environment?: Database["public"]["Enums"]["tenant_environment"];
+          id?: string;
+          key_hash?: string;
+          key_prefix?: string;
+          last_used_at?: string | null;
+          name?: string | null;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          status?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "developer_backend_credentials_application_id_tenant_id_fkey";
+            columns: ["application_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "applications";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "developer_backend_credentials_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -3774,6 +4075,7 @@ export type Database = {
           agent_id: string;
           completed_at: string | null;
           created_at: string;
+          customer_id: string | null;
           demo_key: string | null;
           id: string;
           idempotency_key: string | null;
@@ -3791,6 +4093,7 @@ export type Database = {
           agent_id: string;
           completed_at?: string | null;
           created_at?: string;
+          customer_id?: string | null;
           demo_key?: string | null;
           id?: string;
           idempotency_key?: string | null;
@@ -3808,6 +4111,7 @@ export type Database = {
           agent_id?: string;
           completed_at?: string | null;
           created_at?: string;
+          customer_id?: string | null;
           demo_key?: string | null;
           id?: string;
           idempotency_key?: string | null;
@@ -3822,6 +4126,13 @@ export type Database = {
           updated_at?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "tasks_customer_id_tenant_id_fkey";
+            columns: ["customer_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id", "tenant_id"];
+          },
           {
             foreignKeyName: "tasks_agent_id_tenant_id_fkey";
             columns: ["agent_id", "tenant_id"];
@@ -4589,6 +4900,26 @@ export type Database = {
           plaintext_secret: string;
         }[];
       };
+      create_application: {
+        Args: {
+          p_environment: Database["public"]["Enums"]["tenant_environment"];
+          p_name: string;
+          p_slug: string;
+          p_tenant_id: string;
+        };
+        Returns: {
+          app_status: string;
+          app_application_id: string | null;
+        }[];
+      };
+      create_backend_credential: {
+        Args: { p_application_id: string; p_name: string | null };
+        Returns: {
+          credential_id: string;
+          key_prefix: string;
+          plaintext_secret: string;
+        }[];
+      };
       create_candidate_plan: {
         Args: {
           p_idempotency_key?: string;
@@ -4656,6 +4987,10 @@ export type Database = {
           ctx_timeout_ms: number;
           ctx_tool: string;
         }[];
+      };
+      grant_connection_delegation: {
+        Args: { p_connection_id: string; p_customer_id: string };
+        Returns: string;
       };
       install_demo_workspace: {
         Args: { p_tenant_id: string };
@@ -4735,9 +5070,17 @@ export type Database = {
         Args: { p_credential_id: string; p_reason: string };
         Returns: undefined;
       };
+      revoke_backend_credential: {
+        Args: { p_credential_id: string; p_reason: string };
+        Returns: undefined;
+      };
       revoke_capability: {
         Args: { p_capability_id: string; p_reason: string };
         Returns: undefined;
+      };
+      revoke_connection_delegation: {
+        Args: { p_connection_id: string; p_customer_id: string };
+        Returns: string;
       };
       revoke_task_contract: {
         Args: { p_contract_id: string; p_reason: string };
@@ -4791,6 +5134,10 @@ export type Database = {
         Returns: undefined;
       };
       terminate_task: { Args: { p_task_id: string }; Returns: undefined };
+      update_application_return_urls: {
+        Args: { p_application_id: string; p_return_urls: string[] };
+        Returns: string;
+      };
     };
     Enums: {
       agent_auth_outcome: "success" | "invalid_credential" | "revoked_credential" | "rate_limited";
@@ -4801,7 +5148,9 @@ export type Database = {
       approval_status: "pending" | "approved" | "rejected" | "expired";
       authorization_outcome:
         "allow" | "allow_constrained" | "replan" | "clarify" | "require_approval" | "deny";
+      backend_credential_status: "active" | "revoked";
       capability_status: "active" | "expired" | "revoked" | "consumed";
+      connection_session_status: "pending" | "completed" | "expired" | "cancelled" | "denied";
       connector_connection_status: "active" | "suspended" | "needs_attention" | "disconnected";
       contract_status:
         | "draft"
@@ -4977,7 +5326,9 @@ export const Constants = {
       approval_requirement_kind: ["task_owner", "role"],
       approval_status: ["pending", "approved", "rejected", "expired"],
       authorization_outcome: ["allow", "allow_constrained", "replan", "clarify", "require_approval", "deny"],
+      backend_credential_status: ["active", "revoked"],
       capability_status: ["active", "expired", "revoked", "consumed"],
+      connection_session_status: ["pending", "completed", "expired", "cancelled", "denied"],
       connector_connection_status: ["active", "suspended", "needs_attention", "disconnected"],
       contract_status: [
         "draft",
