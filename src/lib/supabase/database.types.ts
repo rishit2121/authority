@@ -2689,6 +2689,130 @@ export type Database = {
           },
         ];
       };
+      postgres_query_definitions: {
+        Row: {
+          connection_id: string;
+          created_at: string;
+          created_by_principal_id: string | null;
+          description: string | null;
+          effect: string;
+          id: string;
+          input_schema: Json;
+          input_schema_hash: string | null;
+          invocation_limit: number | null;
+          name: string;
+          published_at: string | null;
+          published_by_principal_id: string | null;
+          query_slug: string;
+          retired_at: string | null;
+          retired_by_principal_id: string | null;
+          sql_template: string;
+          sql_template_hash: string | null;
+          status: string;
+          tenant_id: string;
+          timeout_ms: number;
+          tool_name: string;
+          updated_at: string;
+          validated_at: string | null;
+          validated_by_principal_id: string | null;
+        };
+        Insert: {
+          connection_id: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          description?: string | null;
+          effect: string;
+          id?: string;
+          input_schema: Json;
+          input_schema_hash?: string | null;
+          invocation_limit?: number | null;
+          name: string;
+          published_at?: string | null;
+          published_by_principal_id?: string | null;
+          query_slug: string;
+          retired_at?: string | null;
+          retired_by_principal_id?: string | null;
+          sql_template: string;
+          sql_template_hash?: string | null;
+          status?: string;
+          tenant_id: string;
+          timeout_ms?: number;
+          tool_name: string;
+          updated_at?: string;
+          validated_at?: string | null;
+          validated_by_principal_id?: string | null;
+        };
+        Update: {
+          connection_id?: string;
+          created_at?: string;
+          created_by_principal_id?: string | null;
+          description?: string | null;
+          effect?: string;
+          id?: string;
+          input_schema?: Json;
+          input_schema_hash?: string | null;
+          invocation_limit?: number | null;
+          name?: string;
+          published_at?: string | null;
+          published_by_principal_id?: string | null;
+          query_slug?: string;
+          retired_at?: string | null;
+          retired_by_principal_id?: string | null;
+          sql_template?: string;
+          sql_template_hash?: string | null;
+          status?: string;
+          tenant_id?: string;
+          timeout_ms?: number;
+          tool_name?: string;
+          updated_at?: string;
+          validated_at?: string | null;
+          validated_by_principal_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "postgres_query_definitions_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "postgres_query_definitions_created_by_principal_id_tenant__fkey";
+            columns: ["created_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "postgres_query_definitions_published_by_principal_id_tenan_fkey";
+            columns: ["published_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "postgres_query_definitions_retired_by_principal_id_tenant__fkey";
+            columns: ["retired_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "postgres_query_definitions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "postgres_query_definitions_validated_by_principal_id_tenan_fkey";
+            columns: ["validated_by_principal_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+        ];
+      };
       principals: {
         Row: {
           created_at: string;

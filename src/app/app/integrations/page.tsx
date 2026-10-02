@@ -71,6 +71,73 @@ export default async function IntegrationsPage() {
         <Icon name="arrow_forward" size={16} />
       </Link>
 
+      <Link
+        href="/app/integrations/stripe"
+        data-testid="stripe-integration-link"
+        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
+      >
+        <span>
+          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
+            Stripe connector
+          </span>
+          <span className="block font-body-sm text-body-sm text-on-surface-variant">
+            Retrieve payments and customers, list charges, and issue refunds. Real execution against
+            Stripe&apos;s own API; refunds always require approval.
+          </span>
+        </span>
+        <Icon name="arrow_forward" size={16} />
+      </Link>
+
+      <Link
+        href="/app/integrations/slack"
+        data-testid="slack-integration-link"
+        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
+      >
+        <span>
+          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
+            Slack connector
+          </span>
+          <span className="block font-body-sm text-body-sm text-on-surface-variant">
+            Post messages and list channels in a connected workspace. Real execution against Slack&apos;s own
+            Web API.
+          </span>
+        </span>
+        <Icon name="arrow_forward" size={16} />
+      </Link>
+
+      <Link
+        href="/app/integrations/gmail"
+        data-testid="gmail-integration-link"
+        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
+      >
+        <span>
+          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
+            Gmail connector
+          </span>
+          <span className="block font-body-sm text-body-sm text-on-surface-variant">
+            Send email from a connected Google account via OAuth. Always requires human review before sending.
+          </span>
+        </span>
+        <Icon name="arrow_forward" size={16} />
+      </Link>
+
+      <Link
+        href="/app/integrations/postgres"
+        data-testid="postgres-integration-link"
+        className="flex items-center justify-between rounded-xl border border-primary/30 bg-surface-container p-space-lg transition-colors hover:bg-surface-container-high"
+      >
+        <span>
+          <span className="block font-headline-sm text-body-lg font-semibold text-on-surface">
+            PostgreSQL connector
+          </span>
+          <span className="block font-body-sm text-body-sm text-on-surface-variant">
+            Define named, parameterized queries against your own database and publish them once validated.
+            Real, statement-timeout-bounded execution; private network destinations are allowed.
+          </span>
+        </span>
+        <Icon name="arrow_forward" size={16} />
+      </Link>
+
       {integrations.length === 0 ? (
         <EmptyState
           icon="token"

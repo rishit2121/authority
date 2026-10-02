@@ -83,6 +83,32 @@ async function main(): Promise<number> {
   else add("ok", "GitHub connector", "live and fully configured");
   if (env.AUTHORITY_ALLOW_MOCK_GITHUB === "1")
     add("fail", "AUTHORITY_ALLOW_MOCK_GITHUB", "must not be set in production");
+  if (env.STRIPE_FIXTURE_MODE === "1" && env.AUTHORITY_ALLOW_STRIPE_FIXTURE !== "1")
+    add(
+      "fail",
+      "STRIPE_FIXTURE_MODE",
+      "fixture mode must not run in production without the explicit allow flag",
+    );
+  if (env.AUTHORITY_ALLOW_STRIPE_FIXTURE === "1")
+    add("fail", "AUTHORITY_ALLOW_STRIPE_FIXTURE", "must not be set in production");
+  if (env.SLACK_FIXTURE_MODE === "1" && env.AUTHORITY_ALLOW_SLACK_FIXTURE !== "1")
+    add(
+      "fail",
+      "SLACK_FIXTURE_MODE",
+      "fixture mode must not run in production without the explicit allow flag",
+    );
+  if (env.AUTHORITY_ALLOW_SLACK_FIXTURE === "1")
+    add("fail", "AUTHORITY_ALLOW_SLACK_FIXTURE", "must not be set in production");
+  if (env.GMAIL_FIXTURE_MODE === "1" && env.AUTHORITY_ALLOW_GMAIL_FIXTURE !== "1")
+    add(
+      "fail",
+      "GMAIL_FIXTURE_MODE",
+      "fixture mode must not run in production without the explicit allow flag",
+    );
+  if (env.AUTHORITY_ALLOW_GMAIL_FIXTURE === "1")
+    add("fail", "AUTHORITY_ALLOW_GMAIL_FIXTURE", "must not be set in production");
+  if (!has("GOOGLE_OAUTH_CLIENT_ID") || !has("GOOGLE_OAUTH_CLIENT_SECRET"))
+    add("warn", "Gmail connector", "no Google OAuth client configured: Gmail connections cannot complete");
   if (env.AUTHORITY_DEPLOYMENT === "local")
     add("fail", "AUTHORITY_DEPLOYMENT", "'local' relaxes TLS checks and is for local production builds only");
 
