@@ -40,29 +40,29 @@ const CATALOG: CatalogEntry[] = [
   {
     id: "stripe",
     name: "Stripe",
-    description: "Retrieve payments and customers, and issue refunds.",
-    href: null,
+    description: "Retrieve payments and customers, list charges, and issue refunds.",
+    href: "/app/integrations/stripe",
     logo: { src: "/logos/stripe.svg", alt: "" },
   },
   {
     id: "slack",
     name: "Slack",
     description: "Post messages and list channels in a connected workspace.",
-    href: null,
+    href: "/app/integrations/slack",
     logo: { src: "/logos/slack.svg", alt: "" },
   },
   {
     id: "gmail",
     name: "Gmail",
     description: "Send email from a connected Google account.",
-    href: null,
+    href: "/app/integrations/gmail",
     logo: { src: "/logos/gmail.svg", alt: "" },
   },
   {
     id: "postgresql",
     name: "PostgreSQL",
     description: "Run named, parameterized queries against your own database.",
-    href: null,
+    href: "/app/integrations/postgres",
     logo: { src: "/logos/postgresql.svg", alt: "" },
   },
 ];
@@ -88,18 +88,53 @@ interface ConnectionRow {
   href: string;
 }
 
+interface RawConnectionRow {
+  id: string;
+  name: string;
+  status: string;
+}
+
+function toConnectionRows(rows: RawConnectionRow[] | null, label: string, href: string): ConnectionRow[] {
+  return (rows ?? []).map((c) => ({ id: c.id, name: `${label} · ${c.name}`, status: c.status, href }));
+}
+
 export default async function IntegrationsPage() {
   const { context } = await createRepositoriesForCurrentTenant("/app/integrations");
 
-  const [{ installation }, customApiResult] = await Promise.all([
-    loadGithubOverview(context.supabase),
-    context.supabase
-      .from("connector_connections")
-      .select("id, name, status")
-      .like("connector_id", "custom\\_%")
-      .neq("status", "disconnected")
-      .order("created_at", { ascending: false }),
-  ]);
+  const [{ installation }, customApiResult, stripeResult, slackResult, gmailResult, postgresResult] =
+    await Promise.all([
+      loadGithubOverview(context.supabase),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .like("connector_id", "custom\\_%")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .eq("connector_id", "stripe")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .eq("connector_id", "slack")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .eq("connector_id", "gmail")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+      context.supabase
+        .from("connector_connections")
+        .select("id, name, status")
+        .like("connector_id", "postgres\\_%")
+        .neq("status", "disconnected")
+        .order("created_at", { ascending: false }),
+    ]);
 
   const connections: ConnectionRow[] = [
     ...(installation
@@ -112,12 +147,11 @@ export default async function IntegrationsPage() {
           },
         ]
       : []),
-    ...(customApiResult.data ?? []).map((c) => ({
-      id: c.id,
-      name: `Custom API · ${c.name}`,
-      status: c.status,
-      href: "/app/integrations/custom-api",
-    })),
+    ...toConnectionRows(customApiResult.data, "Custom API", "/app/integrations/custom-api"),
+    ...toConnectionRows(stripeResult.data, "Stripe", "/app/integrations/stripe"),
+    ...toConnectionRows(slackResult.data, "Slack", "/app/integrations/slack"),
+    ...toConnectionRows(gmailResult.data, "Gmail", "/app/integrations/gmail"),
+    ...toConnectionRows(postgresResult.data, "PostgreSQL", "/app/integrations/postgres"),
   ];
 
   return (

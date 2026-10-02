@@ -1,10 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const listPublishedCustomOperationsForTenant = vi.fn();
+const listPublishedPostgresQueriesForTenant = vi.fn();
 
 vi.mock("@/lib/gateway/rpc-custom-operations", () => ({
   listPublishedCustomOperationsForTenant: (...args: unknown[]) =>
     listPublishedCustomOperationsForTenant(...args),
+}));
+vi.mock("@/lib/gateway/rpc-postgres-queries", () => ({
+  listPublishedPostgresQueriesForTenant: (...args: unknown[]) =>
+    listPublishedPostgresQueriesForTenant(...args),
 }));
 
 import { githubDemoRegistry } from "@/lib/registry/fixtures/github-demo";
@@ -35,6 +40,8 @@ function fakeOp(over: Partial<TenantPublishedOperation> = {}): TenantPublishedOp
 describe("buildTenantRegistry", () => {
   beforeEach(() => {
     listPublishedCustomOperationsForTenant.mockReset();
+    listPublishedPostgresQueriesForTenant.mockReset();
+    listPublishedPostgresQueriesForTenant.mockResolvedValue([]);
   });
 
   it("returns the unmodified GitHub registry, byte-identical, when the tenant has no published custom operations", async () => {
@@ -112,5 +119,42 @@ describe("buildTenantRegistry", () => {
     const permission = registry.permissions.get(coverage[0])!;
     expect(permission.riskCost).toBeGreaterThan(3);
     expect(permission.classification).toBe("write");
+  });
+
+  it("merges a published postgres query in alongside the GitHub fixture and any custom operations", async () => {
+    listPublishedCustomOperationsForTenant.mockResolvedValue([fakeOp()]);
+    listPublishedPostgresQueriesForTenant.mockResolvedValue([
+      {
+        queryId: "q-1",
+        toolName: "postgres_abc123.get_customer_orders",
+        querySlug: "get_customer_orders",
+        name: "Get customer orders",
+        description: null,
+        effect: "read",
+        inputSchema: {
+          schemaVersion: 1,
+          fields: [{ key: "customerId", type: "string", required: true, identifiesResource: true }],
+        },
+        inputSchemaHash: "hash-c",
+        sqlTemplateHash: "hash-d",
+        connectorId: "postgres_abc123",
+        connectionName: "Primary database",
+        publishedAt: "2026-10-01T00:00:00Z",
+      },
+    ]);
+    const registry = await buildTenantRegistry("tenant-a");
+    expect(registry.operations.has("custom_abc123.get_order")).toBe(true);
+    expect(registry.operations.has("postgres_abc123.get_customer_orders")).toBe(true);
+    expect(registry.operations.size).toBe(githubDemoRegistry.operations.length + 2);
+    const op = registry.operations.get("postgres_abc123.get_customer_orders")!;
+    expect(op.externalCommunication).toBe(true);
+    expect(op.requiresApproval).toBe(false);
+  });
+
+  it("returns the unmodified GitHub registry when a tenant has published postgres queries but no custom operations", async () => {
+    listPublishedCustomOperationsForTenant.mockResolvedValue([]);
+    listPublishedPostgresQueriesForTenant.mockResolvedValue([]);
+    const registry = await buildTenantRegistry("tenant-a");
+    expect(registry.registryVersion).toBe(githubDemoRegistry.registryVersion);
   });
 });

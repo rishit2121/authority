@@ -11,7 +11,8 @@ import { gatewayQuery } from "./db";
  * route or return its result to a browser or agent.
  */
 
-export type ConnectorSecretType = "bearer_token" | "api_key" | "basic_username" | "basic_password";
+export type ConnectorSecretType =
+  "bearer_token" | "api_key" | "basic_username" | "basic_password" | "oauth_refresh_token";
 
 export async function setConnectorSecret(input: {
   tenantId: string;

@@ -253,3 +253,24 @@ export async function tenantForTask(taskId: string): Promise<string | null> {
   );
   return rows[0]?.tenant_for_task ?? null;
 }
+
+export interface ActiveContractSummary {
+  contractId: string;
+  /** Each item's shape matches src/lib/domain/task-authority-contract.ts's own allowedActionSchema. */
+  allowedActions: Array<{ tool: string; constraints: unknown[]; maxInvocations?: number }>;
+}
+
+/** Side-effect-free; returns null when the task has no currently active contract. See gateway.active_contract_for_task's own comment -- discovery only, grants nothing by itself. */
+export async function activeContractForTask(taskId: string): Promise<ActiveContractSummary | null> {
+  const rows = await gatewayQuery<{ acft_contract_id: string; acft_allowed_actions: unknown }>(
+    `select * from gateway.active_contract_for_task($1::uuid)`,
+    [taskId],
+  );
+  const r = rows[0];
+  if (!r) return null;
+  // allowed_actions is versioned JSONB ({schemaVersion, items}), same
+  // envelope src/lib/persistence/mappers/contract.ts unwraps for the
+  // RLS-governed app repository's own read of this column.
+  const payload = r.acft_allowed_actions as { items?: ActiveContractSummary["allowedActions"] } | null;
+  return { contractId: r.acft_contract_id, allowedActions: payload?.items ?? [] };
+}

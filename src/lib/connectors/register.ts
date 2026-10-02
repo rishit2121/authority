@@ -1,7 +1,11 @@
 import "server-only";
 
 import { customApiConnector } from "./custom-api/connector";
+import { gmailConnector } from "./gmail/connector";
+import { postgresConnector } from "./postgres/connector";
 import { registerConnector } from "./registry";
+import { slackConnector } from "./slack/connector";
+import { stripeConnector } from "./stripe/connector";
 
 /**
  * Registers every statically-known connector, idempotently. Called lazily
@@ -29,5 +33,25 @@ export function ensureConnectorsRegistered(): void {
   } catch {
     // Already registered -- by an earlier call, or by a test that injected
     // its own instance under the same id. Either way, nothing to do.
+  }
+  try {
+    registerConnector(stripeConnector);
+  } catch {
+    // Same race as above, for a test's own injected Stripe connector instance.
+  }
+  try {
+    registerConnector(slackConnector);
+  } catch {
+    // Same race as above, for a test's own injected Slack connector instance.
+  }
+  try {
+    registerConnector(gmailConnector);
+  } catch {
+    // Same race as above, for a test's own injected Gmail connector instance.
+  }
+  try {
+    registerConnector(postgresConnector);
+  } catch {
+    // Same race as above, for a test's own injected Postgres connector instance.
   }
 }
