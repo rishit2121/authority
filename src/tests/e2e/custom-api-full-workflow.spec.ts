@@ -189,6 +189,7 @@ test.describe.serial("Custom API: complete customer workflow", () => {
     // which always triggers at least one required approval) ----
     await activateWithApprovalIfNeeded(page, browser, testInfo, taskId);
     await expect(page.getByText("Active", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.screenshot({ path: "test-results/custom-api-contract-active.png", fullPage: true });
 
     // ---- issue a runtime credential ----
     await page.goto(`/app/agents/${agentId}`);
@@ -239,6 +240,7 @@ test.describe.serial("Custom API: complete customer workflow", () => {
     // ---- 12: inspect the receipt, through the UI ----
     await page.goto("/app/runtime");
     await expect(page.locator("tbody").getByText(fullToolName).first()).toBeVisible({ timeout: 15_000 });
+    await page.screenshot({ path: "test-results/custom-api-runtime-receipt.png", fullPage: true });
 
     // ---- the denied call: resource/argument substitution at execute time.
     // The contract pins orderId to exactly "4821" (contract-compiler.ts's
