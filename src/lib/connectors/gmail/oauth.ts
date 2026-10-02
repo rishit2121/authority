@@ -48,7 +48,20 @@ export interface StartedGmailOAuth {
   verifier: string;
 }
 
-export function startGmailOAuth(input: { connectionId: string; redirectUri: string }): {
+/**
+ * `connectionId` is the dashboard-operated flow's own identity (an
+ * already-created `connector_connections` row waiting for its secret).
+ * `sessionToken` is the embedded flow's identity instead (a
+ * `connection_sessions` token -- no connection row exists yet; one is
+ * created only once the exchange below succeeds). Exactly one must be set;
+ * both travel through Google's own `state` round-trip unchanged, the same
+ * mechanism either way.
+ */
+export function startGmailOAuth(input: {
+  connectionId?: string;
+  sessionToken?: string;
+  redirectUri: string;
+}): {
   status: string;
   started?: StartedGmailOAuth;
 } {
@@ -58,10 +71,20 @@ export function startGmailOAuth(input: { connectionId: string; redirectUri: stri
 
   const nonce = b64url(randomBytes(32));
   const verifier = b64url(randomBytes(48));
-  const state = b64url(Buffer.from(JSON.stringify({ connectionId: input.connectionId, nonce }), "utf8"));
+  const state = b64url(
+    Buffer.from(
+      JSON.stringify({
+        connectionId: input.connectionId ?? null,
+        sessionToken: input.sessionToken ?? null,
+        nonce,
+      }),
+      "utf8",
+    ),
+  );
 
   if (fixture) {
-    const authorizeUrl = `${input.redirectUri}?code=${encodeURIComponent(`fixture-code-${input.connectionId}`)}&state=${encodeURIComponent(state)}`;
+    const fixtureSuffix = input.connectionId ?? input.sessionToken ?? "unknown";
+    const authorizeUrl = `${input.redirectUri}?code=${encodeURIComponent(`fixture-code-${fixtureSuffix}`)}&state=${encodeURIComponent(state)}`;
     return { status: "ok", started: { authorizeUrl, nonce, verifier } };
   }
 
@@ -83,18 +106,32 @@ export function startGmailOAuth(input: { connectionId: string; redirectUri: stri
   return { status: "ok", started: { authorizeUrl: url.toString(), nonce, verifier } };
 }
 
-/** Decodes and shape-checks the state param; never trusted beyond that until the nonce is matched against the cookie. */
-export function parseGmailOAuthState(state: string | null): { connectionId: string; nonce: string } | null {
+export interface ParsedGmailOAuthState {
+  connectionId: string | null;
+  sessionToken: string | null;
+  nonce: string;
+}
+
+/**
+ * Decodes and shape-checks the state param; never trusted beyond that until
+ * the nonce is matched against the cookie. Exactly one of connectionId/
+ * sessionToken is expected to be non-null -- which one tells a callback
+ * route which flow (dashboard vs. embedded) produced this round trip.
+ */
+export function parseGmailOAuthState(state: string | null): ParsedGmailOAuthState | null {
   if (!state) return null;
   try {
     const decoded: unknown = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
     if (
       decoded &&
       typeof decoded === "object" &&
-      typeof (decoded as Record<string, unknown>).connectionId === "string" &&
+      ((decoded as Record<string, unknown>).connectionId === null ||
+        typeof (decoded as Record<string, unknown>).connectionId === "string") &&
+      ((decoded as Record<string, unknown>).sessionToken === null ||
+        typeof (decoded as Record<string, unknown>).sessionToken === "string") &&
       typeof (decoded as Record<string, unknown>).nonce === "string"
     ) {
-      return decoded as { connectionId: string; nonce: string };
+      return decoded as ParsedGmailOAuthState;
     }
     return null;
   } catch {

@@ -62,6 +62,39 @@ export async function resolveConnectionSession(token: string): Promise<ResolvedC
   };
 }
 
+export interface CompleteEmbeddedConnectionResult {
+  status: DeveloperApiStatus;
+  connectionId: string | null;
+}
+
+/**
+ * The provider-specific callback's one write: creates (or reuses, for a
+ * reconnect) the connector_connections row and stores the exchanged
+ * credential, authorized by the session token itself rather than a
+ * dashboard admin -- see gateway.complete_embedded_connection's own module
+ * comment for why this cannot go through setConnectorSecret.
+ */
+export async function completeEmbeddedConnection(input: {
+  sessionToken: string;
+  secretType: "bearer_token" | "api_key" | "basic_username" | "basic_password" | "oauth_refresh_token";
+  plaintextSecret: string;
+  verifiedAccountRef: string;
+  config?: Record<string, unknown>;
+}): Promise<CompleteEmbeddedConnectionResult> {
+  const rows = await gatewayQuery<Row>(
+    `select * from gateway.complete_embedded_connection($1, $2, $3, $4, $5::jsonb)`,
+    [
+      input.sessionToken,
+      input.secretType,
+      input.plaintextSecret,
+      input.verifiedAccountRef,
+      JSON.stringify(input.config ?? {}),
+    ],
+  );
+  const r = rows[0];
+  return { status: r.cec_status as string, connectionId: (r.cec_connection_id as string) ?? null };
+}
+
 export async function completeConnectionSession(
   token: string,
   connectionId: string,

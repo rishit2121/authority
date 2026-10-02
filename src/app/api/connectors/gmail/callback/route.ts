@@ -39,7 +39,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!cookieNonce || !validGmailNonce(cookieNonce) || !cookieVerifier) return fail("not_started_here");
 
   const state = parseGmailOAuthState(params.get("state"));
-  if (!state || state.nonce !== cookieNonce) return fail("invalid_state");
+  if (!state || state.nonce !== cookieNonce || !state.connectionId) return fail("invalid_state");
+  const connectionId = state.connectionId;
 
   const code = params.get("code");
   if (!code) return fail(params.get("error") ?? "oauth_denied");
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const { data: connection } = await context.supabase
     .from("connector_connections")
     .select("id, connector_id, status")
-    .eq("id", state.connectionId)
+    .eq("id", connectionId)
     .eq("connector_id", GMAIL_CONNECTOR_ID)
     .maybeSingle();
   if (!connection || connection.status === "disconnected") return fail("connection_not_found");
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const result = await setConnectorSecret({
       tenantId: identity.tenant.tenantId,
       userId: identity.userId,
-      connectionId: state.connectionId,
+      connectionId,
       secretType: "oauth_refresh_token",
       plaintextSecret: exchanged.refreshToken,
     });
@@ -82,7 +83,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       await updateConnectorConnectionConfig({
         tenantId: identity.tenant.tenantId,
         userId: identity.userId,
-        connectionId: state.connectionId,
+        connectionId,
         config: { connectedEmail: email },
       });
     }
