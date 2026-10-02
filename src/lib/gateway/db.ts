@@ -7,8 +7,11 @@ import { readFileSync } from "node:fs";
 import pg from "pg";
 
 /**
- * The ONLY module in the application that holds the gateway database
- * credential or imports `pg`.
+ * The ONLY module in the application that holds the gateway's own database
+ * credential. `src/lib/connectors/postgres/pg-client.ts` is the one other
+ * `pg` import in this codebase -- it connects to a tenant-configured target
+ * database with that tenant's own stored credential, never this one, and
+ * never touches `GATEWAY_DATABASE_URL`.
  *
  * `GATEWAY_DATABASE_URL` names the dedicated `authority_gateway` login. That
  * role owns nothing, has no table privileges, and can execute only functions

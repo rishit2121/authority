@@ -187,7 +187,7 @@ describe("Custom API connector", () => {
         fakeResponse({ status: 404, bodyText: JSON.stringify({ error: "not found" }) }),
       );
       const normalized = await connector.normalizeRequest(TOOL, { orderId: "9999" });
-      await expect(connector.execute(normalized, execContext())).rejects.toThrow(/UPSTREAM_STATUS_404/);
+      await expect(connector.execute(normalized, execContext())).rejects.toThrow(/UPSTREAM_CLIENT_ERROR/);
     });
   });
 

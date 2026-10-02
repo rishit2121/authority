@@ -44,10 +44,32 @@ import type { RegistryData } from "../types";
  *    deriver's irreversible-operation rule, since deleting a branch is the
  *    one destructive action a real issue-resolution task could plausibly
  *    need.
+ *
+ * Despite the name, this is now the one base registry fixture merged into
+ * every tenant's compiled registry (see tenant.ts), not GitHub-fixture-only
+ * content — `stripe.retrieve_payment`, `stripe.retrieve_customer`, and
+ * `stripe.list_charges` (Phase 6 of the agent-integration roadmap) sit
+ * alongside the original `stripe.issue_refund` demo operation for exactly
+ * this reason: a real `AuthorityConnector` now exists for everything with a
+ * "stripe." prefix (src/lib/connectors/stripe/connector.ts), so this one
+ * demo operation became a real, executable one without changing its id or
+ * shape. `slack.post_message` and `slack.list_channels` (Phase 8) are new
+ * operations with a real connector behind them from the start
+ * (src/lib/connectors/slack/connector.ts). `gmail.send_email` (Phase 7) is
+ * the same demo-operation-becomes-real-operation story as Stripe's refund:
+ * its real connector (src/lib/connectors/gmail/connector.ts) uses `to` as
+ * the resource a capability binds against, so `to.identifiesResource` was
+ * flipped from `false` to `true` here, and an optional `body` field was
+ * added — neither changes any existing test's outcome (`externalCommunication:
+ * true` already forces `requires_review` unconditionally, before
+ * `identifiesResource` is ever consulted). Renaming this file is a separate
+ * cleanup, deferred to avoid touching
+ * `src/tests/integration/gateway-support.ts`'s regex read of this exact path
+ * for `registryVersion`.
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
-  registryVersion: "github-demo-2026-09-30",
+  registryVersion: "github-demo-2026-10-02c",
   operations: [
     {
       id: "github.get_issue",
@@ -223,8 +245,9 @@ export const githubDemoRegistry: RegistryData = {
       requiresApproval: false,
       financialImpact: false,
       argumentFields: [
-        { key: "to", type: "string", required: true, identifiesResource: false },
+        { key: "to", type: "string", required: true, identifiesResource: true },
         { key: "subject", type: "string", required: true, identifiesResource: false },
+        { key: "body", type: "string", required: false, identifiesResource: false },
       ],
       preconditions: [
         "The recipient must be identifiable from the task's own intent or trusted inputs, never invented.",
@@ -250,6 +273,79 @@ export const githubDemoRegistry: RegistryData = {
         "The amount must not exceed the payment's original amount.",
       ],
       effects: ["Refunds the named amount against the named payment; this is a real financial transaction."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "stripe.retrieve_payment",
+      provider: "stripe",
+      sideEffect: "read",
+      resourceType: "payment",
+      dataSensitivity: "confidential",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "payment_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: [],
+      effects: ["Returns one payment's amount, currency, customer, and status."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "stripe.retrieve_customer",
+      provider: "stripe",
+      sideEffect: "read",
+      resourceType: "customer",
+      dataSensitivity: "confidential",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "customer_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: [],
+      effects: ["Returns one customer's id, email, and name."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "stripe.list_charges",
+      provider: "stripe",
+      sideEffect: "read",
+      resourceType: "customer",
+      dataSensitivity: "confidential",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "customer_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: [],
+      effects: ["Returns the named customer's charges; never another customer's."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "slack.post_message",
+      provider: "slack",
+      sideEffect: "write_create",
+      resourceType: "channel",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [
+        { key: "channel", type: "string", required: true, identifiesResource: true },
+        { key: "text", type: "string", required: true, identifiesResource: false },
+      ],
+      preconditions: ["The channel must be identifiable from the task's own intent or trusted inputs."],
+      effects: ["Posts one message to the named channel in the connected workspace."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "slack.list_channels",
+      provider: "slack",
+      sideEffect: "read",
+      resourceType: "workspace",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [],
+      preconditions: [],
+      effects: ["Returns the channels visible to the connected workspace's bot user."],
       alternativeOperationIds: [],
     },
   ],
@@ -394,6 +490,42 @@ export const githubDemoRegistry: RegistryData = {
       classification: "write",
       riskCost: 4,
       resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "stripe.payments_read",
+      provider: "stripe",
+      operations: ["stripe.retrieve_payment"],
+      classification: "read",
+      riskCost: 1,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "stripe.customers_read",
+      provider: "stripe",
+      operations: ["stripe.retrieve_customer", "stripe.list_charges"],
+      classification: "read",
+      riskCost: 2,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "slack.messages_write",
+      provider: "slack",
+      operations: ["slack.post_message"],
+      classification: "write",
+      riskCost: 2,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "slack.channels_read",
+      provider: "slack",
+      operations: ["slack.list_channels"],
+      classification: "read",
+      riskCost: 1,
+      resourceBreadth: 2,
       allowsExternalCommunication: false,
     },
   ],

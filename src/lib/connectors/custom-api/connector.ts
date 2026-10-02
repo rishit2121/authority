@@ -299,7 +299,13 @@ export function createCustomApiConnector(
       const { payload, redaction } = agentPayloadFrom(response.bodyText, contentType);
       const httpStatusClass = Math.floor(response.status / 100);
       if (httpStatusClass !== 2) {
-        throw new Error(`UPSTREAM_STATUS_${response.status}`);
+        // connector_execution_receipts.reason_code is constrained to
+        // ^[A-Z_]{1,60}$ (no digits) -- a raw status code reaching a write's
+        // settlement (once beforeWrite() has fired, any thrown error here
+        // settles as "indeterminate", which still writes a reason_code)
+        // would crash that write with a check-constraint violation instead
+        // of recording a clean indeterminate/failed outcome.
+        throw new Error(httpStatusClass === 4 ? "UPSTREAM_CLIENT_ERROR" : "UPSTREAM_SERVER_ERROR");
       }
 
       return {

@@ -24,9 +24,22 @@ const rel = (f: string) => path.relative(process.cwd(), f);
 const read = (f: string) => readFileSync(f, "utf8");
 
 describe("gateway credential and driver isolation", () => {
-  it("only src/lib/gateway/db.ts imports the pg driver", () => {
+  it("only src/lib/gateway/db.ts and the Postgres connector's own client import the pg driver", () => {
+    // src/lib/connectors/postgres/pg-client.ts is a deliberate second
+    // importer, not a crack in this boundary: it never reads
+    // GATEWAY_DATABASE_URL (enforced by the next test below) and connects
+    // only to a tenant-configured target database with that tenant's own
+    // stored username/password -- a different credential, a different
+    // database, and a different purpose than the gateway's own control-plane
+    // connection this boundary exists to keep auditable in one place. See
+    // that file's own module comment.
     const importers = files.filter((f) => /from\s+["']pg["']|require\(["']pg["']\)/.test(read(f))).map(rel);
-    expect(importers).toEqual([path.join("src", "lib", "gateway", "db.ts")]);
+    expect(importers.sort()).toEqual(
+      [
+        path.join("src", "lib", "gateway", "db.ts"),
+        path.join("src", "lib", "connectors", "postgres", "pg-client.ts"),
+      ].sort(),
+    );
   });
 
   it("only db.ts reads GATEWAY_DATABASE_URL / _CA (scrub.ts merely lists the names)", () => {

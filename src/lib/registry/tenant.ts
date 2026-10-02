@@ -6,6 +6,10 @@ import {
   listPublishedCustomOperationsForTenant,
   type TenantPublishedOperation,
 } from "@/lib/gateway/rpc-custom-operations";
+import {
+  listPublishedPostgresQueriesForTenant,
+  type TenantPublishedQuery,
+} from "@/lib/gateway/rpc-postgres-queries";
 
 import { githubDemoRegistry } from "./fixtures/github-demo";
 import { loadRegistry, type LoadedRegistry } from "./load";
@@ -15,31 +19,65 @@ import type { Permission, RegistryData, ToolOperation } from "./types";
  * The tenant-scoped counterpart to the module-level `loadRegistry(githubDemoRegistry)`
  * every pipeline stage (plan-validator, solver, contract-compiler, approval-rules,
  * contract-verifier) previously used unconditionally. Merges the static,
- * audited GitHub fixture with whatever Custom API operations this tenant has
- * actually published -- draft, validated-but-unpublished, retired, and
- * operations on a disconnected connection are all excluded by
- * `gateway.list_published_custom_operations_for_tenant` itself, not filtered
- * here.
+ * audited GitHub fixture with whatever Custom API operations and Postgres
+ * queries this tenant has actually published -- draft, validated-but-
+ * unpublished, retired, and anything on a disconnected connection are all
+ * excluded by the two `gateway.list_published_*_for_tenant` reads
+ * themselves, not filtered here.
  *
- * A tenant with zero published custom operations gets back the exact same
- * `LoadedRegistry` (byte-identical `registryVersion`) every caller got before
- * this module existed -- no behavior change, no re-compilation required for
- * any contract that doesn't reference a custom tool.
+ * A tenant with nothing published in either connector gets back the exact
+ * same `LoadedRegistry` (byte-identical `registryVersion`) every caller got
+ * before this module existed -- no behavior change, no re-compilation
+ * required for any contract that doesn't reference a tenant-published tool.
  */
 
 const MAX_FIELDS = 20;
 
-function sideEffectFor(effect: TenantPublishedOperation["effect"]): ToolOperation["sideEffect"] {
+/** The one shape {@link toolOperationFor}/{@link permissionFor} need, common to both tenant-published sources. */
+interface TenantPublishedItem {
+  toolName: string;
+  connectorId: string;
+  effect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
+  /** The operation/query slug -- used only as ToolOperation.resourceType's grouping label. */
+  slug: string;
+  inputSchema: Record<string, unknown>;
+  /** Sort/fingerprint key for registryVersionFor -- content hashes concatenated so either one changing bumps the version. */
+  fingerprint: string;
+}
+
+function fromCustomOperation(op: TenantPublishedOperation): TenantPublishedItem {
+  return {
+    toolName: op.toolName,
+    connectorId: op.connectorId,
+    effect: op.effect,
+    slug: op.operationSlug,
+    inputSchema: op.inputSchema,
+    fingerprint: `${op.toolName}:${op.inputSchemaHash ?? ""}:${op.requestMappingHash ?? ""}`,
+  };
+}
+
+function fromPostgresQuery(q: TenantPublishedQuery): TenantPublishedItem {
+  return {
+    toolName: q.toolName,
+    connectorId: q.connectorId,
+    effect: q.effect,
+    slug: q.querySlug,
+    inputSchema: q.inputSchema,
+    fingerprint: `${q.toolName}:${q.inputSchemaHash ?? ""}:${q.sqlTemplateHash ?? ""}`,
+  };
+}
+
+function sideEffectFor(effect: TenantPublishedItem["effect"]): ToolOperation["sideEffect"] {
   return effect;
 }
 
-function classificationFor(effect: TenantPublishedOperation["effect"]): Permission["classification"] {
+function classificationFor(effect: TenantPublishedItem["effect"]): Permission["classification"] {
   if (effect === "read") return "read";
   if (effect === "admin") return "admin";
   return "write";
 }
 
-function riskCostFor(effect: TenantPublishedOperation["effect"]): number {
+function riskCostFor(effect: TenantPublishedItem["effect"]): number {
   if (effect === "read") return 3;
   if (effect === "write_delete" || effect === "admin") return 9;
   return 6;
@@ -49,27 +87,28 @@ interface InputSchemaShape {
   fields?: Array<{ key: string; type: string; required: boolean; identifiesResource: boolean }>;
 }
 
-function toolOperationFor(op: TenantPublishedOperation): ToolOperation {
-  const schema = op.inputSchema as InputSchemaShape;
+function toolOperationFor(item: TenantPublishedItem): ToolOperation {
+  const schema = item.inputSchema as InputSchemaShape;
   const fields = (schema.fields ?? []).slice(0, MAX_FIELDS);
   return {
-    id: op.toolName,
-    provider: op.connectorId,
-    sideEffect: sideEffectFor(op.effect),
-    // No per-operation resource taxonomy is stored for Custom API; the
-    // operation's own slug is the finest-grained grouping available and is
-    // stable for the life of the (immutable, post-publish) definition.
-    resourceType: op.operationSlug,
-    // A tenant-configured external HTTP destination is not something this
-    // registry can vouch for the sensitivity of -- default to the
-    // conservative end of the scale rather than guess "public".
+    id: item.toolName,
+    provider: item.connectorId,
+    sideEffect: sideEffectFor(item.effect),
+    // No per-operation resource taxonomy is stored for either tenant-
+    // published source; the operation/query's own slug is the finest-
+    // grained grouping available and is stable for the life of the
+    // (immutable, post-publish) definition.
+    resourceType: item.slug,
+    // A tenant-configured external destination (an HTTP API, a database) is
+    // not something this registry can vouch for the sensitivity of --
+    // default to the conservative end of the scale rather than guess "public".
     dataSensitivity: "confidential",
-    // Calling an operator-chosen external API is external communication by
-    // definition; this unconditionally forces plan-validator's
+    // Calling an operator-chosen external system is external communication
+    // by definition; this unconditionally forces plan-validator's
     // requires_review gate (see plan-validator.ts), regardless of effect.
     externalCommunication: true,
     financialImpact: false,
-    requiresApproval: op.effect !== "read",
+    requiresApproval: item.effect !== "read",
     argumentFields: fields.map((f) => ({
       key: f.key,
       type: f.type as "string" | "number" | "boolean",
@@ -82,13 +121,13 @@ function toolOperationFor(op: TenantPublishedOperation): ToolOperation {
   };
 }
 
-function permissionFor(op: TenantPublishedOperation): Permission {
+function permissionFor(item: TenantPublishedItem): Permission {
   return {
-    id: `custom:${op.toolName}`,
-    provider: op.connectorId,
-    operations: [op.toolName],
-    classification: classificationFor(op.effect),
-    riskCost: riskCostFor(op.effect),
+    id: `tenant:${item.toolName}`,
+    provider: item.connectorId,
+    operations: [item.toolName],
+    classification: classificationFor(item.effect),
+    riskCost: riskCostFor(item.effect),
     // Each synthesized permission covers exactly the one operation it was
     // generated from -- the narrowest possible breadth, so the solver never
     // has a reason to prefer a broader (non-existent) alternative.
@@ -97,11 +136,11 @@ function permissionFor(op: TenantPublishedOperation): Permission {
   };
 }
 
-/** Deterministic, ≤40-char, backward-compatible: unchanged when a tenant has no published custom operations at all. */
-function registryVersionFor(base: string, customOps: readonly TenantPublishedOperation[]): string {
-  if (customOps.length === 0) return base;
-  const fingerprint = [...customOps]
-    .map((op) => `${op.toolName}:${op.inputSchemaHash ?? ""}:${op.requestMappingHash ?? ""}`)
+/** Deterministic, ≤40-char, backward-compatible: unchanged when a tenant has nothing published in either connector. */
+function registryVersionFor(base: string, items: readonly TenantPublishedItem[]): string {
+  if (items.length === 0) return base;
+  const fingerprint = [...items]
+    .map((item) => item.fingerprint)
     .sort()
     .join("|");
   const suffix = createHash("sha256").update(fingerprint).digest("hex").slice(0, 8);
@@ -117,14 +156,18 @@ function registryVersionFor(base: string, customOps: readonly TenantPublishedOpe
  * runtime authorize path).
  */
 export async function buildTenantRegistry(tenantId: string): Promise<LoadedRegistry> {
-  const customOps = await listPublishedCustomOperationsForTenant(tenantId);
-  if (customOps.length === 0) return loadRegistry(githubDemoRegistry);
+  const [customOps, postgresQueries] = await Promise.all([
+    listPublishedCustomOperationsForTenant(tenantId),
+    listPublishedPostgresQueriesForTenant(tenantId),
+  ]);
+  const items = [...customOps.map(fromCustomOperation), ...postgresQueries.map(fromPostgresQuery)];
+  if (items.length === 0) return loadRegistry(githubDemoRegistry);
 
   const data: RegistryData = {
     schemaVersion: 1,
-    registryVersion: registryVersionFor(githubDemoRegistry.registryVersion, customOps),
-    operations: [...githubDemoRegistry.operations, ...customOps.map(toolOperationFor)],
-    permissions: [...githubDemoRegistry.permissions, ...customOps.map(permissionFor)],
+    registryVersion: registryVersionFor(githubDemoRegistry.registryVersion, items),
+    operations: [...githubDemoRegistry.operations, ...items.map(toolOperationFor)],
+    permissions: [...githubDemoRegistry.permissions, ...items.map(permissionFor)],
   };
   return loadRegistry(data);
 }
