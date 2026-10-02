@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
-import { Icon } from "@/components/ui/Icon";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 import { ConnectConnectionForm, ConnectionCard } from "./CustomApiControls";
@@ -82,46 +83,39 @@ export default async function CustomApiIntegrationPage() {
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <header>
-        <h1 className="font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-          Custom API
-        </h1>
-        <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Connect any HTTPS API your tenant controls. Operations are named, schema-constrained, and start as
-          drafts: a developer defines and validates one, but only an administrator can publish it. Publishing
-          is the trust boundary — a published operation&apos;s definition is then frozen forever, and every
+      <PageHeader
+        title="Custom API"
+        description="Connect any HTTPS API your tenant controls, then define and publish named operations for it."
+      />
+
+      <details className="group rounded-[10px] border border-line bg-paper px-3.5 py-2.5">
+        <summary className="cursor-pointer text-[13px] font-medium text-ink-soft marker:content-none">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="inline-block transition-transform group-open:rotate-90">›</span>
+            Security details
+          </span>
+        </summary>
+        <p className="mt-2 text-[13px] text-ink-soft">
+          Every request is validated against a deterministic, non-executable schema, authenticated with a
+          credential resolved server-side only, and sent only to the exact HTTPS destination you configured.
+          Redirects are refused and private/internal network destinations are blocked outright — even if DNS
+          later points your base URL there. Publishing an operation freezes its definition forever: every
           contract or capability that names it is pinned to exactly that definition.
         </p>
-      </header>
-
-      <div
-        role="note"
-        className="flex items-start gap-space-sm rounded-lg border border-outline-variant/30 bg-surface-container px-space-md py-2.5"
-      >
-        <Icon name="lock" size={15} className="mt-0.5 shrink-0 text-outline" />
-        <p className="font-body-md text-body-sm text-on-surface-variant">
-          Every request is validated against a deterministic, non-executable schema, authenticated with a
-          credential resolved server-side only, and sent only to the exact HTTPS destination you configured —
-          redirects are refused and private/internal network destinations are blocked outright.
-        </p>
-      </div>
+      </details>
 
       {canAdmin ? <ConnectConnectionForm /> : null}
 
       {rows.length === 0 ? (
-        <section
-          className="rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low p-space-lg"
-          data-testid="custom-api-not-connected"
-        >
-          <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-            No connections yet
-          </h2>
-          <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-            {canAdmin
+        <EmptyState
+          icon="data_object"
+          heading="No connections yet"
+          description={
+            canAdmin
               ? "Create a connection above, set its credential, then define and publish an operation."
-              : "An admin has not connected a Custom API yet."}
-          </p>
-        </section>
+              : "An admin has not connected a Custom API yet."
+          }
+        />
       ) : (
         <div className="flex flex-col gap-space-md">
           {rows.map((connection) => (
