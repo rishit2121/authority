@@ -190,7 +190,7 @@ test.describe.serial("runtime authorization", () => {
     await page.getByRole("button", { name: "Revoke" }).click();
     await page.getByPlaceholder("Revocation reason").fill("e2e cleanup");
     await page.getByRole("button", { name: "Confirm revoke" }).click();
-    await expect(page.getByText("revoked", { exact: true })).toBeVisible();
+    await expect(page.getByText("Revoked", { exact: true })).toBeVisible();
 
     const afterRevoke = await request.post("/api/v1/authorize", {
       headers: { authorization: `Bearer ${secret}` },

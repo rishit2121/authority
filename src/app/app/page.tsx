@@ -1,15 +1,24 @@
 import Link from "next/link";
-
-import { DemoDataNotice } from "@/components/dashboard/DemoDataNotice";
-import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { OnboardingChecklist, type OnboardingProgress } from "@/components/dashboard/OnboardingChecklist";
-import { MetricCard } from "@/components/dashboard/MetricCard";
-import { TaskTraceTable } from "@/components/dashboard/TaskTraceTable";
+import {
+  OnboardingCompact,
+  OnboardingPrimary,
+  type OnboardingProgress,
+} from "@/components/dashboard/OnboardingChecklist";
+import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
+import { DecisionStatusBadge } from "@/components/ui/DecisionStatusBadge";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
-import { TENANT_ENVIRONMENT_LABELS, TENANT_ROLE_LABELS } from "@/lib/auth/tenant-context";
-import { loadDashboardOverview } from "@/lib/data/dashboard";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatusRow } from "@/components/ui/StatusRow";
+import type { DecisionStatus } from "@/lib/domain";
+import {
+  loadDashboardOverview,
+  loadRecentToolCalls,
+  loadTasksNeedingAttention,
+  type TaskNeedingAttention,
+} from "@/lib/data/dashboard";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import type { Database } from "@/lib/supabase/database.types";
 
@@ -35,90 +44,133 @@ async function loadOnboardingProgress(db: Db): Promise<OnboardingProgress> {
   };
 }
 
+const ATTENTION_REASON_LABEL: Record<TaskNeedingAttention["reason"], string> = {
+  failed: "Failed",
+  awaiting_approval: "Awaiting approval",
+  contract_expired: "Contract expired",
+};
+
 export default async function OverviewPage() {
   const { identity, repositories, context } = await createRepositoriesForCurrentTenant("/app");
-  const onboarding = await loadOnboardingProgress(context.supabase);
-  const { metrics, traces, hasAnyProductData } = await loadDashboardOverview(
-    repositories,
-    identity.tenant.tenantId,
-  );
+  const db = context.supabase;
 
-  const canManageDemoData = TENANT_ROLE_LABELS[identity.role] !== undefined && identity.role !== "viewer";
+  const [onboarding, overview] = await Promise.all([
+    loadOnboardingProgress(db),
+    loadDashboardOverview(repositories, identity.tenant.tenantId),
+  ]);
+  const { metrics, traces, hasAnyProductData } = overview;
+
+  const [recentToolCalls, tasksNeedingAttention] = await Promise.all([
+    loadRecentToolCalls(db, identity.tenant.tenantId),
+    loadTasksNeedingAttention(repositories, traces),
+  ]);
+
+  const metricById = (id: string) => metrics.find((m) => m.id === id)?.value ?? 0;
 
   return (
     <div className="flex flex-col gap-space-xl">
-      <header>
-        <div className="flex flex-wrap items-center gap-space-sm">
-          <span className="font-label-caps text-label-caps uppercase tracking-widest text-primary">
-            {identity.tenant.name}
-          </span>
-          <span className="inline-flex items-center rounded-full border border-outline-variant/30 px-2 py-0.5 font-mono-token text-[10px] uppercase tracking-wider text-outline">
-            {TENANT_ENVIRONMENT_LABELS[identity.tenant.environment]}
-          </span>
-        </div>
-        <h1 className="mt-space-xs font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-          Overview
-        </h1>
-        <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-          Runtime authorization activity across every registered agent.
-        </p>
-      </header>
-
-      <OnboardingChecklist progress={onboarding} />
+      <PageHeader
+        eyebrow={identity.tenant.name}
+        title="Overview"
+        description="Is Authority working, what needs attention, and what happened recently."
+      />
 
       {!hasAnyProductData ? (
-        <EmptyWorkspace />
+        <>
+          <OnboardingPrimary progress={onboarding} />
+          <EmptyWorkspace />
+        </>
       ) : (
         <>
-          <DemoDataNotice showReset={canManageDemoData} />
+          <OnboardingCompact progress={onboarding} />
 
-          <section
-            aria-label="Key metrics"
-            className="grid grid-cols-1 gap-space-md sm:grid-cols-2 xl:grid-cols-3"
-          >
-            {metrics.map((metric) => (
-              <MetricCard key={metric.id} metric={metric} />
-            ))}
-          </section>
+          <StatusRow
+            items={[
+              { label: "Active agents", value: metricById("active-agents") },
+              { label: "Protected tool calls", value: metricById("protected-calls") },
+              { label: "Denied requests", value: metricById("blocked-requests"), emphasis: "attention" },
+              { label: "Pending approvals", value: metricById("pending-approvals") },
+            ]}
+          />
 
-          <section className="rounded-xl border border-primary/30 bg-primary/5 p-space-lg">
-            <div className="flex flex-col justify-between gap-space-md md:flex-row md:items-center">
-              <div>
-                <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-                  Worked example: GitHub issue #991
-                </h2>
-                <p className="mt-1 max-w-xl font-body-md text-body-md text-on-surface-variant">
-                  A coding agent resolved an issue and opened a pull request. One request for repository
-                  secrets was denied. Inspect the full contract, plan and decision trace.
-                </p>
-              </div>
-              <Link
-                href="/app/tasks/demo-task"
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-primary px-space-lg py-2.5 font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed"
-              >
-                Open task investigation
-                <Icon name="arrow_forward" size={16} />
-              </Link>
-            </div>
-          </section>
-
-          <section aria-labelledby="recent-traces" className="flex flex-col gap-space-md">
+          <section aria-labelledby="recent-tool-calls" className="flex flex-col gap-space-md">
             <div className="flex items-center justify-between gap-space-md">
-              <h2
-                id="recent-traces"
-                className="font-headline-sm text-headline-sm font-semibold text-on-surface"
-              >
-                Recent task traces
+              <h2 id="recent-tool-calls" className="text-[17px] font-semibold text-ink">
+                Recent tool calls
               </h2>
               <Link
-                href="/app/tasks/new"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-outline-variant/40 px-space-md py-1.5 font-body-sm text-body-sm text-on-surface transition-colors hover:bg-surface-container-high"
+                href="/app/runtime"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-black/[0.03]"
               >
-                <Icon name="account_tree" size={14} />
-                New task
+                View all tool calls
               </Link>
             </div>
-            <TaskTraceTable traces={traces} />
+            {recentToolCalls.length === 0 ? (
+              <EmptyState
+                icon="bolt"
+                heading="No tool calls yet"
+                description="Authorization requests from registered agents will appear here."
+              />
+            ) : (
+              <div className="overflow-hidden rounded-[10px] border border-line bg-paper-raised">
+                <table className="w-full border-collapse text-left">
+                  <caption className="sr-only">Recent tool calls</caption>
+                  <tbody>
+                    {recentToolCalls.map((call) => (
+                      <tr key={call.id} className="border-b border-line last:border-b-0">
+                        <td className="px-4 py-3">
+                          <div className="text-[14px] text-ink">{call.agentName}</div>
+                          <div className="mt-0.5 font-mono-code text-[11px] text-ink-soft">
+                            {call.toolOperation}
+                            {call.resource ? ` · ${call.resource}` : ""}
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right">
+                          <DecisionStatusBadge status={call.outcome as DecisionStatus} />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right font-mono-code text-[11px] text-ink-soft">
+                          {new Date(call.createdAt).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section aria-labelledby="needs-attention" className="flex flex-col gap-space-md">
+            <h2 id="needs-attention" className="text-[17px] font-semibold text-ink">
+              Tasks needing attention
+            </h2>
+            {tasksNeedingAttention.length === 0 ? (
+              <p className="text-[14px] text-ink-soft">No tasks need attention.</p>
+            ) : (
+              <ul className="flex flex-col divide-y divide-line rounded-[10px] border border-line bg-paper-raised">
+                {tasksNeedingAttention.map((item) => (
+                  <li key={item.task.id}>
+                    <Link
+                      href={`/app/tasks/${item.task.id}`}
+                      className="flex items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-black/[0.02]"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-[14px] text-ink">{item.task.intent}</span>
+                        <span className="mt-0.5 block text-[12px] text-ink-soft">{item.agentName}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2 text-[12px] font-medium text-deny">
+                        {ATTENTION_REASON_LABEL[item.reason]}
+                        <Icon name="arrow_forward" size={14} />
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </>
       )}

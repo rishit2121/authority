@@ -57,14 +57,14 @@ export function KillSwitch({ taskId, activeCapabilities, terminated, onConfirm }
   };
 
   return (
-    <div className="rounded-xl border border-deny/35 bg-surface-container p-space-lg">
+    <div className="rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg">
       <h2 className="flex items-center gap-2 font-headline-sm text-headline-sm font-semibold text-on-surface">
-        <Icon name="cancel" size={18} className="text-deny" /> Kill switch
+        <Icon name="cancel" size={18} className="text-deny" /> Stop this task
       </h2>
       <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
-        Immediately terminate this task and revoke its {activeCapabilities} active{" "}
-        {activeCapabilities === 1 ? "capability" : "capabilities"}. The agent keeps running but loses every
-        permission Authority issued to it.
+        Terminates the task and revokes its {activeCapabilities} active temporary{" "}
+        {activeCapabilities === 1 ? "permission" : "permissions"}. This does not undo actions already
+        completed in external systems.
       </p>
 
       {confirming ? (
@@ -86,7 +86,7 @@ export function KillSwitch({ taskId, activeCapabilities, terminated, onConfirm }
               onClick={confirm}
               disabled={pending}
               aria-busy={pending}
-              className="rounded-lg bg-deny px-space-lg py-2 font-headline-sm text-body-md font-medium text-[#2b0007] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-deny px-space-lg py-2 font-headline-sm text-body-md font-medium text-paper-raised transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {pending ? "Revoking…" : "Confirm revocation"}
             </button>

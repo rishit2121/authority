@@ -1,10 +1,23 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Design tokens are ported verbatim from the Stitch export's inline
- * `tailwind.config` so the converted site keeps pixel-level parity with the
- * reference design. The only additions are the semantic names for colours the
- * export had hard-coded as hex literals (graph surfaces, allow/deny accents).
+ * Design tokens. The semantic Material-3-shaped names below (`surface`,
+ * `on-surface`, `primary`, `allow`, `deny`, etc.) originally ported the dark
+ * Stitch-exported palette verbatim. design/frontend-simplification's
+ * authenticated-app pass re-themes the whole application by remapping what
+ * these names *resolve to* — to the same warm paper/ink/signal palette the
+ * marketing site already uses — rather than editing the hundreds of
+ * `bg-surface-container`/`text-on-surface`/etc. className strings across
+ * every page individually. That is the entire point of a semantic token
+ * layer: every component that already reads "the page surface" or "the
+ * primary action color" by name picks up the new look automatically.
+ *
+ * Deliberately NOT remapped, and still genuinely dark: `band`,
+ * `graph-canvas`, `graph-node`, `graph-scope`, `code-surface`,
+ * `code-surface-deep`, `timeline-surface`, `untrusted`. These back the
+ * Validation Lab's attack graph and a couple of small technical-trace
+ * diagrams (e.g. the GitHub execution-flow graph) that read as intentional,
+ * focused dark surfaces rather than the dark theme bleeding through.
  */
 const config: Config = {
   darkMode: "class",
@@ -12,55 +25,71 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        surface: "#0f141a",
-        tertiary: "#dce4ff",
-        secondary: "#cdbdff",
-        "tertiary-fixed": "#d9e2ff",
-        "secondary-fixed": "#e8deff",
-        "on-tertiary-container": "#004fb3",
-        "error-container": "#93000a",
-        primary: "#bdecff",
-        "surface-dim": "#0f141a",
-        "on-secondary-container": "#c0acff",
-        "on-surface": "#dfe2ec",
-        "on-background": "#dfe2ec",
-        "inverse-surface": "#dfe2ec",
-        "primary-fixed-dim": "#52d6fc",
-        "on-secondary-fixed-variant": "#4e28ae",
-        "secondary-container": "#502cb1",
-        background: "#0f141a",
-        "primary-fixed": "#b5ebff",
-        "on-primary-fixed": "#001f28",
-        "on-primary-fixed-variant": "#004e60",
-        "surface-container-highest": "#31353c",
-        "surface-tint": "#52d6fc",
-        "secondary-fixed-dim": "#cdbdff",
-        "on-primary": "#003543",
-        "on-error-container": "#ffdad6",
-        "on-tertiary-fixed-variant": "#004299",
-        "surface-container-lowest": "#0a0e15",
-        "surface-variant": "#31353c",
-        "on-tertiary": "#002d6d",
-        "surface-container-low": "#171c22",
-        "on-secondary": "#370096",
-        "on-surface-variant": "#bcc8ce",
-        "outline-variant": "#3d494d",
-        "inverse-primary": "#00677e",
-        "tertiary-container": "#b3c8ff",
-        "on-secondary-fixed": "#20005f",
-        "on-tertiary-fixed": "#001944",
-        error: "#ffb4ab",
-        outline: "#869398",
-        "surface-container-high": "#262a31",
-        "on-error": "#690005",
-        "surface-container": "#1b2026",
-        "primary-container": "#55d8ff",
-        "surface-bright": "#353941",
-        "on-primary-container": "#005c71",
-        "inverse-on-surface": "#2c3138",
-        "tertiary-fixed-dim": "#afc6ff",
+        // Neutral surfaces -> paper / paper-raised.
+        surface: "#F3F1E9",
+        background: "#F3F1E9",
+        "surface-dim": "#F3F1E9",
+        "surface-container-lowest": "#F3F1E9",
+        "surface-container-low": "#FAF9F4",
+        "surface-container": "#FAF9F4",
+        "surface-container-high": "#ECEAE0",
+        "surface-container-highest": "#E6E4D8",
+        "surface-bright": "#FAF9F4",
+        "surface-variant": "#D3D2C8",
+        "inverse-surface": "#121410",
+        "inverse-on-surface": "#FAF9F4",
 
-        // Semantic names for the export's hard-coded literals.
+        // Text -> ink / ink-soft.
+        "on-surface": "#121410",
+        "on-background": "#121410",
+        "on-surface-variant": "#5F655E",
+
+        // Hairlines -> line / line-strong.
+        outline: "#AEB3A9",
+        "outline-variant": "#D3D2C8",
+
+        // Primary action -> ink (matches the marketing InkButton exactly, so every
+        // existing `bg-primary text-on-primary` button becomes a near-black button
+        // for free). Primary-container drives focus rings, so it stays a clearly
+        // visible solid color rather than a near-invisible light tint.
+        primary: "#121410",
+        "on-primary": "#FAF9F4",
+        "primary-container": "#087F69",
+        "on-primary-container": "#FAF9F4",
+        "primary-fixed": "#262923",
+        "primary-fixed-dim": "#1A1C17",
+        "on-primary-fixed": "#FAF9F4",
+        "on-primary-fixed-variant": "#CDE9DF",
+        "surface-tint": "#087F69",
+        "inverse-primary": "#12A88A",
+
+        // Secondary (was purple) -> warning/amber, the closest real semantic use left.
+        secondary: "#A66B20",
+        "secondary-container": "#F0DFC4",
+        "on-secondary": "#FAF9F4",
+        "on-secondary-container": "#A66B20",
+        "secondary-fixed": "#F0DFC4",
+        "secondary-fixed-dim": "#D9BD8D",
+        "on-secondary-fixed": "#4A3312",
+        "on-secondary-fixed-variant": "#7A5118",
+
+        // Tertiary (was blue) -> neutral ink-soft/line; no replacement accent needed.
+        tertiary: "#5F655E",
+        "tertiary-container": "#D3D2C8",
+        "on-tertiary": "#FAF9F4",
+        "on-tertiary-container": "#121410",
+        "tertiary-fixed": "#D3D2C8",
+        "tertiary-fixed-dim": "#AEB3A9",
+        "on-tertiary-fixed": "#121410",
+        "on-tertiary-fixed-variant": "#5F655E",
+
+        // Error -> denied/red.
+        error: "#B5524F",
+        "error-container": "#F3DEDC",
+        "on-error": "#FAF9F4",
+        "on-error-container": "#B5524F",
+
+        // Semantic names for genuinely dark, intentionally technical surfaces — unchanged.
         band: "#0b111b",
         "graph-canvas": "#060a10",
         "graph-node": "#0b111b",
@@ -69,8 +98,50 @@ const config: Config = {
         "code-surface-deep": "#070b11",
         "timeline-surface": "#05080e",
         untrusted: "#140f16",
-        allow: "#42e7a5",
-        deny: "#ff5c75",
+
+        // Status accents used throughout as `text-allow`/`bg-deny`/etc.
+        allow: "#12A88A",
+        deny: "#B5524F",
+
+        /**
+         * "mkt-" prefixed tokens below are the Phase 1 marketing-page design
+         * system (design/frontend-simplification): a warm, light, restrained
+         * palette used only by `src/components/marketing/**` and the public
+         * `(marketing)` route group. Deliberately additive and namespaced
+         * rather than edited in place — the unprefixed tokens above remain
+         * exactly as they are for the authenticated app and the Validation
+         * Lab's attack graph, neither of which this redesign touches.
+         */
+        "mkt-bg": "#F5F3ED",
+        "mkt-surface": "#FBFAF6",
+        "mkt-text": "#111318",
+        "mkt-text-secondary": "#626770",
+        "mkt-hairline": "rgba(17, 19, 24, 0.12)",
+        "mkt-indigo": "#4F5EF7",
+        "mkt-green": "#3F7D57",
+        "mkt-amber": "#9A6B1E",
+        "mkt-red": "#B5453D",
+        "mkt-gray": "#9CA0A6",
+
+        /**
+         * Frontier-lab palette correction, scoped for now to the marketing header and
+         * hero only (design/frontend-simplification hero correction) — the indigo
+         * `mkt-*` tokens above are deliberately left in place and still drive every
+         * other marketing section until this first fold is approved and the palette
+         * propagates. Named for what they are, not where they're used, since they are
+         * expected to become the real shared marketing palette afterward.
+         */
+        paper: "#F3F1E9",
+        "paper-raised": "#FAF9F4",
+        ink: "#121410",
+        "ink-soft": "#5F655E",
+        line: "#D3D2C8",
+        "line-strong": "#AEB3A9",
+        signal: "#087F69",
+        "signal-bright": "#12A88A",
+        "signal-soft": "#CDE9DF",
+        warning: "#A66B20",
+        denied: "#B5524F",
       },
       borderRadius: {
         DEFAULT: "0.125rem",
@@ -103,6 +174,8 @@ const config: Config = {
         "label-caps": ["var(--font-geist)", "system-ui", "sans-serif"],
         "mono-code": ["var(--font-space-mono)", "ui-monospace", "monospace"],
         "mono-token": ["var(--font-space-mono)", "ui-monospace", "monospace"],
+        // Editorial display serif — hero headline only, for now (header/hero correction).
+        "display-serif": ["var(--font-instrument-serif)", "Georgia", "serif"],
       },
       fontSize: {
         "body-sm": ["0.75rem", { lineHeight: "1.125rem", letterSpacing: "0em", fontWeight: "400" }],
@@ -119,19 +192,19 @@ const config: Config = {
         "label-caps": ["0.6875rem", { lineHeight: "0.875rem", letterSpacing: "0.06em", fontWeight: "600" }],
         "mono-code": ["0.8125rem", { lineHeight: "1.25rem", letterSpacing: "-0.01em", fontWeight: "400" }],
         "mono-token": ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.04em", fontWeight: "700" }],
-      },
-      keyframes: {
-        "pulse-halo": {
-          "0%, 100%": { transform: "scale(1)", opacity: "0.35" },
-          "50%": { transform: "scale(1.08)", opacity: "0.6" },
-        },
-        "dash-flow": {
-          to: { strokeDashoffset: "-40" },
-        },
-      },
-      animation: {
-        halo: "pulse-halo 4s cubic-bezier(0.4, 0, 0.6, 1) infinite",
-        "dash-flow": "dash-flow 2.4s linear infinite",
+
+        // Marketing type scale (design/frontend-simplification). Desktop sizes; components
+        // apply a smaller size at the `mobile` breakpoint via a responsive variant, since the
+        // required mobile range (48-58px) isn't a clean fraction of the desktop range (72-96px).
+        "mkt-eyebrow": ["0.8125rem", { lineHeight: "1.2rem", letterSpacing: "0.08em", fontWeight: "600" }],
+        "mkt-display": ["5.5rem", { lineHeight: "1.02", letterSpacing: "-0.03em", fontWeight: "600" }],
+        "mkt-display-mobile": [
+          "3.25rem",
+          { lineHeight: "1.05", letterSpacing: "-0.02em", fontWeight: "600" },
+        ],
+        "mkt-h2": ["2.75rem", { lineHeight: "1.15", letterSpacing: "-0.02em", fontWeight: "600" }],
+        "mkt-h2-mobile": ["2rem", { lineHeight: "1.2", letterSpacing: "-0.015em", fontWeight: "600" }],
+        "mkt-body": ["1.125rem", { lineHeight: "1.7", letterSpacing: "-0.006em", fontWeight: "400" }],
       },
     },
   },

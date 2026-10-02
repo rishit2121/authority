@@ -42,9 +42,9 @@ export function NewTaskForm({ agents, principals }: { agents: Agent[]; principal
       >
         <Icon name="verified_user" size={15} className="mt-0.5 shrink-0 text-outline" />
         <p className="font-body-md text-body-sm text-on-surface-variant">
-          Creating a task does not authorize or execute anything. No Task Authority Contract is generated, no
-          model is called, and no external tool runs — this only records the trusted objective and who
-          it&apos;s attributed to.
+          Creating a task does not authorize or execute anything. No task contract is generated, no model is
+          called, and no external tool runs — this only records the trusted objective and who it&apos;s
+          attributed to.
         </p>
       </div>
 

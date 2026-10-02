@@ -35,16 +35,16 @@ function PendingPanel({
     <section
       id={id}
       aria-labelledby={`${id}-heading`}
-      className="rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low p-space-lg"
+      className="rounded-[10px] border border-dashed border-line-strong bg-paper p-space-lg"
     >
-      <h2 id={`${id}-heading`} className="font-headline-sm text-headline-sm font-semibold text-on-surface">
+      <h2 id={`${id}-heading`} className="text-[15px] font-semibold text-ink">
         {title}
       </h2>
-      <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">{message}</p>
+      <p className="mt-space-sm max-w-2xl text-[14px] text-ink-soft">{message}</p>
       {action ? (
         <Link
           href={action.href}
-          className="mt-space-md inline-flex items-center gap-1.5 rounded-lg bg-primary px-space-md py-2 font-headline-sm text-body-sm font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+          className="mt-space-md inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[14px] font-medium text-on-primary transition-colors hover:bg-primary-fixed"
         >
           {action.label}
         </Link>
@@ -87,30 +87,31 @@ export function TaskInvestigationView({ investigation }: { investigation: TaskIn
     <div className="flex flex-col gap-space-xl">
       <header className="flex flex-col gap-space-md">
         <Link
-          href="/app"
-          className="inline-flex w-fit items-center gap-1.5 font-body-sm text-body-sm text-on-surface-variant transition-colors hover:text-on-surface"
+          href="/app/tasks"
+          className="inline-flex w-fit items-center gap-1.5 text-[13px] text-ink-soft transition-colors hover:text-ink"
         >
           <Icon name="arrow_forward" size={14} className="rotate-180" />
-          Back to overview
+          Back to tasks
         </Link>
 
-        <div className="flex flex-wrap items-center gap-space-md">
-          <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono-code text-[12px] text-primary">
+        <h1 className="max-w-3xl text-[26px] font-semibold tracking-tight text-ink">{task.intent}</h1>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded border border-line-strong bg-paper px-2 py-0.5 font-mono-code text-[11px] text-ink-soft">
             {task.id}
           </span>
           <span
-            className={`rounded border px-2 py-0.5 font-mono-code text-[11px] ${
-              terminated ? "border-deny/40 bg-deny/10 text-deny" : "border-allow/30 bg-allow/10 text-allow"
+            className={`rounded border px-2 py-0.5 text-[12px] font-medium ${
+              terminated
+                ? "border-deny/30 bg-deny/10 text-deny"
+                : "border-signal/30 bg-signal-soft text-signal"
             }`}
           >
             {task.status.replace(/_/g, " ")}
           </span>
         </div>
 
-        <h1 className="max-w-3xl font-headline-lg text-[1.75rem] font-semibold leading-[1.2] tracking-tight text-on-surface md:text-[2rem]">
-          {task.intent}
-        </h1>
-        <p className="font-body-sm text-body-sm text-outline">
+        <p className="text-[13px] text-ink-soft">
           Trusted user task. Everything below was derived from this sentence before the agent proposed a plan.
         </p>
       </header>
@@ -154,7 +155,7 @@ export function TaskInvestigationView({ investigation }: { investigation: TaskIn
       ) : (
         <PendingPanel
           id="contract"
-          title="Task Authority Contract"
+          title="Task contract"
           message="No contract has been proposed for this task yet. Enter a structured candidate plan to compile the minimum authority it needs — proposing one creates no runtime authority by itself."
           action={{ href: `/app/tasks/${task.id}/contract/new`, label: "Create authority contract" }}
         />

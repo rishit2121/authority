@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { initialsFor } from "@/lib/auth/identity";
 import { loadNavBadges } from "@/lib/data/nav";
+import { getJevSettings } from "@/lib/jev/persistence";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 export const metadata: Metadata = {
@@ -35,18 +36,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // rows: passing no repositories here would silently fall back to
   // loadNavBadges()'s mock defaults on every authenticated request, which is
   // exactly the "silent mock fallback under /app/*" this project forbids.
-  const { identity, repositories } = await createRepositoriesForCurrentTenant(requestedPath);
+  const { identity, repositories, context } = await createRepositoriesForCurrentTenant(requestedPath);
 
   const badges = await loadNavBadges(repositories, identity.tenant.tenantId);
+
+  // Read-only, for the sidebar's "Jev · advisory" label — never implies Jev enforces anything
+  // when it's actually in shadow mode, and never widens or changes any mode itself.
+  const jevSettings = await getJevSettings(context, identity.tenant.tenantId).catch(() => ({
+    necessityMode: "off" as const,
+    riskMode: "off" as const,
+    enforcementApproved: false,
+  }));
 
   return (
     <DashboardShell
       badges={badges}
+      jevAdvisory={jevSettings.necessityMode !== "off" || jevSettings.riskMode !== "off"}
       identity={{
         displayName: identity.displayName,
         email: identity.email,
         initials: initialsFor(identity.displayName, identity.email),
         role: identity.role,
+        environment: identity.tenant.environment,
       }}
       memberships={identity.memberships}
       currentTenantId={identity.tenant.tenantId}

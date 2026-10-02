@@ -48,18 +48,18 @@ function NavRow({
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       aria-label={collapsed ? item.label : undefined}
-      className={`group relative flex h-11 items-center gap-3 overflow-hidden rounded-lg border font-body-md text-body-md transition-colors ${
+      className={`group relative flex h-10 items-center gap-3 overflow-hidden rounded-lg border font-body-md text-body-md transition-colors ${
         collapsed ? "justify-center px-0" : "px-space-md"
       } ${
         active
-          ? "border-primary/25 bg-primary/10 text-primary"
+          ? "border-transparent bg-signal-soft text-ink"
           : "border-transparent text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"
       }`}
     >
       {active ? (
-        <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" aria-hidden="true" />
+        <span className="absolute inset-y-2 left-0 w-[2px] rounded-r-full bg-signal" aria-hidden="true" />
       ) : null}
-      <Icon name={item.icon} size={17} className={active ? "text-primary" : ""} />
+      <Icon name={item.icon} size={17} className={active ? "text-signal" : ""} />
       {!collapsed ? (
         <>
           <span className="truncate">{item.label}</span>

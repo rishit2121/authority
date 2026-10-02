@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
 
 import { createAgentCredentialAction, revokeAgentCredentialAction } from "@/app/app/agents/[agentId]/actions";
 import { Icon } from "@/components/ui/Icon";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 export interface AgentCredentialRow {
   id: string;
@@ -17,13 +19,77 @@ export interface AgentCredentialRow {
 }
 
 /**
- * Issuing and revoking an agent's runtime credentials.
- *
- * A freshly issued secret is shown exactly once, in the banner below,
- * immediately after `createAgentCredentialAction` returns it — it is never
- * fetched again afterward, by this component or anything else, because the
- * database never stores it (only its SHA-256 hash).
+ * A freshly issued secret, shown exactly once in a focused modal immediately
+ * after `createAgentCredentialAction` returns it — the database never stores
+ * it (only its SHA-256 hash), so once this modal closes it is unrecoverable
+ * by anyone, including this UI.
  */
+function NewCredentialModal({ plaintextSecret, onDone }: { plaintextSecret: string; onDone: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  useFocusTrap({
+    active: true,
+    containerRef,
+    returnFocusRef: containerRef,
+    onClose: onDone,
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="New runtime credential"
+        className="relative flex w-full max-w-md flex-col gap-4 rounded-[10px] border border-line bg-paper-raised p-6 shadow-[0_8px_28px_rgba(18,20,16,0.12)]"
+      >
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-[17px] font-semibold text-ink">Credential issued</h2>
+          <p className="text-[13px] text-ink-soft">
+            Copy this secret now — it will never be shown again, and Authority does not store it.
+          </p>
+        </div>
+
+        <code className="break-all rounded-lg border border-line bg-paper px-3 py-2.5 font-mono-code text-[12px] text-ink">
+          {plaintextSecret}
+        </code>
+
+        <div className="flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            onClick={async () => {
+              await navigator.clipboard.writeText(plaintextSecret);
+              setCopied(true);
+            }}
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line-strong px-3.5 text-[13px] font-medium text-ink transition-colors hover:bg-black/[0.03]"
+          >
+            <Icon name="verified_user" size={14} />
+            {copied ? "Copied" : "Copy"}
+          </button>
+          <button
+            type="button"
+            onClick={onDone}
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-primary px-4 text-[13px] font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Issuing and revoking an agent's runtime credentials. */
 export function AgentCredentialsPanel({
   agentId,
   credentials,
@@ -34,7 +100,7 @@ export function AgentCredentialsPanel({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [freshSecret, setFreshSecret] = useState<{ keyPrefix: string; plaintextSecret: string } | null>(null);
+  const [freshSecret, setFreshSecret] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
@@ -43,7 +109,7 @@ export function AgentCredentialsPanel({
     startTransition(async () => {
       const result = await createAgentCredentialAction(agentId);
       if (result.ok && result.data) {
-        setFreshSecret({ keyPrefix: result.data.keyPrefix, plaintextSecret: result.data.plaintextSecret });
+        setFreshSecret(result.data.plaintextSecret);
         router.refresh();
       } else {
         setError(result.error ?? "Could not issue a credential.");
@@ -70,75 +136,59 @@ export function AgentCredentialsPanel({
   }
 
   return (
-    <div className="flex flex-col gap-space-md rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg">
+    <div
+      id="credentials"
+      className="flex flex-col gap-4 rounded-[10px] border border-line bg-paper-raised p-5"
+    >
       <div className="flex items-center justify-between">
-        <h2 className="font-headline-sm text-[1.1rem] font-semibold text-on-surface">Runtime credentials</h2>
+        <h2 className="text-[15px] font-semibold text-ink">Credentials</h2>
         <button
           type="button"
           onClick={handleCreate}
           disabled={pending}
-          className="inline-flex items-center gap-1 rounded-lg border border-outline-variant/40 bg-surface-container-high px-3 py-1.5 font-label-md text-label-md text-on-surface hover:bg-surface-container-highest disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-line-strong px-3 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-black/[0.03] disabled:opacity-50"
         >
-          <Icon name="key" size={16} />
+          <Icon name="key" size={15} />
           Issue credential
         </button>
       </div>
 
-      <p className="font-body-sm text-body-sm text-on-surface-variant">
+      <p className="text-[13px] text-ink-soft">
         A runtime credential lets this agent call <code>POST /api/v1/authorize</code> with no Supabase session
-        — only a SHA-256 hash of the secret is ever stored. The plaintext is shown once, below, immediately
-        after issuing it.
+        — only a SHA-256 hash of the secret is ever stored.
       </p>
 
-      {error && <p className="font-body-sm text-body-sm text-deny">{error}</p>}
-
-      {freshSecret && (
-        <div className="flex flex-col gap-2 rounded-lg border border-allow/40 bg-allow/10 p-space-md">
-          <p className="font-label-md text-label-md text-allow">
-            New credential issued — copy it now, it will never be shown again.
-          </p>
-          <code className="break-all rounded bg-surface p-2 font-mono-code text-[12px] text-on-surface">
-            {freshSecret.plaintextSecret}
-          </code>
-          <button
-            type="button"
-            onClick={() => setFreshSecret(null)}
-            className="self-end font-label-sm text-label-sm text-on-surface-variant underline"
-          >
-            Dismiss
-          </button>
-        </div>
+      {error && (
+        <p role="alert" className="text-[13px] text-deny">
+          {error}
+        </p>
       )}
 
+      {freshSecret ? (
+        <NewCredentialModal plaintextSecret={freshSecret} onDone={() => setFreshSecret(null)} />
+      ) : null}
+
       {credentials.length === 0 ? (
-        <p className="font-body-sm text-body-sm text-outline">No runtime credentials have been issued yet.</p>
+        <p className="text-[13px] text-ink-soft">No runtime credentials have been issued yet.</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {credentials.map((credential) => (
             <li
               key={credential.id}
-              className="flex flex-col gap-2 rounded-lg border border-outline-variant/30 bg-surface p-space-md"
+              className="flex flex-col gap-2 rounded-lg border border-line bg-paper p-3.5"
             >
               <div className="flex items-center justify-between gap-2">
-                <code className="font-mono-code text-[12px] text-on-surface">{credential.keyPrefix}…</code>
-                <span
-                  className={`inline-flex rounded border px-2 py-0.5 font-mono-code text-[11px] ${
-                    credential.status === "active"
-                      ? "border-allow/30 bg-allow/10 text-allow"
-                      : "border-deny/40 bg-deny/10 text-deny"
-                  }`}
-                >
-                  {credential.status}
-                </span>
+                <code className="font-mono-code text-[12px] text-ink">{credential.keyPrefix}…</code>
+                <StatusPill tone={credential.status === "active" ? "positive" : "negative"}>
+                  {credential.status === "active" ? "Active" : "Revoked"}
+                </StatusPill>
               </div>
-              <p className="font-body-sm text-body-sm text-on-surface-variant">
+              <p className="text-[12px] text-ink-soft">
                 Issued {new Date(credential.createdAt).toLocaleString()}
                 {credential.lastUsedAt && ` · last used ${new Date(credential.lastUsedAt).toLocaleString()}`}
               </p>
               {credential.status === "revoked" && credential.revocationReason && (
-                <p className="font-body-sm text-body-sm text-outline">
-                  Revoked: {credential.revocationReason}
-                </p>
+                <p className="text-[12px] text-ink-soft">Revoked: {credential.revocationReason}</p>
               )}
 
               {credential.status === "active" && (
@@ -150,14 +200,14 @@ export function AgentCredentialsPanel({
                         value={reason}
                         onChange={(event) => setReason(event.target.value)}
                         placeholder="Revocation reason"
-                        className="rounded border border-outline-variant/40 bg-surface-container px-2 py-1 font-body-sm text-body-sm text-on-surface"
+                        className="rounded-lg border border-line-strong bg-paper px-2.5 py-1.5 text-[13px] text-ink"
                       />
                       <div className="flex gap-2">
                         <button
                           type="button"
                           onClick={() => handleRevoke(credential.id)}
                           disabled={pending}
-                          className="rounded border border-deny/40 bg-deny/10 px-2 py-1 font-label-sm text-label-sm text-deny disabled:opacity-50"
+                          className="rounded-lg border border-deny/40 bg-deny/10 px-2.5 py-1 text-[12px] font-medium text-deny disabled:opacity-50"
                         >
                           Confirm revoke
                         </button>
@@ -167,7 +217,7 @@ export function AgentCredentialsPanel({
                             setRevokingId(null);
                             setReason("");
                           }}
-                          className="rounded border border-outline-variant/40 px-2 py-1 font-label-sm text-label-sm text-on-surface-variant"
+                          className="rounded-lg border border-line-strong px-2.5 py-1 text-[12px] text-ink-soft"
                         >
                           Cancel
                         </button>
@@ -177,7 +227,7 @@ export function AgentCredentialsPanel({
                     <button
                       type="button"
                       onClick={() => setRevokingId(credential.id)}
-                      className="self-start font-label-sm text-label-sm text-deny underline"
+                      className="self-start text-[12px] font-medium text-deny underline"
                     >
                       Revoke
                     </button>

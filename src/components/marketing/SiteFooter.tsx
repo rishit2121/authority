@@ -3,43 +3,31 @@ import { FOOTER_COLUMNS, LEGAL_LINKS } from "@/lib/navigation";
 import { Logo } from "./Logo";
 
 export function SiteFooter() {
-  return (
-    <footer className="relative w-full border-t border-outline-variant/30 bg-surface-container-low">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
+  const year = new Date().getFullYear();
 
-      <div className="mx-auto max-w-7xl px-gutter-lg pb-space-xl pt-space-2xl">
-        <div className="grid grid-cols-1 gap-space-2xl border-b border-outline-variant/20 pb-space-2xl md:grid-cols-4">
-          <div className="flex flex-col gap-space-md md:col-span-1">
-            <div className="flex items-center gap-space-sm">
-              <Logo size={24} />
-              <span className="font-headline-sm text-headline-sm font-semibold tracking-tight text-on-surface">
-                Authority
-              </span>
+  return (
+    <footer className="w-full border-t border-mkt-hairline bg-mkt-bg">
+      <div className="mx-auto max-w-[1280px] px-6 pb-10 pt-16 md:px-10">
+        <div className="grid grid-cols-1 gap-10 border-b border-mkt-hairline pb-12 md:grid-cols-4">
+          <div className="flex flex-col gap-3 md:col-span-1">
+            <div className="flex items-center gap-2">
+              <Logo size={20} />
+              <span className="text-[15px] font-semibold text-mkt-text">Authority</span>
             </div>
-            <p className="pr-space-md font-body-sm text-body-sm text-on-surface-variant">
-              Deterministic runtime authorization, ephemeral delegation, and cryptographic least-privilege for
-              autonomous AI agents.
+            <p className="max-w-xs text-[13px] leading-relaxed text-mkt-text-secondary">
+              Least-privilege control for AI agents.
             </p>
-            <div className="inline-flex w-fit items-center gap-space-xs rounded-full border border-outline-variant/40 bg-surface-container-lowest px-space-md py-space-xs">
-              <span className="h-2 w-2 rounded-full bg-allow shadow-[0_0_8px_#42E7A5]" />
-              <span className="font-mono-token text-mono-token uppercase tracking-wider text-on-surface">
-                All systems operational
-              </span>
-            </div>
           </div>
 
           {FOOTER_COLUMNS.map((column) => (
-            <div key={column.title} className="flex flex-col gap-space-md">
-              <span className="font-label-caps text-label-caps uppercase tracking-wider text-outline">
+            <div key={column.title} className="flex flex-col gap-3">
+              <span className="text-[12px] font-medium uppercase tracking-wider text-mkt-gray">
                 {column.title}
               </span>
-              <ul className="flex flex-col gap-space-sm">
+              <ul className="flex flex-col gap-2">
                 {column.links.map((link) => (
-                  <li key={link.label} className="font-body-sm text-body-sm">
-                    <a
-                      href={link.href}
-                      className="text-on-surface-variant transition-colors hover:text-on-surface"
-                    >
+                  <li key={link.label} className="text-[13px]">
+                    <a href={link.href} className="text-mkt-text-secondary hover:text-mkt-text">
                       {link.label}
                     </a>
                   </li>
@@ -49,18 +37,11 @@ export function SiteFooter() {
           ))}
         </div>
 
-        <div className="flex flex-col items-center justify-between gap-space-md pt-space-lg sm:flex-row">
-          <p className="font-body-sm text-body-sm text-outline">
-            © 2025 Authority Substrate Inc. All rights reserved. Zero-trust runtime protection for agentic
-            models.
-          </p>
-          <div className="flex items-center gap-space-lg">
+        <div className="flex flex-col items-center justify-between gap-4 pt-6 sm:flex-row">
+          <p className="text-[13px] text-mkt-gray">© {year} Authority.</p>
+          <div className="flex items-center gap-5">
             {LEGAL_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="font-body-sm text-body-sm text-outline transition-colors hover:text-on-surface"
-              >
+              <a key={link.label} href={link.href} className="text-[13px] text-mkt-gray hover:text-mkt-text">
                 {link.label}
               </a>
             ))}

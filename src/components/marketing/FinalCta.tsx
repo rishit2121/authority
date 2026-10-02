@@ -1,114 +1,26 @@
-"use client";
-
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
 
-interface Field {
-  name: string;
-  label: string;
-  placeholder: string;
-  type: string;
-  required: boolean;
-}
-
-const FIELDS: Field[] = [
-  { name: "email", label: "Work Email", placeholder: "alex@company.com", type: "email", required: true },
-  {
-    name: "company",
-    label: "Company / Organization",
-    placeholder: "Acme Systems Inc.",
-    type: "text",
-    required: true,
-  },
-  {
-    name: "useCase",
-    label: "Agent Use Case",
-    placeholder: "Automated code remediation & PR generation",
-    type: "text",
-    required: true,
-  },
-  {
-    name: "stack",
-    label: "Current Stack / Models",
-    placeholder: "Claude Opus 5, LangGraph, MCP GitHub server",
-    type: "text",
-    required: false,
-  },
-];
+import { MarketingContainer } from "@/components/marketing/MarketingContainer";
+import { PrimaryButton } from "@/components/marketing/PrimaryButton";
 
 export function FinalCta() {
-  const [submitted, setSubmitted] = useState(false);
-
-  // No backend in this build: the form confirms inline instead of posting.
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitted(true);
-  };
-
   return (
-    <section
-      id="request-access"
-      className="relative w-full border-t border-outline-variant/30 bg-band py-space-2xl md:py-[130px]"
-    >
-      <div className="mx-auto w-full max-w-[1280px] px-margin md:px-margin-lg">
-        <div className="mx-auto mb-space-2xl max-w-3xl text-center">
-          <span className="font-label-caps text-label-caps uppercase tracking-widest text-primary">
-            Start Small, Run Secure
-          </span>
-          <h2 className="mt-space-sm font-headline-lg text-[2.25rem] font-semibold leading-[1.15] tracking-tight text-on-surface md:text-[3rem]">
-            Put your first production agent behind least privilege.
-          </h2>
-          <p className="mt-space-md font-body-lg text-body-lg text-on-surface-variant">
-            Bring one agent, one workflow, and one integration. Sign up and follow the ten-minute quickstart
-            to define and enforce the task boundary yourself.
-          </p>
+    <section id="get-started" className="py-24 md:py-32">
+      <MarketingContainer className="flex flex-col items-center text-center">
+        <h2 className="max-w-2xl font-headline-lg text-mkt-h2-mobile text-mkt-text md:text-mkt-h2">
+          Give your agents room to work—not room to wander.
+        </h2>
+
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-6">
+          <PrimaryButton href="/signup">Start building</PrimaryButton>
           <Link
-            href="/signup"
-            className="mt-space-lg inline-flex items-center justify-center rounded-lg bg-primary px-space-xl py-3 font-headline-sm text-body-md font-medium text-on-primary transition-all hover:bg-primary-fixed"
+            href="#security"
+            className="text-[15px] font-medium text-mkt-text underline decoration-mkt-hairline underline-offset-4 hover:decoration-mkt-text"
           >
-            Start free — no waitlist
+            Read the architecture
           </Link>
         </div>
-
-        <div className="mx-auto max-w-xl rounded-xl border border-outline-variant/40 bg-surface-container-low p-space-xl shadow-2xl">
-          <p className="mb-space-md font-body-sm text-body-sm text-on-surface-variant">
-            Want a hand rolling out a guided pilot instead? Tell us about your use case.
-          </p>
-          <form className="flex flex-col gap-space-md" onSubmit={handleSubmit}>
-            {FIELDS.map((field) => (
-              <div key={field.name}>
-                <label
-                  htmlFor={field.name}
-                  className="mb-1 block font-label-caps text-label-caps uppercase text-outline"
-                >
-                  {field.label}
-                </label>
-                <input
-                  id={field.name}
-                  name={field.name}
-                  type={field.type}
-                  required={field.required}
-                  placeholder={field.placeholder}
-                  className="h-10 w-full rounded border border-outline-variant/40 bg-surface-container-lowest px-space-md font-body-md text-[13px] text-on-surface transition-all focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-              </div>
-            ))}
-
-            <button
-              type="submit"
-              className="mt-space-md h-11 w-full rounded-lg bg-primary font-headline-sm text-body-md font-medium text-on-primary shadow-[0_0_20px_-4px_rgba(85,216,255,0.35)] transition-all hover:bg-primary-fixed"
-            >
-              Tell us about your pilot
-            </button>
-          </form>
-
-          <p aria-live="polite" className="mt-space-md text-center font-mono-code text-[11px] text-outline">
-            {submitted
-              ? "Thanks — for immediate access, sign up above; this form does not require it."
-              : 'This form is not wired to a mailing list yet. For real access, use "Start free" above.'}
-          </p>
-        </div>
-      </div>
+      </MarketingContainer>
     </section>
   );
 }
