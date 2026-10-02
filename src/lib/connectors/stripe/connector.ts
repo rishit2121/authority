@@ -131,6 +131,37 @@ function apiHostname(): string {
   return stripeFixtureModeEnabled() ? STRIPE_FIXTURE_HOSTNAME : STRIPE_API_HOSTNAME;
 }
 
+/**
+ * Best-effort label for which Stripe account a key belongs to, so the
+ * dashboard can show it instead of a bare "verified" badge. Takes the
+ * plaintext key directly -- callers here already have it in hand from the
+ * form submission that is about to store it, so this never needs its own
+ * secret resolution. Returns null on any failure; an unlabelled connection
+ * is still a working one, and this must never be why saving a key fails.
+ */
+export async function fetchStripeAccountLabel(
+  apiKey: string,
+  fetchImpl: (input: SafeFetchInput) => Promise<SafeFetchResult> = fetchWithOptionalFixture,
+): Promise<string | null> {
+  try {
+    const response = await fetchImpl({
+      url: new URL(`https://${apiHostname()}/v1/account`),
+      method: "GET",
+      headers: { authorization: `Basic ${Buffer.from(`${apiKey}:`).toString("base64")}` },
+      timeoutMs: 10_000,
+    });
+    if (Math.floor(response.status / 100) !== 2) return null;
+    const parsed = JSON.parse(response.bodyText) as {
+      id?: string;
+      email?: string | null;
+      business_profile?: { name?: string | null } | null;
+    };
+    return parsed.business_profile?.name || parsed.email || parsed.id || null;
+  } catch {
+    return null;
+  }
+}
+
 function agentPayloadFrom(bodyText: string): Record<string, unknown> {
   if (!bodyText) return {};
   try {

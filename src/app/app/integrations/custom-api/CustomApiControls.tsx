@@ -730,7 +730,10 @@ export function ConnectionCard({
           ) : null}
         </div>
       </div>
-      <p className="mt-1 font-mono-code text-[11px] text-outline">{connection.connectorId}</p>
+      <p className="mt-1 font-mono-code text-[11px] text-outline">
+        {connection.connectorId}
+        {connection.baseUrl ? ` · ${connection.baseUrl}` : ""}
+      </p>
       <Result result={result} />
 
       {canAdmin ? (

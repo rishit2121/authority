@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { SLACK_CONNECTOR_ID } from "@/lib/connectors/slack/connector";
-import { setConnectorSecret } from "@/lib/gateway/rpc-connector-secrets";
+import { fetchSlackWorkspaceLabel, SLACK_CONNECTOR_ID } from "@/lib/connectors/slack/connector";
+import { setConnectorSecret, updateConnectorConnectionConfig } from "@/lib/gateway/rpc-connector-secrets";
 import { createConnectorConnection, disconnectConnectorConnection } from "@/lib/gateway/rpc-connectors";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
@@ -52,8 +52,24 @@ export async function setSlackBotTokenAction(
     secretType: "bearer_token",
     plaintextSecret,
   });
+  if (result !== "ok") {
+    revalidatePath(PAGE);
+    return { ok: false, error: friendly(result) };
+  }
+
+  // Best-effort only: a failure here must never turn an otherwise-successful
+  // token save into an error.
+  const workspace = await fetchSlackWorkspaceLabel(plaintextSecret);
+  if (workspace) {
+    await updateConnectorConnectionConfig({
+      tenantId: identity.tenant.tenantId,
+      userId: identity.userId,
+      connectionId,
+      config: { connectedWorkspace: workspace },
+    });
+  }
   revalidatePath(PAGE);
-  return result === "ok" ? { ok: true, message: "Bot token saved." } : { ok: false, error: friendly(result) };
+  return { ok: true, message: "Bot token saved." };
 }
 
 export async function disconnectSlackConnectionAction(connectionId: string): Promise<SlackActionResult> {

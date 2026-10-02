@@ -3,7 +3,13 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 
 import { googleOAuthConfig } from "./config";
-import { fetchWithOptionalFixture, oauthHostname, type SafeFetchInput, type SafeFetchResult } from "./fetch";
+import {
+  fetchWithOptionalFixture,
+  gmailApiHostname,
+  oauthHostname,
+  type SafeFetchInput,
+  type SafeFetchResult,
+} from "./fetch";
 import { gmailFixtureModeEnabled } from "./fixture-mode";
 
 /**
@@ -105,7 +111,7 @@ export async function exchangeGmailOAuthCode(input: {
   code: string;
   redirectUri: string;
   verifier: string;
-}): Promise<string> {
+}): Promise<{ refreshToken: string; accessToken: string }> {
   const fixture = gmailFixtureModeEnabled();
   const cfg = googleOAuthConfig();
   if (!fixture && !cfg) throw new Error("CONNECTOR_NOT_CONFIGURED");
@@ -120,9 +126,37 @@ export async function exchangeGmailOAuthCode(input: {
   });
   const response = await tokenRequest(body);
   if (Math.floor(response.status / 100) !== 2) throw new Error("OAUTH_CODE_REJECTED");
-  const parsed = JSON.parse(response.bodyText) as { refresh_token?: string };
+  const parsed = JSON.parse(response.bodyText) as { refresh_token?: string; access_token?: string };
   if (!parsed.refresh_token) throw new Error("NO_REFRESH_TOKEN");
-  return parsed.refresh_token;
+  if (!parsed.access_token) throw new Error("NO_ACCESS_TOKEN");
+  return { refreshToken: parsed.refresh_token, accessToken: parsed.access_token };
+}
+
+/**
+ * Best-effort label for which Google account was just connected, so the
+ * dashboard can show it instead of a bare "connected" badge. Uses
+ * `users.getProfile`, already covered by the `https://mail.google.com/`
+ * scope this connector requests -- no extra consent needed. Returns null on
+ * any failure; a connection without a resolved label is still a working
+ * connection, and this must never be the reason a connect attempt fails.
+ */
+export async function fetchGmailAccountEmail(
+  accessToken: string,
+  fetchImpl: (input: SafeFetchInput) => Promise<SafeFetchResult> = fetchWithOptionalFixture,
+): Promise<string | null> {
+  try {
+    const response = await fetchImpl({
+      url: new URL(`https://${gmailApiHostname()}/gmail/v1/users/me/profile`),
+      method: "GET",
+      headers: { authorization: `Bearer ${accessToken}` },
+      timeoutMs: 10_000,
+    });
+    if (Math.floor(response.status / 100) !== 2) return null;
+    const parsed = JSON.parse(response.bodyText) as { emailAddress?: string };
+    return parsed.emailAddress ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

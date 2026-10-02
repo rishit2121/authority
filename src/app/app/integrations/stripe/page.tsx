@@ -24,11 +24,13 @@ export default async function StripeIntegrationPage() {
     (connections ?? []).map(async (c) => {
       const config = (c.config as Record<string, unknown> | null) ?? {};
       const mode = config.mode === "test" || config.mode === "live" ? config.mode : null;
+      const connectedAccount = typeof config.connectedAccount === "string" ? config.connectedAccount : null;
       const hasSecret = await hasConnectorSecret(c.id, "api_key");
       return {
         id: c.id,
         name: c.name,
         mode,
+        connectedAccount,
         hasSecret,
         lastVerifiedAt: c.last_verified_at,
         displayStatus: toDisplayStatus(c.status, hasSecret, c.last_verified_at),
