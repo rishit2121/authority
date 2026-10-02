@@ -3,10 +3,7 @@ import type { Metadata } from "next";
 import { Icon } from "@/components/ui/Icon";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
-import {
-  ConnectConnectionForm,
-  ConnectionCard,
-} from "./CustomApiControls";
+import { ConnectConnectionForm, ConnectionCard } from "./CustomApiControls";
 
 export const metadata: Metadata = { title: "Custom API connector" };
 
@@ -52,7 +49,9 @@ export default async function CustomApiIntegrationPage() {
       .order("created_at", { ascending: false }),
     context.supabase
       .from("custom_operation_definitions")
-      .select("id, connection_id, operation_slug, tool_name, name, method, path_template, effect, auth_type, status")
+      .select(
+        "id, connection_id, operation_slug, tool_name, name, method, path_template, effect, auth_type, status",
+      )
       .order("created_at", { ascending: true }),
   ]);
 
@@ -61,7 +60,10 @@ export default async function CustomApiIntegrationPage() {
     connectorId: c.connector_id,
     name: c.name,
     status: c.status,
-    baseUrl: typeof (c.config as Record<string, unknown> | null)?.baseUrl === "string" ? ((c.config as Record<string, unknown>).baseUrl as string) : null,
+    baseUrl:
+      typeof (c.config as Record<string, unknown> | null)?.baseUrl === "string"
+        ? ((c.config as Record<string, unknown>).baseUrl as string)
+        : null,
     operations: (operations ?? [])
       .filter((o) => o.connection_id === c.id)
       .map((o) => ({
@@ -86,8 +88,8 @@ export default async function CustomApiIntegrationPage() {
         </h1>
         <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
           Connect any HTTPS API your tenant controls. Operations are named, schema-constrained, and start as
-          drafts: a developer defines and validates one, but only an administrator can publish it. Publishing is
-          the trust boundary — a published operation&apos;s definition is then frozen forever, and every
+          drafts: a developer defines and validates one, but only an administrator can publish it. Publishing
+          is the trust boundary — a published operation&apos;s definition is then frozen forever, and every
           contract or capability that names it is pinned to exactly that definition.
         </p>
       </header>
@@ -111,7 +113,9 @@ export default async function CustomApiIntegrationPage() {
           className="rounded-xl border border-dashed border-outline-variant/40 bg-surface-container-low p-space-lg"
           data-testid="custom-api-not-connected"
         >
-          <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">No connections yet</h2>
+          <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
+            No connections yet
+          </h2>
           <p className="mt-space-sm max-w-2xl font-body-md text-body-md text-on-surface-variant">
             {canAdmin
               ? "Create a connection above, set its credential, then define and publish an operation."

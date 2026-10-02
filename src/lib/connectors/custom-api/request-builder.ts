@@ -36,7 +36,10 @@ function assertSafePathSegment(value: string, key: string): void {
     throw new CustomOperationValidationError("PATH_TRAVERSAL", `"${key}" may not contain a path separator.`);
   }
   if (/%2f|%5c|%2e%2e/i.test(value)) {
-    throw new CustomOperationValidationError("PATH_TRAVERSAL", `"${key}" may not contain an encoded separator.`);
+    throw new CustomOperationValidationError(
+      "PATH_TRAVERSAL",
+      `"${key}" may not contain an encoded separator.`,
+    );
   }
 }
 
@@ -145,7 +148,10 @@ export function buildRequest(
   for (const { name, value } of definition.requestMapping.staticHeaders ?? []) {
     const lower = name.toLowerCase();
     if (FORBIDDEN_HEADER_NAMES.has(lower)) {
-      throw new CustomOperationValidationError("HEADER_NOT_ALLOWED", `"${name}" cannot be set by a static header.`);
+      throw new CustomOperationValidationError(
+        "HEADER_NOT_ALLOWED",
+        `"${name}" cannot be set by a static header.`,
+      );
     }
     headers[name] = value;
   }

@@ -1,16 +1,15 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { createCustomApiConnector, defaultCustomApiConnectorDeps } from "@/lib/connectors/custom-api/connector";
+import {
+  createCustomApiConnector,
+  defaultCustomApiConnectorDeps,
+} from "@/lib/connectors/custom-api/connector";
 import { registerConnector, resetConnectorRegistryForTests } from "@/lib/connectors/registry";
 import { executeConnectorOperation, defaultConnectorExecutorDeps } from "@/lib/connectors/executor";
 import { hashCapabilityToken } from "@/lib/gateway/capability-token";
 import { authorizeThroughGateway } from "@/lib/gateway/pipeline";
 
-import {
-  createGatewayFixture,
-  currentVersions,
-  type GatewayFixture,
-} from "../gateway-support";
+import { createGatewayFixture, currentVersions, type GatewayFixture } from "../gateway-support";
 import { managementQuery } from "../support";
 import {
   ADMIN_A_USER_ID,
@@ -63,12 +62,21 @@ async function authorize(
     ...currentVersions(),
   });
   if (r.kind !== "decision" || !r.capabilityToken) {
-    throw new Error(`no capability for ${tool}: ${JSON.stringify(r.kind === "decision" ? r.commit.reasonCodes : r.status)}`);
+    throw new Error(
+      `no capability for ${tool}: ${JSON.stringify(r.kind === "decision" ? r.commit.reasonCodes : r.status)}`,
+    );
   }
   return r.capabilityToken;
 }
 
-function run(fx: GatewayFixture, token: string, tool: string, args: Record<string, string | number | boolean>, resource: string, idem = key("exec")) {
+function run(
+  fx: GatewayFixture,
+  token: string,
+  tool: string,
+  args: Record<string, string | number | boolean>,
+  resource: string,
+  idem = key("exec"),
+) {
   return executeConnectorOperation(
     {
       credentialSecret: fx.secret,
@@ -106,10 +114,20 @@ describe("Custom API connector (in-memory fixture API, real database)", () => {
     fixtureApi.requiredBearerToken = BEARER_TOKEN;
 
     resetConnectorRegistryForTests();
-    registerConnector(createCustomApiConnector({ ...defaultCustomApiConnectorDeps, fetch: fixtureApi.fetch }));
+    registerConnector(
+      createCustomApiConnector({ ...defaultCustomApiConnectorDeps, fetch: fixtureApi.fetch }),
+    );
 
-    connectionA = await createCustomApiConnection({ tenantId: TENANT_A_ID, adminUserId: ADMIN_A_USER_ID, label: "widget-orders-a" });
-    connectionB = await createCustomApiConnection({ tenantId: TENANT_B_ID, adminUserId: OWNER_B_USER_ID, label: "widget-orders-b" });
+    connectionA = await createCustomApiConnection({
+      tenantId: TENANT_A_ID,
+      adminUserId: ADMIN_A_USER_ID,
+      label: "widget-orders-a",
+    });
+    connectionB = await createCustomApiConnection({
+      tenantId: TENANT_B_ID,
+      adminUserId: OWNER_B_USER_ID,
+      label: "widget-orders-b",
+    });
 
     getOrder = await publishOperation(connectionA, {
       operationSlug: "get_order",
@@ -172,7 +190,11 @@ describe("Custom API connector (in-memory fixture API, real database)", () => {
     const result = await run(fx, token, getOrder.toolName, { orderId: "4821" }, "4821");
     expect(result.http).toBe(200);
     expect(result.body.data).toMatchObject({ id: "4821", status: "pending" });
-    expect(fixtureApi.requests.at(-1)).toMatchObject({ method: "GET", path: "/v1/orders/4821", authorization: `Bearer ${BEARER_TOKEN}` });
+    expect(fixtureApi.requests.at(-1)).toMatchObject({
+      method: "GET",
+      path: "/v1/orders/4821",
+      authorization: `Bearer ${BEARER_TOKEN}`,
+    });
   });
 
   it("the blocked request: a capability scoped to one order cannot be replayed against a different one", async () => {
@@ -232,14 +254,21 @@ describe("Custom API connector (in-memory fixture API, real database)", () => {
   });
 
   it("revocation: disconnecting the connection revokes an already-issued capability before it executes", async () => {
-    const revocable = await createCustomApiConnection({ tenantId: TENANT_A_ID, adminUserId: ADMIN_A_USER_ID, label: "revocable" });
+    const revocable = await createCustomApiConnection({
+      tenantId: TENANT_A_ID,
+      adminUserId: ADMIN_A_USER_ID,
+      label: "revocable",
+    });
     const op = await publishOperation(revocable, {
       operationSlug: "get_order",
       name: "Get order",
       method: "GET",
       pathTemplate: "/v1/orders/{orderId}",
       effect: "read",
-      inputSchema: { schemaVersion: 1, fields: [{ key: "orderId", type: "string", required: true, identifiesResource: true, in: "path" }] },
+      inputSchema: {
+        schemaVersion: 1,
+        fields: [{ key: "orderId", type: "string", required: true, identifiesResource: true, in: "path" }],
+      },
     });
     const fx = await mkTask("revocation", [op.toolName]);
     const token = await authorize(fx, op.toolName, { orderId: "4821" }, "4821");
@@ -248,7 +277,9 @@ describe("Custom API connector (in-memory fixture API, real database)", () => {
 
     const result = await run(fx, token, op.toolName, { orderId: "4821" }, "4821");
     expect(result.http).not.toBe(200);
-    expect((result.body.error as { code?: string } | undefined)?.code).toMatch(/REVOKED|CONNECTOR_NOT_CONFIGURED|CONNECTION_UNAVAILABLE/);
+    expect((result.body.error as { code?: string } | undefined)?.code).toMatch(
+      /REVOKED|CONNECTOR_NOT_CONFIGURED|CONNECTION_UNAVAILABLE/,
+    );
     await revocable.cleanup();
   });
 
@@ -282,7 +313,9 @@ describe("Custom API connector (in-memory fixture API, real database)", () => {
       expect(row?.result_category).toBe("indeterminate");
     } finally {
       resetConnectorRegistryForTests();
-      registerConnector(createCustomApiConnector({ ...defaultCustomApiConnectorDeps, fetch: fixtureApi.fetch }));
+      registerConnector(
+        createCustomApiConnector({ ...defaultCustomApiConnectorDeps, fetch: fixtureApi.fetch }),
+      );
     }
   });
 });

@@ -7,10 +7,7 @@ import { revalidatePath } from "next/cache";
 import { toCustomApiConnectorId } from "@/lib/connectors/custom-api/connection-id";
 import type { CustomOperationAuthType, CustomOperationField } from "@/lib/connectors/custom-api/types";
 import { validateOperationDefinition } from "@/lib/connectors/custom-api/validate";
-import {
-  createConnectorConnection,
-  disconnectConnectorConnection,
-} from "@/lib/gateway/rpc-connectors";
+import { createConnectorConnection, disconnectConnectorConnection } from "@/lib/gateway/rpc-connectors";
 import {
   getConnectorConnectionConfig,
   setConnectorSecret,
@@ -47,7 +44,10 @@ const FRIENDLY: Record<string, string> = {
 };
 const friendly = (code: string) => FRIENDLY[code] ?? "The request could not be completed.";
 
-export async function createCustomApiConnectionAction(name: string, baseUrl: string): Promise<CustomApiActionResult> {
+export async function createCustomApiConnectionAction(
+  name: string,
+  baseUrl: string,
+): Promise<CustomApiActionResult> {
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
   const connectionId = randomUUID();
   const connectorId = toCustomApiConnectorId(connectionId);
@@ -71,7 +71,10 @@ export async function createCustomApiConnectionAction(name: string, baseUrl: str
   return { ok: true, message: `Connection created (${connectorId}).` };
 }
 
-export async function updateCustomApiBaseUrlAction(connectionId: string, baseUrl: string): Promise<CustomApiActionResult> {
+export async function updateCustomApiBaseUrlAction(
+  connectionId: string,
+  baseUrl: string,
+): Promise<CustomApiActionResult> {
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
   const existing = await getConnectorConnectionConfig(connectionId);
   const result = await updateConnectorConnectionConfig({
@@ -81,12 +84,20 @@ export async function updateCustomApiBaseUrlAction(connectionId: string, baseUrl
     config: { ...(existing?.config ?? {}), baseUrl },
   });
   revalidatePath(PAGE);
-  return result === "ok" ? { ok: true, message: "Base URL updated." } : { ok: false, error: friendly(result) };
+  return result === "ok"
+    ? { ok: true, message: "Base URL updated." }
+    : { ok: false, error: friendly(result) };
 }
 
-export async function disconnectCustomApiConnectionAction(connectionId: string): Promise<CustomApiActionResult> {
+export async function disconnectCustomApiConnectionAction(
+  connectionId: string,
+): Promise<CustomApiActionResult> {
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
-  const result = await disconnectConnectorConnection({ tenantId: identity.tenant.tenantId, userId: identity.userId, connectionId });
+  const result = await disconnectConnectorConnection({
+    tenantId: identity.tenant.tenantId,
+    userId: identity.userId,
+    connectionId,
+  });
   revalidatePath(PAGE);
   if (result.status !== "ok") return { ok: false, error: friendly(result.status) };
   return {
@@ -109,7 +120,9 @@ export async function setCustomApiSecretAction(
     plaintextSecret,
   });
   revalidatePath(PAGE);
-  return result === "ok" ? { ok: true, message: "Credential saved." } : { ok: false, error: friendly(result) };
+  return result === "ok"
+    ? { ok: true, message: "Credential saved." }
+    : { ok: false, error: friendly(result) };
 }
 
 export interface CreateOperationInput {
@@ -137,12 +150,22 @@ export interface CustomApiValidationResult extends CustomApiActionResult {
  * re-verifies the cheap structural facts independently; it does not trust
  * this call was made correctly.
  */
-export async function createCustomOperationAction(input: CreateOperationInput): Promise<CustomApiValidationResult> {
+export async function createCustomOperationAction(
+  input: CreateOperationInput,
+): Promise<CustomApiValidationResult> {
   const inputSchema = { schemaVersion: 1 as const, fields: input.fields };
   const requestMapping = { schemaVersion: 1 as const };
-  const structural = validateOperationDefinition({ pathTemplate: input.pathTemplate, inputSchema, requestMapping });
+  const structural = validateOperationDefinition({
+    pathTemplate: input.pathTemplate,
+    inputSchema,
+    requestMapping,
+  });
   if (!structural.ok) {
-    return { ok: false, error: structural.issues[0]?.message ?? "Invalid operation definition.", issues: structural.issues };
+    return {
+      ok: false,
+      error: structural.issues[0]?.message ?? "Invalid operation definition.",
+      issues: structural.issues,
+    };
   }
 
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
@@ -170,7 +193,11 @@ export async function createCustomOperationAction(input: CreateOperationInput): 
 
 export async function validateCustomOperationAction(operationId: string): Promise<CustomApiActionResult> {
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
-  const result = await validateCustomOperation({ tenantId: identity.tenant.tenantId, userId: identity.userId, operationId });
+  const result = await validateCustomOperation({
+    tenantId: identity.tenant.tenantId,
+    userId: identity.userId,
+    operationId,
+  });
   revalidatePath(PAGE);
   if (result.status !== "ok") return { ok: false, error: friendly(result.status) };
   return { ok: true, message: "Validated. An administrator can now publish it." };
@@ -178,7 +205,11 @@ export async function validateCustomOperationAction(operationId: string): Promis
 
 export async function publishCustomOperationAction(operationId: string): Promise<CustomApiActionResult> {
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
-  const result = await publishCustomOperation({ tenantId: identity.tenant.tenantId, userId: identity.userId, operationId });
+  const result = await publishCustomOperation({
+    tenantId: identity.tenant.tenantId,
+    userId: identity.userId,
+    operationId,
+  });
   revalidatePath(PAGE);
   if (result !== "ok") return { ok: false, error: friendly(result) };
   return { ok: true, message: "Published. This definition is now immutable." };
@@ -186,7 +217,11 @@ export async function publishCustomOperationAction(operationId: string): Promise
 
 export async function retireCustomOperationAction(operationId: string): Promise<CustomApiActionResult> {
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
-  const result = await retireCustomOperation({ tenantId: identity.tenant.tenantId, userId: identity.userId, operationId });
+  const result = await retireCustomOperation({
+    tenantId: identity.tenant.tenantId,
+    userId: identity.userId,
+    operationId,
+  });
   revalidatePath(PAGE);
   if (result !== "ok") return { ok: false, error: friendly(result) };
   return { ok: true, message: "Retired. Existing contracts that already pinned it are unaffected." };
@@ -194,7 +229,11 @@ export async function retireCustomOperationAction(operationId: string): Promise<
 
 export async function deleteCustomOperationDraftAction(operationId: string): Promise<CustomApiActionResult> {
   const { identity } = await createRepositoriesForCurrentTenant(PAGE);
-  const result = await deleteCustomOperationDraft({ tenantId: identity.tenant.tenantId, userId: identity.userId, operationId });
+  const result = await deleteCustomOperationDraft({
+    tenantId: identity.tenant.tenantId,
+    userId: identity.userId,
+    operationId,
+  });
   revalidatePath(PAGE);
   if (result !== "ok") return { ok: false, error: friendly(result) };
   return { ok: true, message: "Draft deleted." };

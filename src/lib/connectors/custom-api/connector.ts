@@ -1,17 +1,26 @@
 import "server-only";
 
+import { getConnectorConnectionConfig, resolveConnectorSecret } from "@/lib/gateway/rpc-connector-secrets";
 import {
-  getConnectorConnectionConfig,
-  resolveConnectorSecret,
-} from "@/lib/gateway/rpc-connector-secrets";
-import { getPublishedCustomOperation, type PublishedCustomOperation } from "@/lib/gateway/rpc-custom-operations";
+  getPublishedCustomOperation,
+  type PublishedCustomOperation,
+} from "@/lib/gateway/rpc-custom-operations";
 
 import { connectionIdFromCustomApiConnectorId, CUSTOM_API_CONNECTOR_PREFIX } from "./connection-id";
 import { CUSTOM_API_FIXTURE_HOSTNAME, customApiFixtureModeEnabled } from "./fixture-mode";
 import { customApiFixtureServer } from "./fixture-server";
-import { validateDestinationUrl, safeFetch, type SafeFetchInput, type SafeFetchResult } from "./network-guard";
+import {
+  validateDestinationUrl,
+  safeFetch,
+  type SafeFetchInput,
+  type SafeFetchResult,
+} from "./network-guard";
 import { buildRequest } from "./request-builder";
-import { CustomOperationValidationError, type CustomOperationInputSchema, type CustomOperationRequestMapping } from "./types";
+import {
+  CustomOperationValidationError,
+  type CustomOperationInputSchema,
+  type CustomOperationRequestMapping,
+} from "./types";
 
 import type {
   AuthorityConnector,
@@ -82,7 +91,10 @@ function splitTool(tool: string): { connectionId: string; operationSlug: string 
   const operationSlug = tool.slice(dot + 1);
   const connectionId = connectionIdFromCustomApiConnectorId(provider);
   if (!connectionId) {
-    throw new CustomOperationValidationError("TOOL_MALFORMED", `"${provider}" is not a Custom API connector id.`);
+    throw new CustomOperationValidationError(
+      "TOOL_MALFORMED",
+      `"${provider}" is not a Custom API connector id.`,
+    );
   }
   return { connectionId, operationSlug };
 }
@@ -90,7 +102,10 @@ function splitTool(tool: string): { connectionId: string; operationSlug: string 
 function baseUrlOf(op: PublishedCustomOperation): string {
   const raw = op.connectionConfig.baseUrl;
   if (typeof raw !== "string" || raw.length === 0) {
-    throw new CustomOperationValidationError("CONNECTOR_NOT_CONFIGURED", "This connection has no base URL configured.");
+    throw new CustomOperationValidationError(
+      "CONNECTOR_NOT_CONFIGURED",
+      "This connection has no base URL configured.",
+    );
   }
   validateDestinationUrl(raw);
   return raw;
@@ -115,8 +130,12 @@ function agentPayloadFrom(
   return { payload: { raw: bodyText }, redaction: {} };
 }
 
-export function createCustomApiConnector(deps: CustomApiConnectorDeps = defaultCustomApiConnectorDeps): AuthorityConnector {
-  async function loadPublished(tool: string): Promise<{ connectionId: string; op: PublishedCustomOperation }> {
+export function createCustomApiConnector(
+  deps: CustomApiConnectorDeps = defaultCustomApiConnectorDeps,
+): AuthorityConnector {
+  async function loadPublished(
+    tool: string,
+  ): Promise<{ connectionId: string; op: PublishedCustomOperation }> {
     const { connectionId, operationSlug } = splitTool(tool);
     const op = await deps.getPublishedOperation(connectionId, operationSlug);
     if (!op) {
@@ -128,20 +147,32 @@ export function createCustomApiConnector(deps: CustomApiConnectorDeps = defaultC
     return { connectionId, op };
   }
 
-  async function resolveAuthHeaders(op: PublishedCustomOperation, connectionId: string): Promise<Record<string, string>> {
+  async function resolveAuthHeaders(
+    op: PublishedCustomOperation,
+    connectionId: string,
+  ): Promise<Record<string, string>> {
     switch (op.authType) {
       case "none":
         return {};
       case "bearer": {
         const token = await deps.resolveSecret(connectionId, "bearer_token");
-        if (!token) throw new CustomOperationValidationError("CREDENTIAL_NOT_CONFIGURED", "No bearer token is configured.");
+        if (!token)
+          throw new CustomOperationValidationError(
+            "CREDENTIAL_NOT_CONFIGURED",
+            "No bearer token is configured.",
+          );
         return { authorization: `Bearer ${token}` };
       }
       case "api_key_header": {
         const headerName = (op.authConfig as { headerName?: string }).headerName;
-        if (!headerName) throw new CustomOperationValidationError("OPERATION_MISCONFIGURED", "No header name configured for the API key.");
+        if (!headerName)
+          throw new CustomOperationValidationError(
+            "OPERATION_MISCONFIGURED",
+            "No header name configured for the API key.",
+          );
         const key = await deps.resolveSecret(connectionId, "api_key");
-        if (!key) throw new CustomOperationValidationError("CREDENTIAL_NOT_CONFIGURED", "No API key is configured.");
+        if (!key)
+          throw new CustomOperationValidationError("CREDENTIAL_NOT_CONFIGURED", "No API key is configured.");
         return { [headerName]: key };
       }
       case "basic": {
@@ -150,16 +181,26 @@ export function createCustomApiConnector(deps: CustomApiConnectorDeps = defaultC
           deps.resolveSecret(connectionId, "basic_password"),
         ]);
         if (!username || !password) {
-          throw new CustomOperationValidationError("CREDENTIAL_NOT_CONFIGURED", "Basic auth credentials are not fully configured.");
+          throw new CustomOperationValidationError(
+            "CREDENTIAL_NOT_CONFIGURED",
+            "Basic auth credentials are not fully configured.",
+          );
         }
         return { authorization: `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}` };
       }
       default:
-        throw new CustomOperationValidationError("OPERATION_MISCONFIGURED", `Unknown auth type "${op.authType as string}".`);
+        throw new CustomOperationValidationError(
+          "OPERATION_MISCONFIGURED",
+          `Unknown auth type "${op.authType as string}".`,
+        );
     }
   }
 
-  function buildHttpRequest(connectionId: string, op: PublishedCustomOperation, args: Record<string, unknown>) {
+  function buildHttpRequest(
+    connectionId: string,
+    op: PublishedCustomOperation,
+    args: Record<string, unknown>,
+  ) {
     const baseUrl = baseUrlOf(op);
     return buildRequest(
       {
@@ -204,7 +245,8 @@ export function createCustomApiConnector(deps: CustomApiConnectorDeps = defaultC
         }
       }
       return {
-        status: reasons.length > 0 ? "not_configured" : connection.status === "active" ? "active" : "suspended",
+        status:
+          reasons.length > 0 ? "not_configured" : connection.status === "active" ? "active" : "suspended",
         reasons,
         lastVerifiedAt: connection.lastVerifiedAt,
       };
@@ -221,7 +263,10 @@ export function createCustomApiConnector(deps: CustomApiConnectorDeps = defaultC
       };
     },
 
-    async execute(request: NormalizedConnectorRequest, context: ConnectorExecutionContext): Promise<ConnectorExecutionResult> {
+    async execute(
+      request: NormalizedConnectorRequest,
+      context: ConnectorExecutionContext,
+    ): Promise<ConnectorExecutionResult> {
       const { connectionId, op } = await loadPublished(request.operation);
       if (connectionId !== context.connectionId) {
         // Cannot happen if the tool name is well-formed (both are derived
@@ -273,7 +318,10 @@ export function createCustomApiConnector(deps: CustomApiConnectorDeps = defaultC
       // each tenant's own API and not something this connector can know in
       // general. An indeterminate execution here always resolves manually
       // (see gateway.resolve_connector_indeterminate), never automatically.
-      return { outcome: "still_unknown", detail: "Custom API operations have no generic reconciliation lookup." };
+      return {
+        outcome: "still_unknown",
+        detail: "Custom API operations have no generic reconciliation lookup.",
+      };
     },
   };
 }

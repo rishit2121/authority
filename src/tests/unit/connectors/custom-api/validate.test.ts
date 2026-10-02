@@ -1,12 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import { validateOperationDefinition } from "@/lib/connectors/custom-api/validate";
-import type { CustomOperationField, CustomOperationInputSchema, CustomOperationRequestMapping } from "@/lib/connectors/custom-api/types";
+import type {
+  CustomOperationField,
+  CustomOperationInputSchema,
+  CustomOperationRequestMapping,
+} from "@/lib/connectors/custom-api/types";
 
 const schema = (fields: CustomOperationField[]): CustomOperationInputSchema => ({ schemaVersion: 1, fields });
-const mapping = (over: Partial<CustomOperationRequestMapping> = {}): CustomOperationRequestMapping => ({ schemaVersion: 1, ...over });
+const mapping = (over: Partial<CustomOperationRequestMapping> = {}): CustomOperationRequestMapping => ({
+  schemaVersion: 1,
+  ...over,
+});
 
-const orderIdField: CustomOperationField = { key: "orderId", type: "string", required: true, identifiesResource: true, in: "path" };
+const orderIdField: CustomOperationField = {
+  key: "orderId",
+  type: "string",
+  required: true,
+  identifiesResource: true,
+  in: "path",
+};
 
 describe("validateOperationDefinition", () => {
   it("accepts a well-formed single-field operation", () => {
@@ -65,7 +78,13 @@ describe("validateOperationDefinition", () => {
   it("rejects more than the maximum number of fields", () => {
     const fields: CustomOperationField[] = [orderIdField];
     for (let i = 0; i < 25; i++) {
-      fields.push({ key: `field${i}`, type: "string", required: false, identifiesResource: false, in: "query" });
+      fields.push({
+        key: `field${i}`,
+        type: "string",
+        required: false,
+        identifiesResource: false,
+        in: "query",
+      });
     }
     const result = validateOperationDefinition({
       pathTemplate: "/v1/orders/{orderId}",
@@ -89,7 +108,9 @@ describe("validateOperationDefinition", () => {
   it("rejects a malformed field key", () => {
     const result = validateOperationDefinition({
       pathTemplate: "/v1/orders/{9bad}",
-      inputSchema: schema([{ key: "9bad", type: "string", required: true, identifiesResource: true, in: "path" }]),
+      inputSchema: schema([
+        { key: "9bad", type: "string", required: true, identifiesResource: true, in: "path" },
+      ]),
       requestMapping: mapping(),
     });
     expect(result.ok).toBe(false);
@@ -129,7 +150,9 @@ describe("validateOperationDefinition", () => {
   it("rejects a path-located field that names no placeholder", () => {
     const result = validateOperationDefinition({
       pathTemplate: "/v1/orders",
-      inputSchema: schema([{ key: "orphan", type: "string", required: true, identifiesResource: true, in: "path" }]),
+      inputSchema: schema([
+        { key: "orphan", type: "string", required: true, identifiesResource: true, in: "path" },
+      ]),
       requestMapping: mapping(),
     });
     expect(result.ok).toBe(false);

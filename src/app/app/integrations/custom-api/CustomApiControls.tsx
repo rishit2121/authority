@@ -36,7 +36,10 @@ function useAction() {
 function Result({ result }: { result: CustomApiActionResult | null }) {
   if (!result) return null;
   return (
-    <p role={result.ok ? "status" : "alert"} className={`font-body-sm text-body-sm ${result.ok ? "text-allow" : "text-deny"}`}>
+    <p
+      role={result.ok ? "status" : "alert"}
+      className={`font-body-sm text-body-sm ${result.ok ? "text-allow" : "text-deny"}`}
+    >
       {result.ok ? (result.message ?? "Done.") : result.error}
     </p>
   );
@@ -52,7 +55,10 @@ export function ConnectConnectionForm() {
       aria-labelledby="new-connection-heading"
       className="rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg"
     >
-      <h2 id="new-connection-heading" className="font-headline-sm text-headline-sm font-semibold text-on-surface">
+      <h2
+        id="new-connection-heading"
+        className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+      >
         New connection
       </h2>
       <form
@@ -212,7 +218,10 @@ function FieldRow({
   removable: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-end gap-space-sm rounded border border-outline-variant/20 p-space-sm" data-testid="custom-api-field-row">
+    <div
+      className="flex flex-wrap items-end gap-space-sm rounded border border-outline-variant/20 p-space-sm"
+      data-testid="custom-api-field-row"
+    >
       <label className="flex flex-col gap-1">
         <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Key</span>
         <input
@@ -238,7 +247,11 @@ function FieldRow({
       </label>
       <label className="flex flex-col gap-1">
         <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Type</span>
-        <select value={field.type} onChange={(e) => onChange({ ...field, type: e.target.value as DraftField["type"] })} className={INPUT}>
+        <select
+          value={field.type}
+          onChange={(e) => onChange({ ...field, type: e.target.value as DraftField["type"] })}
+          className={INPUT}
+        >
           {ARG_TYPES.map((t) => (
             <option key={t}>{t}</option>
           ))}
@@ -317,22 +330,40 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
       <div className="flex flex-wrap gap-space-sm">
         <label className="flex flex-col gap-1">
           <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Slug</span>
-          <input required value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="get_order" className={INPUT} />
+          <input
+            required
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            placeholder="get_order"
+            className={INPUT}
+          />
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Name</span>
-          <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Get order" className={INPUT} />
+          <input
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Get order"
+            className={INPUT}
+          />
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Method</span>
-          <select value={method} onChange={(e) => setMethod(e.target.value as (typeof METHODS)[number])} className={INPUT}>
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value as (typeof METHODS)[number])}
+            className={INPUT}
+          >
             {METHODS.map((m) => (
               <option key={m}>{m}</option>
             ))}
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Path template</span>
+          <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">
+            Path template
+          </span>
           <input
             required
             value={pathTemplate}
@@ -342,7 +373,11 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Effect</span>
-          <select value={effect} onChange={(e) => setEffect(e.target.value as (typeof EFFECTS)[number])} className={INPUT}>
+          <select
+            value={effect}
+            onChange={(e) => setEffect(e.target.value as (typeof EFFECTS)[number])}
+            className={INPUT}
+          >
             {EFFECTS.map((eff) => (
               <option key={eff}>{eff}</option>
             ))}
@@ -350,7 +385,11 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
         </label>
         <label className="flex flex-col gap-1">
           <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Auth</span>
-          <select value={authType} onChange={(e) => setAuthType(e.target.value as (typeof AUTH_TYPES)[number])} className={INPUT}>
+          <select
+            value={authType}
+            onChange={(e) => setAuthType(e.target.value as (typeof AUTH_TYPES)[number])}
+            className={INPUT}
+          >
             {AUTH_TYPES.map((a) => (
               <option key={a}>{a}</option>
             ))}
@@ -359,8 +398,8 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
       </div>
 
       <p className="font-body-sm text-body-sm text-outline">
-        1-20 fields, spanning path/query/body (see docs/connectors/CUSTOM_API.md). Exactly one must identify the
-        resource a capability binds against.
+        1-20 fields, spanning path/query/body (see docs/connectors/CUSTOM_API.md). Exactly one must identify
+        the resource a capability binds against.
       </p>
       <div className="flex flex-col gap-space-sm">
         {fields.map((field, index) => (
@@ -382,7 +421,12 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
         >
           Add field
         </button>
-        <button type="submit" disabled={pending} className={BTN_PRIMARY} data-testid="custom-api-create-operation">
+        <button
+          type="submit"
+          disabled={pending}
+          className={BTN_PRIMARY}
+          data-testid="custom-api-create-operation"
+        >
           Create draft
         </button>
       </div>
@@ -391,10 +435,21 @@ function NewOperationForm({ connectionId }: { connectionId: string }) {
   );
 }
 
-function OperationRowView({ operation, canDevelop, canAdmin }: { operation: OperationRow; canDevelop: boolean; canAdmin: boolean }) {
+function OperationRowView({
+  operation,
+  canDevelop,
+  canAdmin,
+}: {
+  operation: OperationRow;
+  canDevelop: boolean;
+  canAdmin: boolean;
+}) {
   const { result, pending, run } = useAction();
   return (
-    <li className="flex flex-wrap items-center justify-between gap-space-sm py-2.5" data-testid={`custom-api-op-${operation.operationSlug}`}>
+    <li
+      className="flex flex-wrap items-center justify-between gap-space-sm py-2.5"
+      data-testid={`custom-api-op-${operation.operationSlug}`}
+    >
       <div>
         <span className="font-mono-code text-[13px] text-on-surface">
           {operation.method} {operation.pathTemplate}
@@ -417,10 +472,18 @@ function OperationRowView({ operation, canDevelop, canAdmin }: { operation: Oper
         </span>
         {operation.status === "draft" && canDevelop ? (
           <>
-            <button disabled={pending} className={BTN} onClick={() => run(() => validateCustomOperationAction(operation.id))}>
+            <button
+              disabled={pending}
+              className={BTN}
+              onClick={() => run(() => validateCustomOperationAction(operation.id))}
+            >
               Validate
             </button>
-            <button disabled={pending} className={BTN} onClick={() => run(() => deleteCustomOperationDraftAction(operation.id))}>
+            <button
+              disabled={pending}
+              className={BTN}
+              onClick={() => run(() => deleteCustomOperationDraftAction(operation.id))}
+            >
               Delete
             </button>
           </>
@@ -436,7 +499,11 @@ function OperationRowView({ operation, canDevelop, canAdmin }: { operation: Oper
           </button>
         ) : null}
         {operation.status === "published" && canAdmin ? (
-          <button disabled={pending} className={BTN} onClick={() => run(() => retireCustomOperationAction(operation.id))}>
+          <button
+            disabled={pending}
+            className={BTN}
+            onClick={() => run(() => retireCustomOperationAction(operation.id))}
+          >
             Retire
           </button>
         ) : null}
@@ -466,7 +533,9 @@ export function ConnectionCard({
       <div className="flex flex-wrap items-center justify-between gap-space-sm">
         <h2 className="font-headline-sm text-headline-sm font-semibold text-on-surface">{connection.name}</h2>
         <div className="flex items-center gap-space-sm">
-          <span className={`rounded border px-2 py-0.5 font-mono-code text-[11px] ${statusStyle}`}>{connection.status}</span>
+          <span className={`rounded border px-2 py-0.5 font-mono-code text-[11px] ${statusStyle}`}>
+            {connection.status}
+          </span>
           {canAdmin && connection.status !== "disconnected" ? (
             <button
               disabled={pending}

@@ -1,4 +1,11 @@
-import { expect, test, type APIRequestContext, type Browser, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Browser,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 
 import { managementQuery, TENANT_A_ID } from "../integration/support";
 import { signIn } from "./support/auth";
@@ -98,10 +105,11 @@ test.describe.serial("Custom API: complete customer workflow", () => {
     `);
   });
 
-  test("connect, configure, define and publish an operation, then run a task through it", async (
-    { page, request, browser },
-    testInfo,
-  ) => {
+  test("connect, configure, define and publish an operation, then run a task through it", async ({
+    page,
+    request,
+    browser,
+  }, testInfo) => {
     // The longest single real-browser workflow in this suite (connection,
     // auth, two operation lifecycle transitions, a task, a contract, an
     // approval decided by a second signed-in person, activation, two real
@@ -315,7 +323,9 @@ async function activateWithApprovalIfNeeded(
   const submitButton = page.getByRole("button", { name: "Submit for approval" });
   if (await submitButton.isVisible().catch(() => false)) {
     await submitButton.click();
-    await expect(page.getByText("Awaiting approval — not active", { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Awaiting approval — not active", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
     await page.reload();
 
     const approvals = page.locator("#contract-approvals");
@@ -333,12 +343,16 @@ async function activateWithApprovalIfNeeded(
     // At least one slot must be pending and decidable here -- fail loudly
     // and specifically if not, rather than silently skipping the loop below
     // and surfacing a confusing failure much later at Activate.
-    await expect(adminApprovals.getByRole("button", { name: "Approve" }).first()).toBeVisible({ timeout: 15_000 });
+    await expect(adminApprovals.getByRole("button", { name: "Approve" }).first()).toBeVisible({
+      timeout: 15_000,
+    });
 
     let approveButton = adminApprovals.getByRole("button", { name: "Approve" }).first();
     while (await approveButton.isVisible().catch(() => false)) {
       await approveButton.click();
-      await expect(adminApprovals.getByText("approved", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+      await expect(adminApprovals.getByText("approved", { exact: true }).first()).toBeVisible({
+        timeout: 15_000,
+      });
       approveButton = adminApprovals.getByRole("button", { name: "Approve" }).first();
     }
     await ctx.close();

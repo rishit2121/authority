@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listPublishedCustomOperationsForTenant = vi.fn();
 
 vi.mock("@/lib/gateway/rpc-custom-operations", () => ({
-  listPublishedCustomOperationsForTenant: (...args: unknown[]) => listPublishedCustomOperationsForTenant(...args),
+  listPublishedCustomOperationsForTenant: (...args: unknown[]) =>
+    listPublishedCustomOperationsForTenant(...args),
 }));
 
 import { githubDemoRegistry } from "@/lib/registry/fixtures/github-demo";
@@ -82,7 +83,9 @@ describe("buildTenantRegistry", () => {
   it("produces a different registry version when the published set differs", async () => {
     listPublishedCustomOperationsForTenant.mockResolvedValueOnce([fakeOp()]);
     const a = await buildTenantRegistry("tenant-a");
-    listPublishedCustomOperationsForTenant.mockResolvedValueOnce([fakeOp({ toolName: "custom_def456.other_op", connectorId: "custom_def456" })]);
+    listPublishedCustomOperationsForTenant.mockResolvedValueOnce([
+      fakeOp({ toolName: "custom_def456.other_op", connectorId: "custom_def456" }),
+    ]);
     const b = await buildTenantRegistry("tenant-b");
     expect(a.registryVersion).not.toBe(b.registryVersion);
   });

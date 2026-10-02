@@ -6,7 +6,11 @@ import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
 import { toolArgumentsSchema, toolNameSchema } from "@/lib/domain";
 import { authorizeThroughGateway, defaultPipelineDeps } from "@/lib/gateway/pipeline";
 import { tenantForTask } from "@/lib/gateway/rpc";
-import { gatewayRegistry, riskClassForRegistry, registryRequiresApprovalForRegistry } from "@/lib/gateway/risk-class";
+import {
+  gatewayRegistry,
+  riskClassForRegistry,
+  registryRequiresApprovalForRegistry,
+} from "@/lib/gateway/risk-class";
 import {
   UNAUTHENTICATED,
   contractForError,

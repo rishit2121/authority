@@ -1,6 +1,11 @@
 import "server-only";
 
-import { FORBIDDEN_HEADER_NAMES, type CustomOperationField, type CustomOperationInputSchema, type CustomOperationRequestMapping } from "./types";
+import {
+  FORBIDDEN_HEADER_NAMES,
+  type CustomOperationField,
+  type CustomOperationInputSchema,
+  type CustomOperationRequestMapping,
+} from "./types";
 
 /**
  * Authoring-time structural validation for a custom operation definition --
@@ -45,10 +50,10 @@ export function validateOperationDefinition(input: {
   const { pathTemplate, inputSchema, requestMapping } = input;
 
   if (!pathTemplate.startsWith("/")) {
-    issues.push({ field: "pathTemplate", message: "Path template must start with \"/\"." });
+    issues.push({ field: "pathTemplate", message: 'Path template must start with "/".' });
   }
   if (pathTemplate.includes("..") || pathTemplate.includes("//")) {
-    issues.push({ field: "pathTemplate", message: "Path template may not contain \"..\" or \"//\"." });
+    issues.push({ field: "pathTemplate", message: 'Path template may not contain ".." or "//".' });
   }
 
   const fields = inputSchema.fields;
@@ -69,9 +74,15 @@ export function validateOperationDefinition(input: {
   }
 
   if (identifiesResourceCount === 0) {
-    issues.push({ field: "inputSchema.fields", message: "Exactly one field must be marked as identifying the resource." });
+    issues.push({
+      field: "inputSchema.fields",
+      message: "Exactly one field must be marked as identifying the resource.",
+    });
   } else if (identifiesResourceCount > 1) {
-    issues.push({ field: "inputSchema.fields", message: "Only one field may be marked as identifying the resource." });
+    issues.push({
+      field: "inputSchema.fields",
+      message: "Only one field may be marked as identifying the resource.",
+    });
   }
 
   // Every path placeholder needs a declared, path-located field, and vice
@@ -85,34 +96,56 @@ export function validateOperationDefinition(input: {
   }
   for (const key of pathFieldKeys) {
     if (!placeholders.has(key)) {
-      issues.push({ field: "inputSchema.fields", message: `Field "${key}" is declared "in": "path" but does not appear in the path template.` });
+      issues.push({
+        field: "inputSchema.fields",
+        message: `Field "${key}" is declared "in": "path" but does not appear in the path template.`,
+      });
     }
   }
 
   for (const header of requestMapping.staticHeaders ?? []) {
     if (FORBIDDEN_HEADER_NAMES.has(header.name.toLowerCase())) {
-      issues.push({ field: "requestMapping.staticHeaders", message: `"${header.name}" cannot be set by a static header.` });
+      issues.push({
+        field: "requestMapping.staticHeaders",
+        message: `"${header.name}" cannot be set by a static header.`,
+      });
     }
   }
 
   return { ok: issues.length === 0, issues };
 }
 
-function validateOneField(field: CustomOperationField, seenKeys: Set<string>, issues: OperationValidationIssue[]): void {
+function validateOneField(
+  field: CustomOperationField,
+  seenKeys: Set<string>,
+  issues: OperationValidationIssue[],
+): void {
   if (!KEY_PATTERN.test(field.key)) {
-    issues.push({ field: `inputSchema.fields.${field.key}`, message: `"${field.key}" must start with a letter or underscore and contain only letters, digits, and underscores.` });
+    issues.push({
+      field: `inputSchema.fields.${field.key}`,
+      message: `"${field.key}" must start with a letter or underscore and contain only letters, digits, and underscores.`,
+    });
   }
   if (seenKeys.has(field.key)) {
     issues.push({ field: `inputSchema.fields.${field.key}`, message: `Duplicate field key "${field.key}".` });
   }
   seenKeys.add(field.key);
   if (!["string", "number", "boolean"].includes(field.type)) {
-    issues.push({ field: `inputSchema.fields.${field.key}`, message: `Unsupported type "${field.type as string}".` });
+    issues.push({
+      field: `inputSchema.fields.${field.key}`,
+      message: `Unsupported type "${field.type as string}".`,
+    });
   }
   if (!["path", "query", "body"].includes(field.in)) {
-    issues.push({ field: `inputSchema.fields.${field.key}`, message: `Unsupported location "${field.in as string}".` });
+    issues.push({
+      field: `inputSchema.fields.${field.key}`,
+      message: `Unsupported location "${field.in as string}".`,
+    });
   }
   if (field.in === "path" && !field.required) {
-    issues.push({ field: `inputSchema.fields.${field.key}`, message: "A path field must be required -- an optional path segment is not supported." });
+    issues.push({
+      field: `inputSchema.fields.${field.key}`,
+      message: "A path field must be required -- an optional path segment is not supported.",
+    });
   }
 }

@@ -2,7 +2,10 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { listPublishedCustomOperationsForTenant, type TenantPublishedOperation } from "@/lib/gateway/rpc-custom-operations";
+import {
+  listPublishedCustomOperationsForTenant,
+  type TenantPublishedOperation,
+} from "@/lib/gateway/rpc-custom-operations";
 
 import { githubDemoRegistry } from "./fixtures/github-demo";
 import { loadRegistry, type LoadedRegistry } from "./load";

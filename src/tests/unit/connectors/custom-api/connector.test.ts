@@ -34,7 +34,13 @@ function fakeOp(over: Partial<PublishedCustomOperation> = {}): PublishedCustomOp
 
 function fakeResponse(over: Partial<SafeFetchResult> = {}): SafeFetchResult {
   const headers = over.headers ?? new Headers({ "content-type": "application/json" });
-  return { status: 200, bodyText: JSON.stringify({ id: "4821", status: "shipped" }), truncated: false, ...over, headers };
+  return {
+    status: 200,
+    bodyText: JSON.stringify({ id: "4821", status: "shipped" }),
+    truncated: false,
+    ...over,
+    headers,
+  };
 }
 
 function harness(opOver: Partial<PublishedCustomOperation> = {}, over: Partial<CustomApiConnectorDeps> = {}) {
@@ -48,8 +54,16 @@ function harness(opOver: Partial<PublishedCustomOperation> = {}, over: Partial<C
       lastVerifiedAt: "2026-10-01T00:00:00Z",
     }),
   );
-  const getPublishedOperation = vi.fn(async (_connectionId: string, _slug: string): Promise<PublishedCustomOperation | null> => op);
-  const deps: CustomApiConnectorDeps = { getPublishedOperation, getConnectionConfig, resolveSecret, fetch, ...over };
+  const getPublishedOperation = vi.fn(
+    async (_connectionId: string, _slug: string): Promise<PublishedCustomOperation | null> => op,
+  );
+  const deps: CustomApiConnectorDeps = {
+    getPublishedOperation,
+    getConnectionConfig,
+    resolveSecret,
+    fetch,
+    ...over,
+  };
   const connector = createCustomApiConnector(deps);
   return { connector, deps, fetch, resolveSecret, getConnectionConfig, getPublishedOperation, op };
 }
@@ -76,12 +90,19 @@ describe("Custom API connector", () => {
     it("resolves the operation, validates args, and extracts the resource", async () => {
       const { connector } = harness();
       const normalized = await connector.normalizeRequest(TOOL, { orderId: "4821" });
-      expect(normalized).toEqual({ tool: TOOL, operation: TOOL, resource: "4821", args: { orderId: "4821" } });
+      expect(normalized).toEqual({
+        tool: TOOL,
+        operation: TOOL,
+        resource: "4821",
+        args: { orderId: "4821" },
+      });
     });
 
     it("rejects a malformed tool name before ever querying the database", async () => {
       const { connector, getPublishedOperation } = harness();
-      await expect(connector.normalizeRequest("not-a-tool-name", {})).rejects.toThrow(CustomOperationValidationError);
+      await expect(connector.normalizeRequest("not-a-tool-name", {})).rejects.toThrow(
+        CustomOperationValidationError,
+      );
       expect(getPublishedOperation).not.toHaveBeenCalled();
     });
 
@@ -93,7 +114,9 @@ describe("Custom API connector", () => {
 
     it("rejects path traversal in a path argument", async () => {
       const { connector } = harness();
-      await expect(connector.normalizeRequest(TOOL, { orderId: "../secret" })).rejects.toThrow(/PATH_TRAVERSAL|path separator/);
+      await expect(connector.normalizeRequest(TOOL, { orderId: "../secret" })).rejects.toThrow(
+        /PATH_TRAVERSAL|path separator/,
+      );
     });
   });
 
@@ -119,7 +142,11 @@ describe("Custom API connector", () => {
     });
 
     it("calls beforeWrite before dispatching a write operation", async () => {
-      const { connector } = harness({ effect: "write_update", method: "POST", pathTemplate: "/v1/orders/{orderId}/cancel" });
+      const { connector } = harness({
+        effect: "write_update",
+        method: "POST",
+        pathTemplate: "/v1/orders/{orderId}/cancel",
+      });
       const normalized = await connector.normalizeRequest(TOOL, { orderId: "4821" });
       const ctx = execContext();
       await connector.execute(normalized, ctx);
@@ -146,7 +173,9 @@ describe("Custom API connector", () => {
     it("refuses to dispatch against a non-active connection", async () => {
       const { connector, fetch } = harness({ connectionStatus: "suspended" });
       const normalized = await connector.normalizeRequest(TOOL, { orderId: "4821" });
-      await expect(connector.execute(normalized, execContext())).rejects.toMatchObject({ code: "CONNECTION_UNAVAILABLE" });
+      await expect(connector.execute(normalized, execContext())).rejects.toMatchObject({
+        code: "CONNECTION_UNAVAILABLE",
+      });
       expect(fetch).not.toHaveBeenCalled();
     });
   });
@@ -154,7 +183,9 @@ describe("Custom API connector", () => {
   describe("execute (the blocked request)", () => {
     it("treats a non-2xx upstream response as a failure, not a success", async () => {
       const { connector, fetch } = harness();
-      fetch.mockResolvedValueOnce(fakeResponse({ status: 404, bodyText: JSON.stringify({ error: "not found" }) }));
+      fetch.mockResolvedValueOnce(
+        fakeResponse({ status: 404, bodyText: JSON.stringify({ error: "not found" }) }),
+      );
       const normalized = await connector.normalizeRequest(TOOL, { orderId: "9999" });
       await expect(connector.execute(normalized, execContext())).rejects.toThrow(/UPSTREAM_STATUS_404/);
     });
@@ -178,7 +209,11 @@ describe("Custom API connector", () => {
 
     it("reports not_configured when the base URL fails SSRF validation", async () => {
       const { connector, getConnectionConfig } = harness();
-      getConnectionConfig.mockResolvedValueOnce({ status: "active", config: { baseUrl: "http://insecure.example.com" }, lastVerifiedAt: null });
+      getConnectionConfig.mockResolvedValueOnce({
+        status: "active",
+        config: { baseUrl: "http://insecure.example.com" },
+        lastVerifiedAt: null,
+      });
       const health = await connector.verifyInstallation({ connectionId: CONNECTION_ID });
       expect(health.status).toBe("not_configured");
       expect(health.reasons).toContain("BASE_URL_NOT_ALLOWED");

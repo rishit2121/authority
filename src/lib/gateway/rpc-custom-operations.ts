@@ -52,7 +52,10 @@ export async function createCustomOperationDraft(
       input.invocationLimit,
     ],
   );
-  return { status: rows[0].ccod_status as string, operationId: (rows[0].ccod_operation_id as string) ?? null };
+  return {
+    status: rows[0].ccod_status as string,
+    operationId: (rows[0].ccod_operation_id as string) ?? null,
+  };
 }
 
 export interface UpdateCustomOperationDraftInput {
@@ -116,11 +119,10 @@ export async function publishCustomOperation(input: {
   userId: string;
   operationId: string;
 }): Promise<string> {
-  const rows = await gatewayQuery<Row>(`select gateway.publish_custom_operation($1::uuid, $2::uuid, $3::uuid) as status`, [
-    input.tenantId,
-    input.userId,
-    input.operationId,
-  ]);
+  const rows = await gatewayQuery<Row>(
+    `select gateway.publish_custom_operation($1::uuid, $2::uuid, $3::uuid) as status`,
+    [input.tenantId, input.userId, input.operationId],
+  );
   return rows[0].status as string;
 }
 
@@ -129,11 +131,10 @@ export async function retireCustomOperation(input: {
   userId: string;
   operationId: string;
 }): Promise<string> {
-  const rows = await gatewayQuery<Row>(`select gateway.retire_custom_operation($1::uuid, $2::uuid, $3::uuid) as status`, [
-    input.tenantId,
-    input.userId,
-    input.operationId,
-  ]);
+  const rows = await gatewayQuery<Row>(
+    `select gateway.retire_custom_operation($1::uuid, $2::uuid, $3::uuid) as status`,
+    [input.tenantId, input.userId, input.operationId],
+  );
   return rows[0].status as string;
 }
 
@@ -157,10 +158,10 @@ export async function getPublishedCustomOperation(
   connectionId: string,
   operationSlug: string,
 ): Promise<PublishedCustomOperation | null> {
-  const rows = await gatewayQuery<Row>(
-    `select * from gateway.get_published_custom_operation($1::uuid, $2)`,
-    [connectionId, operationSlug],
-  );
+  const rows = await gatewayQuery<Row>(`select * from gateway.get_published_custom_operation($1::uuid, $2)`, [
+    connectionId,
+    operationSlug,
+  ]);
   const r = rows[0];
   if (!r) return null;
   return {
@@ -214,7 +215,9 @@ export interface TenantPublishedOperation {
  * session, or from the task id via gateway.jev_risk_mode_for_task's same
  * side-effect-free pattern for the runtime authorize path).
  */
-export async function listPublishedCustomOperationsForTenant(tenantId: string): Promise<TenantPublishedOperation[]> {
+export async function listPublishedCustomOperationsForTenant(
+  tenantId: string,
+): Promise<TenantPublishedOperation[]> {
   const rows = await gatewayQuery<Row>(
     `select * from gateway.list_published_custom_operations_for_tenant($1::uuid)`,
     [tenantId],

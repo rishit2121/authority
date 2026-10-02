@@ -96,12 +96,17 @@ export function validateDestinationUrl(rawUrl: string): URL {
   } catch {
     throw new NetworkGuardError("INVALID_URL", "Not a valid URL.");
   }
-  if (url.protocol !== "https:") throw new NetworkGuardError("HTTPS_REQUIRED", "Only https:// destinations are allowed.");
-  if (url.username || url.password) throw new NetworkGuardError("USERINFO_NOT_ALLOWED", "URL userinfo is not allowed.");
+  if (url.protocol !== "https:")
+    throw new NetworkGuardError("HTTPS_REQUIRED", "Only https:// destinations are allowed.");
+  if (url.username || url.password)
+    throw new NetworkGuardError("USERINFO_NOT_ALLOWED", "URL userinfo is not allowed.");
   const port = url.port ? Number(url.port) : 443;
   if (!ALLOWED_PORTS.has(port)) throw new NetworkGuardError("PORT_NOT_ALLOWED", "Only port 443 is allowed.");
   if (net.isIP(url.hostname) && isBlockedIp(url.hostname)) {
-    throw new NetworkGuardError("DESTINATION_NOT_ALLOWED", "This destination is not reachable from a connector.");
+    throw new NetworkGuardError(
+      "DESTINATION_NOT_ALLOWED",
+      "This destination is not reachable from a connector.",
+    );
   }
   return url;
 }
@@ -115,7 +120,11 @@ export function validateDestinationUrl(rawUrl: string): URL {
  */
 export async function resolveAndValidateHost(hostname: string): Promise<string> {
   if (net.isIP(hostname)) {
-    if (isBlockedIp(hostname)) throw new NetworkGuardError("DESTINATION_NOT_ALLOWED", "This destination is not reachable from a connector.");
+    if (isBlockedIp(hostname))
+      throw new NetworkGuardError(
+        "DESTINATION_NOT_ALLOWED",
+        "This destination is not reachable from a connector.",
+      );
     return hostname;
   }
   let addresses: LookupAddress[];
@@ -124,9 +133,13 @@ export async function resolveAndValidateHost(hostname: string): Promise<string> 
   } catch {
     throw new NetworkGuardError("DNS_RESOLUTION_FAILED", "Could not resolve the destination host.");
   }
-  if (addresses.length === 0) throw new NetworkGuardError("DNS_RESOLUTION_FAILED", "Could not resolve the destination host.");
+  if (addresses.length === 0)
+    throw new NetworkGuardError("DNS_RESOLUTION_FAILED", "Could not resolve the destination host.");
   if (addresses.some((a) => isBlockedIp(a.address))) {
-    throw new NetworkGuardError("DESTINATION_NOT_ALLOWED", "This destination is not reachable from a connector.");
+    throw new NetworkGuardError(
+      "DESTINATION_NOT_ALLOWED",
+      "This destination is not reachable from a connector.",
+    );
   }
   // Pin to the first validated address for this request, rather than letting
   // the HTTP client re-resolve DNS at connect time (the actual rebinding

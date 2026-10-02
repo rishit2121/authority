@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { NetworkGuardError, isBlockedIp, validateDestinationUrl } from "@/lib/connectors/custom-api/network-guard";
+import {
+  NetworkGuardError,
+  isBlockedIp,
+  validateDestinationUrl,
+} from "@/lib/connectors/custom-api/network-guard";
 
 describe("isBlockedIp", () => {
   it.each([
@@ -32,12 +36,19 @@ describe("isBlockedIp", () => {
     },
   );
 
-  it.each(["::1", "::", "fe80::1", "fc00::1", "fd00::1", "ff02::1", "2001:db8::1", "::ffff:127.0.0.1", "::ffff:10.0.0.1"])(
-    "blocks IPv6 %s",
-    (ip) => {
-      expect(isBlockedIp(ip)).toBe(true);
-    },
-  );
+  it.each([
+    "::1",
+    "::",
+    "fe80::1",
+    "fc00::1",
+    "fd00::1",
+    "ff02::1",
+    "2001:db8::1",
+    "::ffff:127.0.0.1",
+    "::ffff:10.0.0.1",
+  ])("blocks IPv6 %s", (ip) => {
+    expect(isBlockedIp(ip)).toBe(true);
+  });
 
   it.each(["2001:4860:4860::8888", "::ffff:8.8.8.8"])("allows public IPv6 %s", (ip) => {
     expect(isBlockedIp(ip)).toBe(false);
@@ -68,7 +79,9 @@ describe("validateDestinationUrl", () => {
 
   it("rejects a literal private/loopback/metadata IP as the host", () => {
     expect(() => validateDestinationUrl("https://127.0.0.1/x")).toThrow(NetworkGuardError);
-    expect(() => validateDestinationUrl("https://169.254.169.254/latest/meta-data")).toThrow(NetworkGuardError);
+    expect(() => validateDestinationUrl("https://169.254.169.254/latest/meta-data")).toThrow(
+      NetworkGuardError,
+    );
     expect(() => validateDestinationUrl("https://10.0.0.5/x")).toThrow(NetworkGuardError);
   });
 

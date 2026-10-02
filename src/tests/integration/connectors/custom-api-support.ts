@@ -2,10 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { toCustomApiConnectorId } from "@/lib/connectors/custom-api/connection-id";
 import { closeGatewayPool } from "@/lib/gateway/db";
-import {
-  createConnectorConnection,
-  disconnectConnectorConnection,
-} from "@/lib/gateway/rpc-connectors";
+import { createConnectorConnection, disconnectConnectorConnection } from "@/lib/gateway/rpc-connectors";
 import { setConnectorSecret, updateConnectorConnectionConfig } from "@/lib/gateway/rpc-connector-secrets";
 import {
   createCustomOperationDraft,
@@ -130,7 +127,10 @@ export async function publishOperation(
   if (published !== "ok") {
     throw new Error(`publishOperation: publish ${published}`);
   }
-  return { operationSlug: options.operationSlug, toolName: `${fixture.connectorId}.${options.operationSlug}` };
+  return {
+    operationSlug: options.operationSlug,
+    toolName: `${fixture.connectorId}.${options.operationSlug}`,
+  };
 }
 
 export async function setBearerSecret(fixture: CustomApiConnectionFixture, token: string): Promise<void> {
@@ -144,8 +144,15 @@ export async function setBearerSecret(fixture: CustomApiConnectionFixture, token
   if (result !== "ok") throw new Error(`setBearerSecret: ${result}`);
 }
 
-export async function disconnectCustomApiConnection(fixture: CustomApiConnectionFixture, adminUserId: string): Promise<void> {
-  const result = await disconnectConnectorConnection({ tenantId: fixture.tenantId, userId: adminUserId, connectionId: fixture.connectionId });
+export async function disconnectCustomApiConnection(
+  fixture: CustomApiConnectionFixture,
+  adminUserId: string,
+): Promise<void> {
+  const result = await disconnectConnectorConnection({
+    tenantId: fixture.tenantId,
+    userId: adminUserId,
+    connectionId: fixture.connectionId,
+  });
   if (result.status !== "ok") throw new Error(`disconnectCustomApiConnection: ${result.status}`);
 }
 

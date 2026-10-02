@@ -39,7 +39,10 @@ export async function resolveConnectorSecret(
   return rows[0]?.resolve_connector_secret ?? null;
 }
 
-export async function hasConnectorSecret(connectionId: string, secretType: ConnectorSecretType): Promise<boolean> {
+export async function hasConnectorSecret(
+  connectionId: string,
+  secretType: ConnectorSecretType,
+): Promise<boolean> {
   const rows = await gatewayQuery<{ has_connector_secret: boolean }>(
     `select gateway.has_connector_secret($1::uuid, $2) as has_connector_secret`,
     [connectionId, secretType],
@@ -54,11 +57,14 @@ export interface ConnectorConnectionConfig {
 }
 
 /** Generic connection read usable by any connector's verifyInstallation(). Returns null for a disconnected or nonexistent connection. */
-export async function getConnectorConnectionConfig(connectionId: string): Promise<ConnectorConnectionConfig | null> {
-  const rows = await gatewayQuery<{ gccc_status: string; gccc_config: Record<string, unknown>; gccc_last_verified_at: string | null }>(
-    `select * from gateway.get_connector_connection_config($1::uuid)`,
-    [connectionId],
-  );
+export async function getConnectorConnectionConfig(
+  connectionId: string,
+): Promise<ConnectorConnectionConfig | null> {
+  const rows = await gatewayQuery<{
+    gccc_status: string;
+    gccc_config: Record<string, unknown>;
+    gccc_last_verified_at: string | null;
+  }>(`select * from gateway.get_connector_connection_config($1::uuid)`, [connectionId]);
   const r = rows[0];
   if (!r) return null;
   return { status: r.gccc_status, config: r.gccc_config ?? {}, lastVerifiedAt: r.gccc_last_verified_at };

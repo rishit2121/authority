@@ -30,7 +30,14 @@ export async function createConnectorConnection(input: {
 }): Promise<{ status: string; connectionId: string | null }> {
   const rows = await gatewayQuery<Row>(
     `select * from gateway.create_connector_connection($1::uuid, $2::uuid, $3, $4, $5::public.tenant_environment, $6::uuid)`,
-    [input.tenantId, input.userId, input.connectorId, input.name, input.environment, input.connectionId ?? null],
+    [
+      input.tenantId,
+      input.userId,
+      input.connectorId,
+      input.name,
+      input.environment,
+      input.connectionId ?? null,
+    ],
   );
   return { status: rows[0].cc_status as string, connectionId: (rows[0].cc_connection_id as string) ?? null };
 }

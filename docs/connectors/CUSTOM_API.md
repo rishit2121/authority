@@ -46,7 +46,7 @@ three places above, plus their tests.
   fields.)
 - A path field is always `"required": true` — an optional path segment
   isn't a thing this schema can express.
-- A path *value* may never itself contain `/`, `\`, `..`, or their
+- A path _value_ may never itself contain `/`, `\`, `..`, or their
   percent-encoded forms (`%2f`, `%5c`, `%2e%2e`) — enforced at request-build
   time (`assertSafePathSegment`), not authoring time, since it depends on
   the agent's actual argument value, not the definition.
@@ -84,7 +84,7 @@ three places above, plus their tests.
 - `auth_type`: `none`, `bearer`, `api_key_header`, or `basic`.
 - The credential itself (bearer token, API key, or basic username/password)
   is never part of the operation definition. It is stored once per
-  *connection* (not per operation) in `connector_connection_secrets`,
+  _connection_ (not per operation) in `connector_connection_secrets`,
   referencing a Supabase Vault secret by UUID, and resolved only inside the
   connector's own `execute()` at dispatch time. An operation's `auth_config`
   may only carry non-secret configuration (currently: the header name for

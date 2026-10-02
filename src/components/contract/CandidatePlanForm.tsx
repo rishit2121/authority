@@ -351,7 +351,11 @@ export function CandidatePlanForm({
           onClick={handlePropose}
           disabled={pending || !hasAccepted}
           aria-busy={pending}
-          title={!hasAccepted ? "Validate first — at least one node must be accepted or flagged for review" : undefined}
+          title={
+            !hasAccepted
+              ? "Validate first — at least one node must be accepted or flagged for review"
+              : undefined
+          }
           className="flex h-11 items-center gap-2 rounded-lg bg-primary px-space-lg font-headline-sm text-body-md font-medium text-on-primary transition-colors hover:bg-primary-fixed disabled:cursor-not-allowed disabled:opacity-70"
         >
           {pending ? "Proposing…" : "Propose contract"}

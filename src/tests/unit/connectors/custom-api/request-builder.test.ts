@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { buildRequest, validateArguments } from "@/lib/connectors/custom-api/request-builder";
-import { CustomOperationValidationError, type CustomOperationDefinitionRow } from "@/lib/connectors/custom-api/types";
+import {
+  CustomOperationValidationError,
+  type CustomOperationDefinitionRow,
+} from "@/lib/connectors/custom-api/types";
 
 const lookupOrder: Pick<
   CustomOperationDefinitionRow,
@@ -28,7 +31,9 @@ describe("validateArguments", () => {
   });
 
   it("rejects an undeclared argument", () => {
-    expect(() => validateArguments(lookupOrder, { orderId: "1", extra: "x" })).toThrow(/not a declared argument/);
+    expect(() => validateArguments(lookupOrder, { orderId: "1", extra: "x" })).toThrow(
+      /not a declared argument/,
+    );
   });
 
   it("rejects the wrong type", () => {
@@ -46,8 +51,16 @@ describe("buildRequest", () => {
   });
 
   it("never lets a path argument escape its own segment (the blocked request)", () => {
-    for (const malicious of ["../secret", "4821/../../etc/passwd", "a/b", "..%2f..%2fetc%2fpasswd", "%2e%2e%2f"]) {
-      expect(() => buildRequest(lookupOrder, { orderId: malicious })).toThrow(/PATH_TRAVERSAL|path separator|encoded separator/);
+    for (const malicious of [
+      "../secret",
+      "4821/../../etc/passwd",
+      "a/b",
+      "..%2f..%2fetc%2fpasswd",
+      "%2e%2e%2f",
+    ]) {
+      expect(() => buildRequest(lookupOrder, { orderId: malicious })).toThrow(
+        /PATH_TRAVERSAL|path separator|encoded separator/,
+      );
     }
   });
 
@@ -64,7 +77,13 @@ describe("buildRequest", () => {
       inputSchema: {
         schemaVersion: 1 as const,
         fields: [
-          { key: "status", type: "string" as const, required: false, identifiesResource: true, in: "query" as const },
+          {
+            key: "status",
+            type: "string" as const,
+            required: false,
+            identifiesResource: true,
+            in: "query" as const,
+          },
         ],
       },
     };
@@ -80,8 +99,20 @@ describe("buildRequest", () => {
       inputSchema: {
         schemaVersion: 1 as const,
         fields: [
-          { key: "orderId", type: "string" as const, required: true, identifiesResource: true, in: "path" as const },
-          { key: "reason", type: "string" as const, required: false, identifiesResource: false, in: "body" as const },
+          {
+            key: "orderId",
+            type: "string" as const,
+            required: true,
+            identifiesResource: true,
+            in: "path" as const,
+          },
+          {
+            key: "reason",
+            type: "string" as const,
+            required: false,
+            identifiesResource: false,
+            in: "body" as const,
+          },
         ],
       },
     };
@@ -99,9 +130,14 @@ describe("buildRequest", () => {
 
     const withAuthOverride = {
       ...lookupOrder,
-      requestMapping: { schemaVersion: 1 as const, staticHeaders: [{ name: "Authorization", value: "Bearer evil" }] },
+      requestMapping: {
+        schemaVersion: 1 as const,
+        staticHeaders: [{ name: "Authorization", value: "Bearer evil" }],
+      },
     };
-    expect(() => buildRequest(withAuthOverride, { orderId: "1" })).toThrow(/cannot be set by a static header/);
+    expect(() => buildRequest(withAuthOverride, { orderId: "1" })).toThrow(
+      /cannot be set by a static header/,
+    );
   });
 
   it("throws if no field is marked identifiesResource", () => {
@@ -109,7 +145,15 @@ describe("buildRequest", () => {
       ...lookupOrder,
       inputSchema: {
         schemaVersion: 1 as const,
-        fields: [{ key: "orderId", type: "string" as const, required: true, identifiesResource: false, in: "path" as const }],
+        fields: [
+          {
+            key: "orderId",
+            type: "string" as const,
+            required: true,
+            identifiesResource: false,
+            in: "path" as const,
+          },
+        ],
       },
     };
     expect(() => buildRequest(misconfigured, { orderId: "1" })).toThrow(/identifiesResource/);
