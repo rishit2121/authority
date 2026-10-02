@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { Icon } from "@/components/ui/Icon";
 import { missingGoogleOAuthConfig } from "@/lib/connectors/gmail/config";
@@ -86,6 +87,12 @@ export default async function GmailIntegrationPage({
           sending an email always requires human review first, unconditionally, because it leaves the
           organization.
         </p>
+        <Link
+          href="/docs/connectors/gmail"
+          className="mt-space-sm inline-block text-[13px] text-outline underline underline-offset-2"
+        >
+          View docs
+        </Link>
       </header>
 
       <div

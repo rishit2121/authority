@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { Icon } from "@/components/ui/Icon";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
@@ -92,6 +93,12 @@ export default async function PostgresIntegrationPage() {
           API&apos;s operations. Published is frozen forever; a query&apos;s SQL never changes under a
           contract that already pinned it.
         </p>
+        <Link
+          href="/docs/connectors/postgres"
+          className="mt-space-sm inline-block text-[13px] text-outline underline underline-offset-2"
+        >
+          View docs
+        </Link>
       </header>
 
       <div

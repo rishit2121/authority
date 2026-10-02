@@ -86,6 +86,7 @@ export default async function CustomApiIntegrationPage() {
       <PageHeader
         title="Custom API"
         description="Connect any HTTPS API your tenant controls, then define and publish named operations for it."
+        secondaryAction={{ label: "View docs", href: "/docs/connectors/custom-api" }}
       />
 
       <details className="group rounded-[10px] border border-line bg-paper px-3.5 py-2.5">

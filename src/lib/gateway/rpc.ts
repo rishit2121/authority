@@ -17,7 +17,12 @@ export type GatewayStatus =
   | "rate_limited"
   | "task_not_found"
   | "agent_mismatch"
-  | "idempotency_conflict";
+  | "idempotency_conflict"
+  | "no_active_contract"
+  | "session_task_mismatch"
+  | "session_contract_stale"
+  | "session_revoked"
+  | "session_expired";
 
 type Outcome = "allow" | "allow_constrained" | "replan" | "clarify" | "require_approval" | "deny";
 type Mode = "off" | "shadow" | "enforce";
@@ -256,21 +261,23 @@ export async function tenantForTask(taskId: string): Promise<string | null> {
 
 export interface ActiveContractSummary {
   contractId: string;
+  version: number;
   /** Each item's shape matches src/lib/domain/task-authority-contract.ts's own allowedActionSchema. */
   allowedActions: Array<{ tool: string; constraints: unknown[]; maxInvocations?: number }>;
 }
 
 /** Side-effect-free; returns null when the task has no currently active contract. See gateway.active_contract_for_task's own comment -- discovery only, grants nothing by itself. */
 export async function activeContractForTask(taskId: string): Promise<ActiveContractSummary | null> {
-  const rows = await gatewayQuery<{ acft_contract_id: string; acft_allowed_actions: unknown }>(
-    `select * from gateway.active_contract_for_task($1::uuid)`,
-    [taskId],
-  );
+  const rows = await gatewayQuery<{
+    acft_contract_id: string;
+    acft_version: number;
+    acft_allowed_actions: unknown;
+  }>(`select * from gateway.active_contract_for_task($1::uuid)`, [taskId]);
   const r = rows[0];
   if (!r) return null;
   // allowed_actions is versioned JSONB ({schemaVersion, items}), same
   // envelope src/lib/persistence/mappers/contract.ts unwraps for the
   // RLS-governed app repository's own read of this column.
   const payload = r.acft_allowed_actions as { items?: ActiveContractSummary["allowedActions"] } | null;
-  return { contractId: r.acft_contract_id, allowedActions: payload?.items ?? [] };
+  return { contractId: r.acft_contract_id, version: r.acft_version, allowedActions: payload?.items ?? [] };
 }

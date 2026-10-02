@@ -26,21 +26,25 @@ info:
     ## The three things this API deliberately keeps separate
 
     - **Agent credential** (`authority_rk_...`) — identifies a registered
-      agent. Proves *who is calling*, nothing else.
-    - **Task session** (`authority_ts_...`, planned) — binds that agent to
-      one task and one contract version. Grants no tool authority by itself;
-      it exists so a client doesn't have to re-send the agent credential on
-      every call and so Authority can filter which tools a client even sees.
+      agent. Proves *who is calling*, nothing else. Works on every endpoint
+      below, for any of that agent's tasks.
+    - **Task session** (`authority_ts_...`) — an optional, short-lived
+      (≤15 minutes) stand-in for the agent credential, scoped to one task and
+      the contract version active when it was created. It exists so a client
+      doesn't have to re-send the long-lived credential on every call — it
+      grants no tool authority of its own and is resolved through the exact
+      same check a credential is on every `/authorize` or `/execute` call.
     - **Capability** (`authcap_v1_...`) — the only thing that ever authorizes
       one exact operation, resource, and argument set, for a short time, a
       bounded number of uses. Every protected call is authorized
       independently; nothing upstream of a capability is an enforcement
       boundary.
 
-    A filtered tool list (whether from `all_registered` wide-open diagnostics
-    or the `active_contract` default) reduces mistakes and attack surface.
-    It is never itself the thing that decides whether a call is allowed —
-    `POST /authorize` (or, with a session, `POST /tools/{tool}/run`) is.
+    `GET /tasks/{taskId}/tools` returns a contract-filtered list of what's
+    currently callable. It reduces mistakes and attack surface for a client
+    choosing what to ask for, but it is never itself the thing that decides
+    whether a call is allowed — `POST /authorize` is, for every call, whether
+    or not it was listed.
   license:
     name: Proprietary
 servers:
@@ -65,11 +69,9 @@ tags:
   - name: approvals
     description: Human-in-the-loop approval status.
   - name: sessions
-    x-status: planned
-    description: Task-bound sessions (Phase 12).
+    description: Task-bound sessions — an optional, short-lived stand-in for the agent credential.
   - name: manifests
-    x-status: planned
-    description: Contract-filtered tool manifests (Phase 13).
+    description: Contract-filtered tool manifests.
 
 paths:
   /health:
@@ -261,10 +263,11 @@ paths:
         reserve -> dispatch -> settle -> receipt lifecycle `/github/execute`
         uses, generalized in `gateway.reserve_connector_execution` and its
         siblings. Returns `501 OPERATION_NOT_SUPPORTED` for any tool whose
-        provider has no connector registered yet — as of this spec version,
-        no connector is registered here; `github.*` tools remain reachable
-        only at their existing dedicated path, not through this one, since
-        GitHub has not moved onto the shared interface (Phase 4).
+        provider has no connector registered (today: Custom API, Stripe,
+        Gmail, Slack, and PostgreSQL are registered here). `github.*` tools
+        are deliberately NOT reachable through this path — they remain at
+        their own dedicated `/github/execute` route, with its own executor
+        and GitHub-specific failure codes.
       requestBody:
         required: true
         content:
@@ -307,15 +310,15 @@ paths:
       operationId: createSession
       summary: Establish a task-bound session
       tags: [sessions]
-      x-status: planned
+      x-status: stable
       description: |
-        Phase 12. Binds the calling agent credential to one task and its
-        currently active contract version. A session grants no tool
-        authority by itself — every call made while holding one still goes
-        through `/authorize` (or `/tools/{tool}/run`, which does so
-        internally). Expiration is bounded by the earliest of the task's,
-        contract's, credential's, and tenant's own limits; default maximum
-        lifetime is approximately 15 minutes. Only the token hash is stored.
+        Exchanges the calling agent credential for a short-lived token bound
+        to one task and its currently active contract version. A session
+        grants no tool authority by itself — every call made while holding
+        one still goes through `/authorize` and `/execute` (or
+        `/github/execute`), checked exactly as a direct credential would be.
+        Maximum lifetime is 15 minutes regardless of `ttlSeconds` requested.
+        Only the token hash is stored; the plaintext is returned once, here.
       requestBody:
         required: true
         content:
@@ -326,9 +329,11 @@ paths:
               additionalProperties: false
               properties:
                 taskId: { type: string, format: uuid }
-                toolExposureMode:
-                  $ref: "#/components/schemas/ToolExposureMode"
-                  default: active_contract
+                ttlSeconds:
+                  type: integer
+                  minimum: 60
+                  maximum: 900
+                  default: 900
       responses:
         "200":
           description: The session token, returned exactly once.
@@ -336,21 +341,21 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [sessionId, token, expiresAt, contract]
+                required: [sessionId, token, taskId, contract, expiresAt]
                 properties:
                   sessionId: { type: string, format: uuid }
                   token:
                     type: string
                     pattern: "^authority_ts_"
                     description: Opaque. Shown only in this response; only its hash is ever stored.
-                  expiresAt: { type: string, format: date-time }
+                  taskId: { type: string, format: uuid }
                   contract:
                     type: object
                     required: [id, version]
                     properties:
                       id: { type: string, format: uuid }
                       version: { type: integer }
-                  registryVersion: { type: string }
+                  expiresAt: { type: string, format: date-time }
         "404": { $ref: "#/components/responses/TaskNotFound" }
         "409":
           description: NO_ACTIVE_CONTRACT — a session cannot be established for a task with no currently active contract.
@@ -358,20 +363,64 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/ErrorEnvelope" }
 
-  /sessions/{id}:
-    delete:
-      operationId: revokeSession
-      summary: Revoke a task session
+  /sessions/current:
+    get:
+      operationId: getCurrentSession
+      summary: Introspect the presented session token
       tags: [sessions]
-      x-status: planned
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
+      x-status: stable
+      description: |
+        Unlike every other endpoint, this one gives a specific, typed reason
+        a session is no longer usable (expired, revoked, or its issuing
+        credential/agent is no longer active) rather than the single
+        collapsed `UNAUTHENTICATED` used elsewhere — it exists specifically
+        so a client can tell these apart.
       security:
         - taskSession: []
-        - agentCredential: []
+      responses:
+        "200":
+          description: The session is live.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId: { type: string, format: uuid }
+                  taskId: { type: string, format: uuid }
+                  agentId: { type: string, format: uuid }
+                  contract:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      version: { type: integer }
+                  expiresAt: { type: string, format: date-time }
+        "401":
+          description: SESSION_NOT_FOUND, SESSION_REVOKED, SESSION_EXPIRED, or SESSION_CREDENTIAL_REVOKED.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+
+  /sessions/revoke:
+    post:
+      operationId: revokeSession
+      summary: End the presented session early
+      tags: [sessions]
+      x-status: stable
+      description: |
+        Self-revocation, authenticated by the session token itself — the
+        same "you hold it, you can end it" shape as revoking a capability.
+        Idempotent; an empty body is fine.
+      security:
+        - taskSession: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: string, maxLength: 500 }
       responses:
         "200":
           description: Revoked (idempotent).
@@ -380,24 +429,23 @@ paths:
               schema:
                 type: object
                 properties:
-                  result: { type: string, enum: [revoked, already_revoked] }
-        "404": { description: Unknown or not this agent's/tenant's session. }
+                  result: { type: string, enum: [ok, already_revoked] }
+        "404": { description: Unknown session. }
 
   /tasks/{taskId}/tools:
     get:
       operationId: listTaskTools
       summary: Fetch the contract-filtered tool manifest for a task
       tags: [manifests]
-      x-status: planned
+      x-status: stable
       description: |
-        Phase 13. In `active_contract` mode (the production default) this
-        exposes only operations in the task's currently valid active
-        contract — never the full registry, and never a stale manifest for a
-        contract that has since expired, been revoked, or been superseded.
-        `all_registered` is an explicitly gated diagnostic mode, not a
-        production default, and is unavailable unless the tenant has turned
-        it on for this task.
+        Exposes only operations in the task's currently active contract —
+        never the full registry, and never a stale manifest for a contract
+        that has since expired, been revoked, or been superseded. Listing a
+        tool here grants nothing by itself; `/authorize` independently
+        checks every call regardless of what this returned.
       security:
+        - agentCredential: []
         - taskSession: []
       parameters:
         - name: taskId
@@ -406,16 +454,16 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         "200":
-          description: The manifest. Supports conditional requests via ETag.
-          headers:
-            ETag:
-              schema: { type: string }
-              description: Hash of task id + contract id/version + registry version + tool set.
+          description: The manifest.
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ToolManifest" }
-        "304":
-          description: Not modified (If-None-Match matched the current ETag).
+        "403":
+          description: AGENT_TASK_MISMATCH — a session presented for a different task than it was issued for.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ErrorEnvelope" }
+        "404": { $ref: "#/components/responses/TaskNotFound" }
         "409":
           description: NO_ACTIVE_CONTRACT — never falls back to the full registry.
           content:
@@ -433,7 +481,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: "authority_ts_<opaque>"
-      description: Planned (Phase 12). Binds an agent credential to one task and contract version. Grants no tool authority by itself.
+      description: >
+        An optional, short-lived stand-in for an agent credential, bound to
+        one task and contract version. Grants no tool authority by itself;
+        accepted anywhere an agent credential is, for that one task.
 
   headers:
     XRequestId:
@@ -441,14 +492,6 @@ components:
       description: Echoed on every response, success or failure, for correlation. Never a token or payload.
 
   schemas:
-    ToolExposureMode:
-      type: string
-      enum: [active_contract, all_registered]
-      description: >
-        `active_contract` (default) exposes only the task's currently active
-        contract's tools. `all_registered` is gated diagnostic behavior, not
-        a production default.
-
     ArgumentValue:
       oneOf:
         - type: string
@@ -660,7 +703,7 @@ components:
 
     ToolManifest:
       type: object
-      required: [taskId, contract, registryVersion, manifestHash, generatedAt, expiresAt, tools]
+      required: [taskId, contract, versions, manifestHash, tools]
       properties:
         taskId: { type: string, format: uuid }
         contract:
@@ -669,40 +712,48 @@ components:
           properties:
             id: { type: string, format: uuid }
             version: { type: integer }
-        registryVersion: { type: string }
-        manifestHash: { type: string }
-        generatedAt: { type: string, format: date-time }
-        expiresAt: { type: string, format: date-time }
+        versions:
+          type: object
+          description: The registry and compiler versions this manifest was computed against.
+          properties:
+            registry: { type: string }
+            compiler: { type: string }
+        manifestHash:
+          type: string
+          description: Changes whenever the contract, registry, or tool set changes — cheap to compare before re-fetching.
         tools:
           type: array
           items: { $ref: "#/components/schemas/ManifestTool" }
 
     ManifestTool:
       type: object
-      required: [name, connector, operation, description, inputSchema, effect, useLimit, approvalRequired]
+      required: [tool, description, inputSchema, resourceConstraints, maxInvocations, requiresApproval]
       description: >
         Descriptions and schemas come only from published trusted
         definitions — never credentials, internal policy text, provider
         prompts, other tenants' data, or model reasoning.
       properties:
-        name: { type: string }
-        connector: { type: string }
-        operation: { type: string }
+        tool:
+          type: string
+          description: The operation identifier — pass this as-is to /authorize.
         description: { type: string }
         inputSchema:
           type: object
-          description: JSON Schema for this operation's arguments.
-        effect: { type: string, enum: [read, write_create, write_update, write_delete, admin] }
+          description: Standard JSON Schema for this operation's arguments.
         resourceConstraints:
           type: array
+          description: This contract's own constraints on the operation (e.g. pinned to one resource).
           items:
             type: object
             properties:
               key: { type: string }
               equals: { type: string }
               matches: { type: string }
-        useLimit: { type: integer, nullable: true }
-        approvalRequired: { type: boolean }
+        maxInvocations:
+          type: integer
+          nullable: true
+          description: The remaining-uses budget this contract set for the tool, if any.
+        requiresApproval: { type: boolean }
 
   responses:
     InvalidRequest:

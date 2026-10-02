@@ -7,9 +7,7 @@ export const PRIMARY_NAV: NavLink[] = [
   { label: "Product", href: "#product" },
   { label: "How it works", href: "#how-it-works" },
   { label: "Security", href: "#security" },
-  // No standalone docs site exists yet; the interactive walkthrough is the closest
-  // thing to developer documentation this product currently ships.
-  { label: "Docs", href: "/demo" },
+  { label: "Docs", href: "/docs" },
 ];
 
 export interface FooterColumn {
@@ -28,7 +26,10 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
   },
   {
     title: "Developers",
-    links: [{ label: "Live walkthrough", href: "/demo" }],
+    links: [
+      { label: "Live walkthrough", href: "/demo" },
+      { label: "Documentation", href: "/docs" },
+    ],
   },
   {
     title: "Company",

@@ -112,8 +112,88 @@ describe("example agent client", () => {
     expect(out.message).toMatch(/do not retry/i);
   });
 
+  it("routes a non-GitHub tool through the generic execute endpoint, not GitHub's", async () => {
+    const { authority, calls } = client([
+      () =>
+        respond(200, {
+          status: "allow",
+          guidance: { nextStep: "proceed", message: "ok" },
+          capability: { token: "authcap_v1_x" },
+        }),
+      () => respond(200, { result: "succeeded", data: { id: "pi_1" }, receiptId: "r1" }),
+    ]);
+    const out = await authority.call({ ...base, tool: "stripe.retrieve_payment", resource: "pi_1" });
+    expect(out).toMatchObject({ kind: "done", data: { id: "pi_1" } });
+    expect(calls[1].url).toBe("https://a.example/api/v1/execute");
+  });
+
+  it("falls back to an 'authorized' outcome when no connector exists for the tool", async () => {
+    const { authority } = client([
+      () =>
+        respond(200, {
+          status: "allow",
+          guidance: { nextStep: "proceed", message: "ok" },
+          capability: { token: "authcap_v1_x" },
+        }),
+      () => respond(501, { error: { code: "OPERATION_NOT_SUPPORTED" } }),
+    ]);
+    const out = await authority.call({ ...base, tool: "unregistered.do_thing" });
+    expect(out.kind).toBe("authorized");
+    expect(out.capability).toMatchObject({ token: "authcap_v1_x" });
+  });
+
+  it("marks a replayed execution as done without claiming to have the original payload", async () => {
+    const { authority } = client([
+      () =>
+        respond(200, {
+          status: "allow",
+          guidance: { nextStep: "proceed", message: "ok" },
+          capability: { token: "authcap_v1_x" },
+        }),
+      () => respond(200, { replayed: true, status: "succeeded", receiptId: "r1" }),
+    ]);
+    const out = await authority.call(base);
+    expect(out).toMatchObject({ kind: "done", replayed: true, data: undefined });
+  });
+
   it("requires a base URL and a key", () => {
     expect(() => createAuthorityClient({ baseUrl: "", runtimeKey: KEY })).toThrow();
     expect(() => createAuthorityClient({ baseUrl: "https://a", runtimeKey: "" })).toThrow();
+    expect(() => createAuthorityClient({ baseUrl: "https://a" })).toThrow();
+  });
+
+  it("accepts a session token in place of a runtime key, sent the same way", async () => {
+    const SESSION = "authority_ts_" + "c".repeat(43);
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const authority = createAuthorityClient({
+      baseUrl: "https://a.example/",
+      sessionToken: SESSION,
+      fetchImpl: async (url: string, init: RequestInit) => {
+        calls.push({ url, init });
+        return respond(200, { sessionId: "s1", taskId: task, contract: { id: "c1", version: 1 } });
+      },
+    });
+    await authority.currentSession();
+    expect(calls[0].url).toBe("https://a.example/api/v1/sessions/current");
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${SESSION}`);
+  });
+
+  it("createSession and fetchTools call the expected endpoints", async () => {
+    const { authority, calls } = client([
+      () =>
+        respond(200, {
+          sessionId: "s1",
+          token: "authority_ts_x",
+          taskId: task,
+          contract: { id: "c1", version: 1 },
+        }),
+      () => respond(200, { taskId: task, contract: { id: "c1", version: 1 }, tools: [] }),
+    ]);
+    const session = await authority.createSession({ taskId: task });
+    expect(session.sessionId).toBe("s1");
+    expect(calls[0].url).toBe("https://a.example/api/v1/sessions");
+    const manifest = await authority.fetchTools(task);
+    expect(manifest.tools).toEqual([]);
+    expect(calls[1].url).toBe(`https://a.example/api/v1/tasks/${task}/tools`);
   });
 });
