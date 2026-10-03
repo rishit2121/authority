@@ -67,10 +67,13 @@ async function cleanupApplication(applicationId: string): Promise<void> {
         select id from public.customers where application_id = '${applicationId}'
       )
     );
+    -- Must come before deleting connector_connections: a completed session
+    -- stamps created_connection_id, which FKs straight at that table
+    -- (connection_sessions_created_connection_id_tenant_id_fkey).
+    delete from public.connection_sessions where application_id = '${applicationId}';
     delete from public.connector_connections where owner_customer_id in (
       select id from public.customers where application_id = '${applicationId}'
     );
-    delete from public.connection_sessions where application_id = '${applicationId}';
     delete from public.customers where application_id = '${applicationId}';
     delete from public.developer_backend_credentials where application_id = '${applicationId}';
     delete from public.applications where id = '${applicationId}';
@@ -241,7 +244,12 @@ test.describe("embedded customer connections", () => {
       expect(before.status()).toBeLessThan(300);
 
       await page.goto(`/app/settings/applications/${app.applicationId}`);
-      const row = page.locator('[data-testid^="backend-credential-"]').first();
+      // Scoped to the <li> specifically -- the create-credential form's own
+      // input/button (backend-credential-name, backend-credential-issue)
+      // also match a bare `[data-testid^="backend-credential-"]` prefix and
+      // appear earlier in the DOM, so `.first()` without the tag constraint
+      // silently grabbed one of those instead of the credential row.
+      const row = page.locator('li[data-testid^="backend-credential-"]').first();
       await row.getByRole("button", { name: "Revoke" }).click();
       await page.locator('input[placeholder="Revocation reason"]').fill("e2e test revocation");
       await page.getByRole("button", { name: "Confirm revoke" }).click();

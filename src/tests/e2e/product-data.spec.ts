@@ -91,12 +91,24 @@ test.describe("product pages read from Supabase", () => {
     await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
   });
 
-  test("integrations page shows persisted metadata, clearly labelled as simulated", async ({ page }) => {
+  test("integrations page shows the connector catalog and this tenant's real, persisted connection", async ({
+    page,
+  }) => {
+    // Previously asserted a "GitHub connector" heading and a lowercase
+    // "stripe" label with "simulated metadata only" / "no oauth token,
+    // password, api key" disclaimer text -- none of which this page (or any
+    // other) actually renders today; confirmed via a live accessibility
+    // snapshot, not assumed. The catalog's real heading is just the bare
+    // connector name ("GitHub", "Stripe", ...), consistent across every
+    // entry. This tenant's "Connections" section is shared, real data, not
+    // scoped to this test -- other suites may leave their own connections
+    // (e.g. a Custom API connection), so this checks the specific GitHub
+    // row's own accessible name, not a bare "Active" label that any
+    // connection's status pill could also match.
     await page.goto("/app/integrations");
-    await expect(page.getByRole("heading", { name: "GitHub connector" })).toBeVisible();
-    await expect(page.getByText("stripe", { exact: true })).toBeVisible();
-    await expect(page.getByText(/simulated metadata only/i)).toBeVisible();
-    await expect(page.getByText(/no oauth token, password, api key/i)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "GitHub", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stripe", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: /github · acme.*active/i })).toBeVisible();
   });
 
   test("approvals page shows the persisted pending approval with a decision form", async ({ page }) => {
@@ -107,9 +119,16 @@ test.describe("product pages read from Supabase", () => {
   });
 
   test("dynamic task investigation loads the persisted GitHub #991 task directly by id", async ({ page }) => {
-    await page.goto("/app/tasks");
-    const firstTaskLink = page.locator("table tbody tr a").first();
-    const href = await firstTaskLink.getAttribute("href");
+    // Previously took whatever task happened to sort first on an unfiltered
+    // /app/tasks and assumed it was this one -- true only when nothing else
+    // had ever created a more recent task for this tenant. The tasks list
+    // is shared, real, and grows with every other suite's and every
+    // manual/live-verification run's own activity, so this uses the page's
+    // own search (?q=) to find the specific demo task by name instead of by
+    // list position.
+    await page.goto("/app/tasks?q=991");
+    const taskLink = page.locator("table tbody tr a", { hasText: "991" }).first();
+    const href = await taskLink.getAttribute("href");
     expect(href).toMatch(/^\/app\/tasks\/[0-9a-f-]{36}$/);
 
     await page.goto(href!);
