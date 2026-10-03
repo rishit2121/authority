@@ -159,6 +159,7 @@ export default async function IntegrationsPage() {
       <PageHeader
         title="Integrations"
         description="Connect the services agents may access through Authority."
+        secondaryAction={{ label: "Connector docs", href: "/docs/connectors" }}
       />
 
       <section aria-labelledby="connector-catalog" className="flex flex-col gap-3">

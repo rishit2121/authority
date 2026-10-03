@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { Icon } from "@/components/ui/Icon";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
@@ -48,6 +49,12 @@ export default async function SlackIntegrationPage() {
           Post a message to one named channel and list the channels your bot user can see in the connected
           workspace — a fixed, audited set of operations against Slack&apos;s own Web API.
         </p>
+        <Link
+          href="/docs/connectors/slack"
+          className="mt-space-sm inline-block text-[13px] text-outline underline underline-offset-2"
+        >
+          View docs
+        </Link>
       </header>
 
       <div

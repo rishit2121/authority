@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AgentCredentialsPanel, type AgentCredentialRow } from "@/components/agent/AgentCredentialsPanel";
+import { ConnectAgentPanel } from "@/components/agent/ConnectAgentPanel";
 import { DecisionStatusBadge } from "@/components/ui/DecisionStatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill, type StatusTone } from "@/components/ui/StatusPill";
+import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
 import { loadAgentRecentToolCalls } from "@/lib/data/agents";
 import type { AgentStatus, DecisionStatus } from "@/lib/domain";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
@@ -69,6 +71,8 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
       </PageHeader>
 
       <AgentCredentialsPanel agentId={agentId} credentials={credentials} />
+
+      <ConnectAgentPanel baseUrl={publicBaseUrl() ?? "https://your-authority-deployment.example"} />
 
       <section aria-labelledby="recent-tool-calls" className="flex flex-col gap-3">
         <h2 id="recent-tool-calls" className="text-[15px] font-semibold text-ink">

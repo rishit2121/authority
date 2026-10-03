@@ -6,7 +6,9 @@ import type { FlowPhase, FlowStep } from "@/components/github/ExecutionFlowGraph
 import { reconcileExpiredReservations } from "@/lib/gateway/rpc-github";
 import { loadRuntimeApprovals, loadTaskGithub } from "@/lib/github/read-model";
 import { SemanticShadowPanel, type SemanticPanelRow } from "@/components/semantic/SemanticShadowPanel";
+import { ConnectAgentTaskPanel } from "@/components/task/ConnectAgentTaskPanel";
 import { TaskInvestigationView } from "@/components/task/TaskInvestigationView";
+import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
 import { loadTaskInvestigation } from "@/lib/data/task";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { EVIDENCE_COLUMNS, GATEWAY_EVIDENCE_COLUMNS, toEvidenceView } from "@/lib/semantic/read-model";
@@ -124,9 +126,17 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
     flow,
   };
 
+  const boundIntegrations = githubData.bound ? [`GitHub · ${githubData.bound.fullName}`] : [];
+
   return (
     <div className="flex flex-col gap-space-lg">
       <TaskInvestigationView investigation={investigation} />
+      <ConnectAgentTaskPanel
+        taskId={taskId}
+        baseUrl={publicBaseUrl() ?? "https://your-authority-deployment.example"}
+        contract={investigation.contract}
+        boundIntegrations={boundIntegrations}
+      />
       <GithubTaskPanel data={githubData} />
       <SemanticShadowPanel rows={panelRows} />
     </div>

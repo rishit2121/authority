@@ -9,14 +9,14 @@
  *   AUTHORITY_REPOSITORY=owner/repo \
  *   node examples/agent/sample-agent.mjs 1
  *
- * The task must have an active contract that allows github.get_issue (see docs/QUICKSTART.md).
+ * The task must have an active contract that allows github.get_issue (see the Quickstart at /docs/quickstart).
  */
 import { createAuthorityClient } from "./authority-client.mjs";
 
 const { AUTHORITY_URL, AUTHORITY_RUNTIME_KEY, AUTHORITY_TASK_ID, AUTHORITY_REPOSITORY } = process.env;
 if (!AUTHORITY_URL || !AUTHORITY_RUNTIME_KEY || !AUTHORITY_TASK_ID || !AUTHORITY_REPOSITORY) {
   console.error(
-    "Set AUTHORITY_URL, AUTHORITY_RUNTIME_KEY, AUTHORITY_TASK_ID and AUTHORITY_REPOSITORY. See docs/QUICKSTART.md.",
+    "Set AUTHORITY_URL, AUTHORITY_RUNTIME_KEY, AUTHORITY_TASK_ID and AUTHORITY_REPOSITORY. See the Quickstart at /docs/quickstart.",
   );
   process.exit(2);
 }

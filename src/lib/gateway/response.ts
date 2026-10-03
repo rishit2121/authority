@@ -186,5 +186,32 @@ export function failureContract(status: Exclude<GatewayStatus, "ok">): FailureCo
         code: "IDEMPOTENCY_CONFLICT",
         message: "This idempotency key was already used with different content.",
       };
+    case "no_active_contract":
+      return {
+        http: 409,
+        code: "NO_ACTIVE_CONTRACT",
+        message: "This task has no currently active contract.",
+      };
+    case "session_task_mismatch":
+      return {
+        http: 403,
+        code: "AGENT_TASK_MISMATCH",
+        message: "This session was issued for a different task.",
+      };
+    case "session_contract_stale":
+      return {
+        http: 409,
+        code: "SESSION_CONTRACT_STALE",
+        message:
+          "The task's active contract has changed since this session was created. Create a new session.",
+      };
+    case "session_revoked":
+    case "session_expired":
+      // Same anti-enumeration answer as an invalid/revoked runtime key: a caller cannot tell which applies.
+      return {
+        http: 401,
+        code: "UNAUTHENTICATED",
+        message: "The session token is missing, invalid, expired or revoked.",
+      };
   }
 }

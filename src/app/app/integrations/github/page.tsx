@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { InstallationActions, RepositoryToggle } from "@/components/github/GithubControls";
 import { ModeBadge } from "@/components/github/ModeBadge";
@@ -65,6 +66,12 @@ export default async function GithubIntegrationPage({
           below, and every execution mints a short-lived token limited to one repository, kept in memory and
           discarded.
         </p>
+        <Link
+          href="/docs/connectors/github"
+          className="mt-space-sm inline-block text-[13px] text-outline underline underline-offset-2"
+        >
+          View docs
+        </Link>
       </header>
 
       {errorMessage ? (

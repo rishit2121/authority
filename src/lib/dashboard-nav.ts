@@ -55,7 +55,10 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   },
   {
     label: "System",
-    items: [{ label: "Settings", href: "/app/settings", icon: "lock" }],
+    items: [
+      { label: "Settings", href: "/app/settings", icon: "lock" },
+      { label: "Docs", href: "/docs", icon: "description" },
+    ],
   },
 ];
 

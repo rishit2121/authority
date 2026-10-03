@@ -41,6 +41,7 @@ export default async function StripeIntegrationPage() {
       <PageHeader
         title="Stripe"
         description="Retrieve payments and customers, list charges, and issue refunds — a fixed, audited set of operations against Stripe's own API."
+        secondaryAction={{ label: "View docs", href: "/docs/connectors/stripe" }}
       />
 
       <details className="group rounded-[10px] border border-line bg-paper px-3.5 py-2.5">
