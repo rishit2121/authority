@@ -72,10 +72,16 @@ describe("buildTenantRegistry", () => {
     expect(permission.resourceBreadth).toBe(1);
   });
 
-  it("marks every custom operation as external communication, forcing mandatory review regardless of effect", async () => {
-    listPublishedCustomOperationsForTenant.mockResolvedValue([fakeOp({ effect: "read" })]);
-    const registry = await buildTenantRegistry("tenant-a");
-    expect(registry.operations.get("custom_abc123.get_order")!.externalCommunication).toBe(true);
+  it("marks a Custom API write, but not a read, as external communication -- only a write sends anything to the third party", async () => {
+    listPublishedCustomOperationsForTenant.mockResolvedValueOnce([fakeOp({ effect: "read" })]);
+    const readRegistry = await buildTenantRegistry("tenant-a");
+    expect(readRegistry.operations.get("custom_abc123.get_order")!.externalCommunication).toBe(false);
+
+    listPublishedCustomOperationsForTenant.mockResolvedValueOnce([
+      fakeOp({ toolName: "custom_abc123.cancel_order", effect: "write_update" }),
+    ]);
+    const writeRegistry = await buildTenantRegistry("tenant-b");
+    expect(writeRegistry.operations.get("custom_abc123.cancel_order")!.externalCommunication).toBe(true);
   });
 
   it("changes the registry version deterministically based on the published operation set", async () => {
@@ -147,7 +153,9 @@ describe("buildTenantRegistry", () => {
     expect(registry.operations.has("postgres_abc123.get_customer_orders")).toBe(true);
     expect(registry.operations.size).toBe(githubDemoRegistry.operations.length + 2);
     const op = registry.operations.get("postgres_abc123.get_customer_orders")!;
-    expect(op.externalCommunication).toBe(true);
+    // Never external communication, regardless of effect -- a Postgres
+    // connection targets the tenant's own database, never a third party.
+    expect(op.externalCommunication).toBe(false);
     expect(op.requiresApproval).toBe(false);
   });
 
@@ -156,5 +164,30 @@ describe("buildTenantRegistry", () => {
     listPublishedPostgresQueriesForTenant.mockResolvedValue([]);
     const registry = await buildTenantRegistry("tenant-a");
     expect(registry.registryVersion).toBe(githubDemoRegistry.registryVersion);
+  });
+
+  it("never marks a Postgres write as external communication either -- its own database is never a third party", async () => {
+    listPublishedCustomOperationsForTenant.mockResolvedValue([]);
+    listPublishedPostgresQueriesForTenant.mockResolvedValue([
+      {
+        queryId: "q-2",
+        toolName: "postgres_abc123.rename_widget",
+        querySlug: "rename_widget",
+        name: "Rename widget",
+        description: null,
+        effect: "write_update",
+        inputSchema: {
+          schemaVersion: 1,
+          fields: [{ key: "widgetId", type: "string", required: true, identifiesResource: true }],
+        },
+        inputSchemaHash: "hash-e",
+        sqlTemplateHash: "hash-f",
+        connectorId: "postgres_abc123",
+        connectionName: "Primary database",
+        publishedAt: "2026-10-01T00:00:00Z",
+      },
+    ]);
+    const registry = await buildTenantRegistry("tenant-a");
+    expect(registry.operations.get("postgres_abc123.rename_widget")!.externalCommunication).toBe(false);
   });
 });
