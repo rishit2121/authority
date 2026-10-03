@@ -74,6 +74,11 @@ test.describe.serial("trusted gateway", () => {
       maxToolInvocations: 200,
       forbiddenResources: '{"secret-*"}',
       useCurrentVersions: true,
+      // Explicit, as github-connector.spec.ts's UI-driven binding is: this suite only issues
+      // github.* capabilities (never dispatches them through the real connector — see the
+      // comment on SIM above), but an explicit bind keeps this fixture from depending on
+      // however many repositories happen to be seeded on the shared mock installation.
+      githubRepo: "acme/widgets",
     });
   });
 

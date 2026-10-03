@@ -72,6 +72,43 @@ test.describe.serial("Custom API: complete customer workflow", () => {
   });
 
   test.afterAll(async () => {
+    // taskId is only assigned partway through the test body (step 6+); if an
+    // earlier step throws, it's still "" here. A multi-statement
+    // managementQuery batch runs as one implicit transaction, so a single
+    // `where task_id = ''` (invalid uuid syntax) aborted this WHOLE cleanup
+    // -- including the connection/operation deletes below, which have
+    // nothing to do with the task -- leaking a published custom-api
+    // connection into the shared tenant's registry on every run that failed
+    // before reaching that step (confirmed: this is exactly what broke
+    // mcp-bridge.test.ts and mcp-route.test.ts, unrelated suites, by
+    // inflating buildTenantRegistry's computed version for the whole
+    // tenant). The connection cleanup no longer depends on whether the task
+    // ever got created, and the task-scoped statements are skipped
+    // entirely, not sent with an empty id, when it didn't.
+    const taskCleanup = taskId
+      ? `
+      delete from public.capability_consumptions where capability_id in (select id from public.capability_tokens where task_id = '${taskId}');
+      delete from public.capability_tokens where task_id = '${taskId}';
+      delete from public.final_decisions where task_id = '${taskId}';
+      delete from public.execution_events where task_id = '${taskId}';
+      delete from public.authorization_decisions where task_id = '${taskId}';
+      delete from public.capabilities where task_id = '${taskId}';
+      delete from public.tool_requests where task_id = '${taskId}';
+      delete from public.approvals where contract_id in (select id from public.task_authority_contracts where task_id = '${taskId}');
+      delete from public.contract_compilations where task_id = '${taskId}';
+      delete from public.task_authority_contracts where task_id = '${taskId}';
+      delete from public.plan_nodes where plan_id in (select id from public.plans where task_id = '${taskId}');
+      delete from public.plans where task_id = '${taskId}';
+      delete from public.tasks where id = '${taskId}';
+    `
+      : "";
+    const agentCleanup = agentId
+      ? `
+      delete from public.agent_auth_events where agent_id = '${agentId}';
+      delete from public.agent_credentials where agent_id = '${agentId}';
+      delete from public.agents where id = '${agentId}';
+    `
+      : "";
     await managementQuery(`
       set local role postgres;
       select set_config('authority.allow_demo_purge', 'on', true);
@@ -86,22 +123,8 @@ test.describe.serial("Custom API: complete customer workflow", () => {
       delete from public.connector_connection_secrets where connection_id in
         (select id from public.connector_connections where name = '${connectionName}');
       delete from public.connector_connections where name = '${connectionName}';
-      delete from public.capability_consumptions where capability_id in (select id from public.capability_tokens where task_id = '${taskId}');
-      delete from public.capability_tokens where task_id = '${taskId}';
-      delete from public.final_decisions where task_id = '${taskId}';
-      delete from public.execution_events where task_id = '${taskId}';
-      delete from public.authorization_decisions where task_id = '${taskId}';
-      delete from public.capabilities where task_id = '${taskId}';
-      delete from public.tool_requests where task_id = '${taskId}';
-      delete from public.approvals where contract_id in (select id from public.task_authority_contracts where task_id = '${taskId}');
-      delete from public.contract_compilations where task_id = '${taskId}';
-      delete from public.task_authority_contracts where task_id = '${taskId}';
-      delete from public.plan_nodes where plan_id in (select id from public.plans where task_id = '${taskId}');
-      delete from public.plans where task_id = '${taskId}';
-      delete from public.agent_auth_events where agent_id = '${agentId}';
-      delete from public.agent_credentials where agent_id = '${agentId}';
-      delete from public.tasks where id = '${taskId}';
-      delete from public.agents where id = '${agentId}';
+      ${taskCleanup}
+      ${agentCleanup}
     `);
   });
 
@@ -141,7 +164,11 @@ test.describe.serial("Custom API: complete customer workflow", () => {
     await card.getByTestId("custom-api-publish-get_order").click();
     await expect(card.getByTestId("custom-api-op-get_order")).toContainText("published", { timeout: 15_000 });
 
-    const toolName = (await card.locator("p.font-mono-code").first().textContent())?.trim() ?? "";
+    // This <p> renders "{connectorId} · {baseUrl}" together
+    // (CustomApiControls.tsx) -- the bare id is only the part before the
+    // separator, not its whole text content.
+    const headerText = (await card.locator("p.font-mono-code").first().textContent())?.trim() ?? "";
+    const toolName = headerText.split(" · ")[0];
     expect(toolName).toMatch(/^custom_[0-9a-f]+$/);
     const fullToolName = `${toolName}.get_order`;
 
