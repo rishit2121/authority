@@ -247,3 +247,66 @@ export async function revokeConnectionDelegationAction(
     return { ok: false, error: presentActionError(error) };
   }
 }
+
+export interface NewAutomationPolicy {
+  automationPolicyId: string;
+}
+
+/**
+ * Grants this application standing permission to activate, without a human
+ * click, any future contract for the given tool -- but only ever when that
+ * contract's own freshly-recompiled required-approvals list is independently
+ * empty (see gateway.activate_task_contract_for_backend). This action alone
+ * grants no authority over any task; it only widens which already-zero-
+ * approval contracts the application's backend may activate itself. Requires
+ * security_admin, a materially higher bar than ordinary application admin,
+ * since this is a standing grant of unattended activation.
+ */
+export async function createAutomationPolicyAction(
+  applicationId: string,
+  tool: string,
+): Promise<ActionResult<NewAutomationPolicy>> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("create_automation_policy", {
+      p_application_id: applicationId,
+      p_tool: tool,
+    });
+    if (error) return { ok: false, error: error.message };
+    const row = data?.[0];
+    if (!row || row.cap_status !== "ok" || !row.cap_id) {
+      const messages: Record<string, string> = {
+        forbidden: "Security admin role required.",
+        invalid_tool: 'Tool must look like "connector.operation" (lowercase, one dot).',
+      };
+      return {
+        ok: false,
+        error: messages[row?.cap_status as string] ?? "Could not add the automation policy.",
+      };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    return { ok: true, data: { automationPolicyId: row.cap_id } };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+export async function revokeAutomationPolicyAction(
+  applicationId: string,
+  automationPolicyId: string,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("revoke_automation_policy", {
+      p_id: automationPolicyId,
+    });
+    if (error) return { ok: false, error: error.message };
+    if (data !== "ok") {
+      return { ok: false, error: data === "forbidden" ? "Security admin role required." : "Not found." };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}

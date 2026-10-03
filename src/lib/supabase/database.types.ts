@@ -504,6 +504,54 @@ export type Database = {
           },
         ];
       };
+      automation_policies: {
+        Row: {
+          application_id: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          tenant_id: string;
+          tool: string;
+        };
+        Insert: {
+          application_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          tenant_id: string;
+          tool: string;
+        };
+        Update: {
+          application_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          tenant_id?: string;
+          tool?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "automation_policies_application_id_tenant_id_fkey";
+            columns: ["application_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "applications";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "automation_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       capabilities: {
         Row: {
           agent_id: string;
@@ -5096,6 +5144,13 @@ export type Database = {
           app_status: string;
         }[];
       };
+      create_automation_policy: {
+        Args: { p_application_id: string; p_tool: string };
+        Returns: {
+          cap_id: string;
+          cap_status: string;
+        }[];
+      };
       create_backend_credential: {
         Args: { p_application_id: string; p_name: string };
         Returns: {
@@ -5265,6 +5320,7 @@ export type Database = {
         Args: { p_credential_id: string; p_reason: string };
         Returns: undefined;
       };
+      revoke_automation_policy: { Args: { p_id: string }; Returns: string };
       revoke_backend_credential: {
         Args: { p_credential_id: string; p_reason: string };
         Returns: undefined;

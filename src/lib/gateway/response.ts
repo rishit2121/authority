@@ -245,6 +245,7 @@ export function developerApiFailureContract(status: string): FailureContract {
     case "connection_not_found":
     case "session_not_found":
     case "broker_not_found":
+    case "not_found":
       return { http: 404, code: "NOT_FOUND", message: "The requested resource was not found." };
     case "invalid_broker_connection_ref":
     case "invalid_verified_account_ref":

@@ -1,0 +1,293 @@
+import "server-only";
+
+import {
+  buildTrustedTaskInput,
+  getOpenAiEnv,
+  OpenAiPlanProposalProvider,
+  OpenRouterJevRouterPlanProposalProvider,
+  PlanProposalOutputTooLargeError,
+  PlanProposalProviderError,
+  PlanProposalTimeoutError,
+  type PlanProposalProvider,
+} from "@/lib/ai";
+import { getOpenRouterEnv } from "@/lib/openrouter/env";
+import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
+import { canonicalHash } from "@/lib/authorization/canonicalize";
+import { compileContract } from "@/lib/authorization/contract-compiler";
+import { verifyCompiledContract } from "@/lib/authorization/contract-verifier";
+import { validateCandidatePlan } from "@/lib/authorization/plan-validator";
+import { solveMinimumAuthority } from "@/lib/authorization/solver";
+import { candidatePlanSchema, type CandidatePlan } from "@/lib/domain";
+import type { Json } from "@/lib/supabase/database.types";
+import { buildTenantRegistry } from "@/lib/registry";
+import {
+  activateTaskContractForBackend,
+  createCandidatePlanForBackend,
+  getTaskForBackend,
+  listActivePoliciesForBackend,
+  proposeTaskContractForBackend,
+} from "./rpc-tasks-lifecycle";
+
+/**
+ * The backend-credential equivalent of the dashboard's
+ * `proposeContractAction` + `activateContractAction`
+ * (`src/app/app/tasks/[taskId]/contract/actions.ts`) collapsed into one
+ * call, because an application backend has no reason to make two round
+ * trips for what is, from its point of view, one operation: "get this task
+ * ready to run." Runs the identical validate -> solve -> compile -> derive
+ * approvals -> verify pipeline, then persists through the backend-scoped
+ * RPCs added in `20261003000014_developer_task_lifecycle_api.sql`, then
+ * attempts automatic activation -- which only ever succeeds when the
+ * contract's own freshly-recompiled `requiredApprovalsSpec` is empty AND
+ * every allowed tool is on this application's automation allowlist (see
+ * `gateway.activate_task_contract_for_backend`'s own comment). Anything
+ * else leaves the contract `proposed`, exactly where a human would find it
+ * on the dashboard today -- this never weakens or bypasses that check, it
+ * only skips asking a human to click "activate" on a decision the compiler
+ * itself, independently, already made.
+ *
+ * Deliberately NOT run here (unlike the dashboard path): the optional Jev
+ * necessity pipeline and plan-completeness advisory. Both are tenant-opt-in,
+ * advisory-only or narrowing-only (Jev can only ever REMOVE an operation the
+ * mechanical solver already included, never add authority), and persisting
+ * their evaluation records requires an RLS-scoped session this backend
+ * credential does not have. Skipping them cannot widen what a backend-
+ * prepared contract grants; it only means a tenant that has opted into Jev
+ * shadow/enforce mode does not get its narrowing effect on backend-prepared
+ * tasks yet. This is a stated scope limit, not a silent gap.
+ */
+
+export type PrepareTaskOutcome =
+  | { status: "ready"; contractId: string; version: number; tools: string[] }
+  | { status: "awaiting_approval"; contractId: string; version: number; approvalPath: string }
+  | { status: "clarification"; reason: string; details?: unknown }
+  | { status: "rejected"; reason: string }
+  | { status: "ai_unavailable" };
+
+export type PrepareTaskResult = { ok: true; outcome: PrepareTaskOutcome } | { ok: false; status: string };
+
+export interface PrepareTaskInput {
+  credentialSecret: string;
+  taskId: string;
+  /** Exactly one of `plan` or `generate` must be set. */
+  plan?: unknown;
+  generate?: boolean;
+  idempotencyKey?: string | null;
+}
+
+function nodesFor(plan: CandidatePlan, validation: ReturnType<typeof validateCandidatePlan>) {
+  return plan.nodes.map((n) => {
+    const finding = validation.findings.find((f) => f.nodeId === n.id);
+    return {
+      id: n.id,
+      sequence: n.sequence,
+      tool: n.tool,
+      arguments: n.arguments,
+      resourceBinding: n.resourceBinding ?? null,
+      dependencies: n.dependencies,
+      declaredOutputs: n.declaredOutputs,
+      dataFlowRefs: n.dataFlowRefs,
+      maxInvocations: n.maxInvocations,
+      validationStatus: finding?.status ?? "pending",
+      expectedSideEffect: n.expectedSideEffect,
+    };
+  });
+}
+
+export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskResult> {
+  const task = await getTaskForBackend(input.credentialSecret, input.taskId);
+  if (task.status !== "ok" || !task.tenantId || task.intent === null) {
+    return { ok: false, status: task.status };
+  }
+
+  const [{ status: policiesStatus, policies: activePolicies }, registry] = await Promise.all([
+    listActivePoliciesForBackend(input.credentialSecret, task.tenantId),
+    buildTenantRegistry(task.tenantId),
+  ]);
+  if (policiesStatus !== "ok") return { ok: false, status: policiesStatus };
+
+  let rawPlan: unknown;
+  if (input.generate) {
+    const provider: PlanProposalProvider | null = getOpenAiEnv()
+      ? new OpenAiPlanProposalProvider()
+      : getOpenRouterEnv()
+        ? new OpenRouterJevRouterPlanProposalProvider()
+        : null;
+    if (!provider) {
+      return { ok: true, outcome: { status: "ai_unavailable" } };
+    }
+    const trustedInput = buildTrustedTaskInput({
+      taskId: input.taskId,
+      taskIntent: task.intent,
+      registry,
+      activePolicies,
+      resourceReferences: [],
+    });
+    try {
+      const generated = await provider.proposePlan(trustedInput);
+      rawPlan = generated.plan;
+    } catch (error) {
+      if (
+        error instanceof PlanProposalTimeoutError ||
+        error instanceof PlanProposalOutputTooLargeError ||
+        error instanceof PlanProposalProviderError
+      ) {
+        return {
+          ok: true,
+          outcome: { status: "clarification", reason: `AI plan generation failed: ${error.message}` },
+        };
+      }
+      throw error;
+    }
+  } else {
+    rawPlan = input.plan;
+  }
+
+  const parsed = candidatePlanSchema.safeParse(rawPlan);
+  if (!parsed.success) {
+    return {
+      ok: true,
+      outcome: {
+        status: "clarification",
+        reason: `The candidate plan does not match the expected structure: ${parsed.error.issues[0]?.message ?? "invalid shape"}`,
+        details: input.generate ? rawPlan : undefined,
+      },
+    };
+  }
+  const plan: CandidatePlan = parsed.data;
+  if (plan.taskId !== input.taskId) {
+    return {
+      ok: true,
+      outcome: { status: "clarification", reason: "The candidate plan's taskId does not match this task." },
+    };
+  }
+
+  const validation = validateCandidatePlan(plan, { registry, activePolicies });
+  if (validation.includedNodeIds.length === 0) {
+    return {
+      ok: true,
+      outcome: {
+        status: "clarification",
+        reason: "No plan node was accepted or review-pending -- there is nothing to compile a contract from.",
+      },
+    };
+  }
+
+  const solverOutcome = solveMinimumAuthority({
+    requiredOperations: validation.requiredOperations,
+    registry,
+    forbiddenPermissionIds: new Set(),
+  });
+  if (solverOutcome.status !== "solved") {
+    return {
+      ok: true,
+      outcome: {
+        status: "rejected",
+        reason: `The minimum-authority solver could not produce a contract (${solverOutcome.status}).`,
+      },
+    };
+  }
+
+  const compiled = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
+  const requiredApprovalsSpec = deriveRequiredApprovals({
+    candidatePlan: plan,
+    validation,
+    solverOutcome,
+    registry,
+    activePolicies,
+  });
+
+  const verification = verifyCompiledContract({
+    candidatePlan: plan,
+    registry,
+    activePolicies,
+    compiled,
+    tenantId: task.tenantId,
+    taskId: input.taskId,
+    maxAllowedExpirySeconds: 24 * 3600,
+    supportedRegistryVersions: [registry.registryVersion],
+    supportedCompilerVersions: [compiled.compilerVersion],
+  });
+  if (!verification.ok) {
+    const firstFailure = verification.checks.find((c) => !c.passed);
+    return {
+      ok: true,
+      outcome: {
+        status: "rejected",
+        reason: `Independent verification failed: ${firstFailure?.detail ?? "unknown check"}`,
+      },
+    };
+  }
+
+  const inputHash = canonicalHash({
+    schemaVersion: plan.schemaVersion,
+    taskId: plan.taskId,
+    registryVersion: registry.registryVersion,
+    includedNodes: plan.nodes
+      .filter((n) => validation.includedNodeIds.includes(n.id))
+      .sort((a, b) => a.sequence - b.sequence),
+  });
+
+  const planResult = await createCandidatePlanForBackend({
+    credentialSecret: input.credentialSecret,
+    taskId: input.taskId,
+    nodes: nodesFor(plan, validation),
+    inputHash,
+    idempotencyKey: input.idempotencyKey,
+  });
+  if (planResult.status !== "ok" || !planResult.planId) {
+    return { ok: false, status: planResult.status };
+  }
+
+  const contractResult = await proposeTaskContractForBackend({
+    credentialSecret: input.credentialSecret,
+    taskId: input.taskId,
+    planId: planResult.planId,
+    allowedActions: { schemaVersion: 1, items: compiled.allowedActions } as unknown as Json,
+    forbiddenResources: compiled.forbiddenResources,
+    forbiddenOperations: compiled.forbiddenOperations,
+    ephemeralLimits: { schemaVersion: 1, ...compiled.ephemeralLimits } as unknown as Json,
+    dataFlowBindings: { schemaVersion: 1, refs: compiled.dataFlowBindings } as unknown as Json,
+    requiredApprovals: { schemaVersion: 1, items: compiled.requiredApprovals } as unknown as Json,
+    requiredApprovalsSpec: { schemaVersion: 1, items: requiredApprovalsSpec } as unknown as Json,
+    registryVersion: compiled.registryVersion,
+    compilerVersion: compiled.compilerVersion,
+    inputHash: compiled.inputHash,
+    outputHash: compiled.outputHash,
+    verifierResult: { schemaVersion: 1, ok: verification.ok, checks: verification.checks } as unknown as Json,
+    objectiveTrace: {
+      schemaVersion: 1,
+      excessOperationCount: solverOutcome.solution.score.excessOperationCount,
+      totalRiskCost: solverOutcome.solution.score.totalRiskCost,
+      totalResourceBreadth: solverOutcome.solution.score.totalResourceBreadth,
+      permissionCount: solverOutcome.solution.score.permissionCount,
+      selectedPermissionIds: solverOutcome.solution.selectedPermissionIds,
+    } as unknown as Json,
+  });
+  if (contractResult.status !== "ok" || !contractResult.contractId || contractResult.version === null) {
+    return { ok: false, status: contractResult.status };
+  }
+
+  const activation = await activateTaskContractForBackend(input.credentialSecret, contractResult.contractId);
+  if (activation === "ok") {
+    return {
+      ok: true,
+      outcome: {
+        status: "ready",
+        contractId: contractResult.contractId,
+        version: contractResult.version,
+        tools: compiled.allowedActions.map((a) => a.tool),
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    outcome: {
+      status: "awaiting_approval",
+      contractId: contractResult.contractId,
+      version: contractResult.version,
+      approvalPath: `/app/tasks/${input.taskId}`,
+    },
+  };
+}
