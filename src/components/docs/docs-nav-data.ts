@@ -12,6 +12,7 @@ export const DOCS_NAV: DocsNavItem[] = [
   { label: "Authorize and execute", href: "/docs/authorize-and-execute" },
   { label: "Approvals and replanning", href: "/docs/approvals-and-replanning" },
   { label: "Customer connections", href: "/docs/customer-connections" },
+  { label: "Task lifecycle (developer API)", href: "/docs/task-lifecycle" },
   {
     label: "Connector guides",
     href: "/docs/connectors",

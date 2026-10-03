@@ -12,6 +12,7 @@ export interface OnboardingProgress {
   runtimeCall: boolean;
   githubConnected: boolean;
   validationRun: boolean;
+  developerApiConfigured: boolean;
 }
 
 interface Step {
@@ -56,6 +57,13 @@ const CORE_STEPS: Step[] = [
 
 /** Shown later, once the core workflow is understood — never inside it. */
 const OPTIONAL_STEPS: Step[] = [
+  {
+    key: "developerApiConfigured",
+    title: "Connect your own agent from code",
+    hint: "Create an application and backend credential, then prepare and run a task with the TypeScript SDK (examples/gmail-quickstart) instead of the dashboard.",
+    href: "/app/settings/applications",
+    cta: "Set up the developer API",
+  },
   {
     key: "githubConnected",
     title: "Connect GitHub",
