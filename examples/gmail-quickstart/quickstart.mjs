@@ -78,6 +78,11 @@ const BACKEND_API_KEY = requireEnv("AUTHORITY_BACKEND_API_KEY");
 const AGENT_ID = requireEnv("AUTHORITY_AGENT_ID");
 const AGENT_RUNTIME_KEY = requireEnv("AUTHORITY_AGENT_RUNTIME_KEY");
 const CUSTOMER_EXTERNAL_ID = env.CUSTOMER_EXTERNAL_ID || "quickstart-customer";
+// Set this to reuse an already-connected customer by id (e.g. one from an
+// earlier live-test run) instead of resolving/creating one by external id --
+// skips customers.ensure() entirely. Find it under Settings -> Applications
+// -> (your application) -> Customers.
+const CUSTOMER_ID = env.CUSTOMER_ID || null;
 
 /** Never prints a token, a capability, or a raw error body -- only the already-sanitized fields an AuthorityApiError carries. */
 function describeError(error) {
@@ -109,8 +114,10 @@ function waitForBrowserReturn() {
 async function main() {
   const backend = new AuthorityBackendClient({ baseUrl: AUTHORITY_URL, apiKey: BACKEND_API_KEY });
 
-  const customer = await backend.customers.ensure({ externalId: CUSTOMER_EXTERNAL_ID });
-  console.log(`Customer: ${customer.customerId}${customer.wasCreated ? " (just created)" : ""}`);
+  const customer = CUSTOMER_ID
+    ? { customerId: CUSTOMER_ID, wasCreated: false }
+    : await backend.customers.ensure({ externalId: CUSTOMER_EXTERNAL_ID });
+  console.log(`Customer: ${customer.customerId}${customer.wasCreated ? " (just created)" : " (reused)"}`);
 
   const { connections } = await backend.connections.list(customer.customerId);
   let connection = connections.find((c) => c.connectorId === "gmail" && c.status === "active");
