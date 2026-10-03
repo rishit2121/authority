@@ -20,6 +20,7 @@ export interface SlackConnectionRow {
   name: string;
   status: string;
   environment: string;
+  connectedWorkspace: string | null;
 }
 
 export default async function SlackIntegrationPage() {
@@ -28,16 +29,22 @@ export default async function SlackIntegrationPage() {
 
   const { data: connections } = await context.supabase
     .from("connector_connections")
-    .select("id, name, status, environment")
+    .select("id, name, status, environment, config")
     .eq("connector_id", "slack")
     .order("created_at", { ascending: false });
 
-  const rows: SlackConnectionRow[] = (connections ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    status: c.status,
-    environment: c.environment,
-  }));
+  const rows: SlackConnectionRow[] = (connections ?? []).map((c) => {
+    const config = c.config as Record<string, unknown> | null;
+    const connectedWorkspace =
+      typeof config?.connectedWorkspace === "string" ? config.connectedWorkspace : null;
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      environment: c.environment,
+      connectedWorkspace,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-space-lg">

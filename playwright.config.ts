@@ -94,7 +94,7 @@ export default defineConfig({
     {
       name: "authenticated",
       testMatch:
-        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway)\.spec\.ts/,
+        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway|customer-connections|embedded-connect-browser)\.spec\.ts/,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
@@ -138,12 +138,21 @@ export default defineConfig({
     ...externalProjects,
   ],
   // Runs against a production build so the e2e suite exercises what ships.
+  //
+  // This server is entirely separate from a developer's own `npm run dev`:
+  // its own port (3100, never 3000) and its own build output directory
+  // (NEXT_DIST_DIR below), so it never races on or corrupts the `.next` an
+  // interactive dev server on port 3000 is using in this same checkout.
+  // `reuseExistingServer` (off in CI) only ever checks port 3100, so a
+  // developer's own port-3000 server is never inspected, reused, or
+  // stopped by this config regardless of what else is running.
   webServer: {
     command: `npm run build && npm run start -- --port ${PORT}`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,
     env: {
+      NEXT_DIST_DIR: ".next-e2e",
       // The MOCK GitHub connector, for the e2e suite only. No real GitHub credential is involved,
       // and the mock refuses to run in production unless explicitly allowed here.
       GITHUB_EXECUTION_MODE: "mock",
@@ -154,6 +163,15 @@ export default defineConfig({
       // that one reserved hostname, never a tenant's real configured base URL.
       CUSTOM_API_FIXTURE_MODE: "1",
       AUTHORITY_ALLOW_CUSTOM_API_FIXTURE: "1",
+      // The in-process Gmail fixture server (src/lib/connectors/gmail/fixture-server.ts), for the
+      // e2e suite only -- same reserved-hostname shape as Custom API's fixture above. Confined to
+      // this test server's own process env; an interactive `npm run dev` on port 3000 never has
+      // this set unless a developer explicitly exports it themselves.
+      GMAIL_FIXTURE_MODE: "1",
+      AUTHORITY_ALLOW_GMAIL_FIXTURE: "1",
+      // Every OAuth redirect/callback URL this server constructs (Gmail's embedded connect flow
+      // included) is built from this, never from the request's own Host header -- so a test run
+      // can never redirect into port 3000 even if something were listening there.
       AUTHORITY_PUBLIC_URL: BASE_URL,
       // `next start` here is a local production build against the dev project, without the pooler CA.
       AUTHORITY_DEPLOYMENT: "local",

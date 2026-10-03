@@ -55,6 +55,8 @@ export interface ConnectorConnectionConfig {
   status: string;
   config: Record<string, unknown>;
   lastVerifiedAt: string | null;
+  /** "managed" (Authority holds the credential) or "broker" (asked for fresh, in-memory-only, on every call). */
+  authMode: "managed" | "broker";
 }
 
 /** Generic connection read usable by any connector's verifyInstallation(). Returns null for a disconnected or nonexistent connection. */
@@ -65,10 +67,16 @@ export async function getConnectorConnectionConfig(
     gccc_status: string;
     gccc_config: Record<string, unknown>;
     gccc_last_verified_at: string | null;
+    gccc_auth_mode: string;
   }>(`select * from gateway.get_connector_connection_config($1::uuid)`, [connectionId]);
   const r = rows[0];
   if (!r) return null;
-  return { status: r.gccc_status, config: r.gccc_config ?? {}, lastVerifiedAt: r.gccc_last_verified_at };
+  return {
+    status: r.gccc_status,
+    config: r.gccc_config ?? {},
+    lastVerifiedAt: r.gccc_last_verified_at,
+    authMode: r.gccc_auth_mode === "broker" ? "broker" : "managed",
+  };
 }
 
 export async function updateConnectorConnectionConfig(input: {

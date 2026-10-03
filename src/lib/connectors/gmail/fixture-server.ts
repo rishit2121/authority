@@ -104,6 +104,13 @@ class GmailFixtureServer {
       return json(200, { labels: FIXTURE_LABELS });
     }
 
+    if (input.method === "GET" && input.url.pathname === "/gmail/v1/users/me/profile") {
+      if (input.headers.authorization !== "Bearer fixture-access-token") {
+        return json(401, { error: { code: 401, message: "Invalid Credentials" } });
+      }
+      return json(200, { emailAddress: "fixture-user@example.com", messagesTotal: 1, threadsTotal: 1 });
+    }
+
     return json(404, { error: { code: 404, message: "no such route on the fixture API" } });
   };
 }

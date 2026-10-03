@@ -233,6 +233,11 @@ describe("Stripe connector (in-memory fixture API, real database)", () => {
         /REVOKED|CONNECTOR_NOT_CONFIGURED|CONNECTION_UNAVAILABLE/,
       );
     } finally {
+      // The just-disconnected connection is no longer used by anything --
+      // delete it before replacing `connection`, or it leaks as an orphaned
+      // row (with its secret) forever, since afterAll only ever cleans up
+      // whichever connection this variable currently points to.
+      await connection.cleanup();
       // Reconnect a fresh connection under the shared fixture so later tests
       // in this file still have an active one to resolve against.
       connection = await createStripeConnection({

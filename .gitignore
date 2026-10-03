@@ -1,5 +1,8 @@
 node_modules/
+.claude/worktrees/
 .next/
+.next-e2e/
+.next-verify/
 out/
 build/
 .DS_Store

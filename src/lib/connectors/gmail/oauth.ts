@@ -3,7 +3,13 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 
 import { googleOAuthConfig } from "./config";
-import { fetchWithOptionalFixture, oauthHostname, type SafeFetchInput, type SafeFetchResult } from "./fetch";
+import {
+  fetchWithOptionalFixture,
+  gmailApiHostname,
+  oauthHostname,
+  type SafeFetchInput,
+  type SafeFetchResult,
+} from "./fetch";
 import { gmailFixtureModeEnabled } from "./fixture-mode";
 
 /**
@@ -23,15 +29,35 @@ export const PKCE_COOKIE = "authority_gmail_pkce";
 export const COOKIE_MAX_AGE_SECONDS = 15 * 60;
 
 /**
- * Full Gmail account access, not just `gmail.send`. The OAuth grant is
- * intentionally broad so a reconnect is never needed again as more
- * operations are added to the connector (../connector.ts) -- Authority's own
- * capability/contract system, not this scope, is what decides which of the
- * connector's fixed, individually-audited operations an agent may actually
- * call for a given task. A broad grant here never widens what an agent can
- * do; only adding a new operation to the connector does that.
+ * The narrowest combination of Google-defined scopes that exactly covers
+ * every operation this connector implements (../connector.ts):
+ * `gmail.readonly` for list_messages/get_message/list_labels and the
+ * account-label lookup (`users.getProfile`), `gmail.send` for send_email.
+ * Neither allows what this connector never does -- permanently deleting
+ * mail (bypassing trash), modifying or moving existing messages/labels, or
+ * touching account settings -- all of which the previously-requested
+ * `https://mail.google.com/` scope did allow. Both are still in Google's
+ * "restricted"/"sensitive" OAuth tiers (reading message content is
+ * inherently sensitive; there is no scope that both reads mail and skips
+ * that), so this does not reduce Google's own app-verification
+ * requirement -- the benefit is a smaller blast radius if a stored
+ * refresh token is ever compromised, not a lighter review process.
+ *
+ * Authority's own capability/contract system is still what actually
+ * decides which of this connector's fixed, individually-audited
+ * operations an agent may call for a given task -- this scope only bounds
+ * what the stored credential itself could ever be used for, independent
+ * of Authority.
+ *
+ * This only changes what a NEW OAuth consent requests. An already-connected
+ * account's stored refresh token keeps whatever scope it originally
+ * consented to (Google does not retroactively narrow an issued token) --
+ * nothing about an existing connection changes until that account
+ * disconnects and reconnects, which re-runs this same consent screen under
+ * the new, narrower scope.
  */
-const GMAIL_SCOPE = "https://mail.google.com/";
+const GMAIL_SCOPE =
+  "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
 const NONCE_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 const b64url = (b: Buffer) => b.toString("base64url");
@@ -42,7 +68,20 @@ export interface StartedGmailOAuth {
   verifier: string;
 }
 
-export function startGmailOAuth(input: { connectionId: string; redirectUri: string }): {
+/**
+ * `connectionId` is the dashboard-operated flow's own identity (an
+ * already-created `connector_connections` row waiting for its secret).
+ * `sessionToken` is the embedded flow's identity instead (a
+ * `connection_sessions` token -- no connection row exists yet; one is
+ * created only once the exchange below succeeds). Exactly one must be set;
+ * both travel through Google's own `state` round-trip unchanged, the same
+ * mechanism either way.
+ */
+export function startGmailOAuth(input: {
+  connectionId?: string;
+  sessionToken?: string;
+  redirectUri: string;
+}): {
   status: string;
   started?: StartedGmailOAuth;
 } {
@@ -52,10 +91,20 @@ export function startGmailOAuth(input: { connectionId: string; redirectUri: stri
 
   const nonce = b64url(randomBytes(32));
   const verifier = b64url(randomBytes(48));
-  const state = b64url(Buffer.from(JSON.stringify({ connectionId: input.connectionId, nonce }), "utf8"));
+  const state = b64url(
+    Buffer.from(
+      JSON.stringify({
+        connectionId: input.connectionId ?? null,
+        sessionToken: input.sessionToken ?? null,
+        nonce,
+      }),
+      "utf8",
+    ),
+  );
 
   if (fixture) {
-    const authorizeUrl = `${input.redirectUri}?code=${encodeURIComponent(`fixture-code-${input.connectionId}`)}&state=${encodeURIComponent(state)}`;
+    const fixtureSuffix = input.connectionId ?? input.sessionToken ?? "unknown";
+    const authorizeUrl = `${input.redirectUri}?code=${encodeURIComponent(`fixture-code-${fixtureSuffix}`)}&state=${encodeURIComponent(state)}`;
     return { status: "ok", started: { authorizeUrl, nonce, verifier } };
   }
 
@@ -77,18 +126,32 @@ export function startGmailOAuth(input: { connectionId: string; redirectUri: stri
   return { status: "ok", started: { authorizeUrl: url.toString(), nonce, verifier } };
 }
 
-/** Decodes and shape-checks the state param; never trusted beyond that until the nonce is matched against the cookie. */
-export function parseGmailOAuthState(state: string | null): { connectionId: string; nonce: string } | null {
+export interface ParsedGmailOAuthState {
+  connectionId: string | null;
+  sessionToken: string | null;
+  nonce: string;
+}
+
+/**
+ * Decodes and shape-checks the state param; never trusted beyond that until
+ * the nonce is matched against the cookie. Exactly one of connectionId/
+ * sessionToken is expected to be non-null -- which one tells a callback
+ * route which flow (dashboard vs. embedded) produced this round trip.
+ */
+export function parseGmailOAuthState(state: string | null): ParsedGmailOAuthState | null {
   if (!state) return null;
   try {
     const decoded: unknown = JSON.parse(Buffer.from(state, "base64url").toString("utf8"));
     if (
       decoded &&
       typeof decoded === "object" &&
-      typeof (decoded as Record<string, unknown>).connectionId === "string" &&
+      ((decoded as Record<string, unknown>).connectionId === null ||
+        typeof (decoded as Record<string, unknown>).connectionId === "string") &&
+      ((decoded as Record<string, unknown>).sessionToken === null ||
+        typeof (decoded as Record<string, unknown>).sessionToken === "string") &&
       typeof (decoded as Record<string, unknown>).nonce === "string"
     ) {
-      return decoded as { connectionId: string; nonce: string };
+      return decoded as ParsedGmailOAuthState;
     }
     return null;
   } catch {
@@ -105,7 +168,7 @@ export async function exchangeGmailOAuthCode(input: {
   code: string;
   redirectUri: string;
   verifier: string;
-}): Promise<string> {
+}): Promise<{ refreshToken: string; accessToken: string }> {
   const fixture = gmailFixtureModeEnabled();
   const cfg = googleOAuthConfig();
   if (!fixture && !cfg) throw new Error("CONNECTOR_NOT_CONFIGURED");
@@ -120,9 +183,37 @@ export async function exchangeGmailOAuthCode(input: {
   });
   const response = await tokenRequest(body);
   if (Math.floor(response.status / 100) !== 2) throw new Error("OAUTH_CODE_REJECTED");
-  const parsed = JSON.parse(response.bodyText) as { refresh_token?: string };
+  const parsed = JSON.parse(response.bodyText) as { refresh_token?: string; access_token?: string };
   if (!parsed.refresh_token) throw new Error("NO_REFRESH_TOKEN");
-  return parsed.refresh_token;
+  if (!parsed.access_token) throw new Error("NO_ACCESS_TOKEN");
+  return { refreshToken: parsed.refresh_token, accessToken: parsed.access_token };
+}
+
+/**
+ * Best-effort label for which Google account was just connected, so the
+ * dashboard can show it instead of a bare "connected" badge. Uses
+ * `users.getProfile`, already covered by the `gmail.readonly` scope this
+ * connector requests -- no extra consent needed. Returns null on
+ * any failure; a connection without a resolved label is still a working
+ * connection, and this must never be the reason a connect attempt fails.
+ */
+export async function fetchGmailAccountEmail(
+  accessToken: string,
+  fetchImpl: (input: SafeFetchInput) => Promise<SafeFetchResult> = fetchWithOptionalFixture,
+): Promise<string | null> {
+  try {
+    const response = await fetchImpl({
+      url: new URL(`https://${gmailApiHostname()}/gmail/v1/users/me/profile`),
+      method: "GET",
+      headers: { authorization: `Bearer ${accessToken}` },
+      timeoutMs: 10_000,
+    });
+    if (Math.floor(response.status / 100) !== 2) return null;
+    const parsed = JSON.parse(response.bodyText) as { emailAddress?: string };
+    return parsed.emailAddress ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

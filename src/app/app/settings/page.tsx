@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { RetentionForm } from "@/components/settings/RetentionForm";
 import { SemanticSettingsForm } from "@/components/semantic/SemanticSettingsForm";
 import { JevSettingsForm } from "@/components/jev/JevSettingsForm";
@@ -70,6 +72,29 @@ export default async function SettingsPage() {
         title="Settings"
         description="Runtime enforcement, AI providers, and validation data retention for this workspace."
       />
+
+      <section
+        aria-labelledby="applications-heading"
+        className="rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg"
+      >
+        <h2
+          id="applications-heading"
+          className="font-headline-sm text-headline-sm font-semibold text-on-surface"
+        >
+          Developer applications
+        </h2>
+        <p className="mt-space-sm max-w-2xl font-body-sm text-body-sm text-on-surface-variant">
+          An application lets your own backend create customers, open connections and start tasks on their
+          behalf — none of them ever need an Authority account. Manage backend credentials, provider
+          connection settings, and which customers may use which connections.
+        </p>
+        <Link
+          href="/app/settings/applications"
+          className="mt-space-sm inline-flex items-center gap-1.5 text-[13px] font-medium text-primary underline underline-offset-2"
+        >
+          Manage applications
+        </Link>
+      </section>
 
       <section
         aria-labelledby="semantic-settings-heading"

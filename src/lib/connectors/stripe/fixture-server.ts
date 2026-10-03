@@ -130,6 +130,19 @@ class StripeFixtureServer {
       });
     }
 
+    // Used only to label which Stripe account a connection belongs to -- not
+    // part of execution or health checking.
+    if (input.method === "GET" && input.url.pathname === "/v1/account") {
+      if (!input.headers.authorization) {
+        return stripeError(401, "authentication_required", "No valid API key provided.");
+      }
+      return json(200, {
+        id: "acct_fixture",
+        email: "fixture-account@example.com",
+        business_profile: { name: "Fixture Test Account" },
+      });
+    }
+
     return stripeError(404, "resource_missing", "no such route on the fixture API");
   };
 }

@@ -23,6 +23,7 @@ export interface StripeConnectionRow {
   id: string;
   name: string;
   mode: "test" | "live" | null;
+  connectedAccount: string | null;
   hasSecret: boolean;
   lastVerifiedAt: string | null;
   displayStatus: StripeDisplayStatus;

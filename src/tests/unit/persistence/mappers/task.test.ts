@@ -8,6 +8,7 @@ const ROW: Tables<"tasks"> = {
   tenant_id: "11111111-1111-4111-8111-111111111111",
   agent_id: "ag000000-0000-4000-8000-000000000001",
   principal_id: "p0000000-0000-4000-8000-000000000001",
+  customer_id: null,
   initiating_user_id: "a0000000-0000-4000-8000-000000000001",
   intent: "Resolve issue #991 in payments-api and open a pull request.",
   trusted_context_provenance: { schemaVersion: 1, source: "unspecified" },

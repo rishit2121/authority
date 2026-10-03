@@ -98,9 +98,19 @@ select t(is(
   (select count(*) from public.tasks where tenant_id = '22222222-2222-4222-8222-222222222222')::int, 0,
   'resetting tenant B removes its demo tasks'));
 
+-- Scoped to demo_key is not null, matching reset_demo_workspace's own,
+-- deliberate contract (see its module comment): it removes every demo
+-- principal, but must never also delete a real tenant member's own
+-- identity record just because that person happens to also be a demo
+-- tenant's seeded owner. A bare "every principal is gone" assertion here
+-- would be hostage to whether owner.b has ever signed in for real outside
+-- this suite's own transaction (gateway.actor_principal lazily creates a
+-- non-demo-key principal on first real use) -- which, in this shared dev
+-- database, they now have, and correctly survives this reset.
 select t(is(
-  (select count(*) from public.principals where tenant_id = '22222222-2222-4222-8222-222222222222')::int, 0,
-  'resetting tenant B removes its demo principals too — full teardown, not a partial one'));
+  (select count(*) from public.principals
+     where tenant_id = '22222222-2222-4222-8222-222222222222' and demo_key is not null)::int, 0,
+  'resetting tenant B removes its demo principals, never a non-demo one'));
 
 set local request.jwt.claims = '{"sub":"a0000000-0000-4000-8000-000000000001","role":"authenticated"}';
 

@@ -170,7 +170,20 @@ select t(is((select dc_revoked_capabilities from gateway.disconnect_connector_co
 select t(is((select status from public.capability_tokens where token_hash = public.t23_tok('a-5')), 'revoked', 'and it is actually revoked'));
 select t(is((select reason from public.t23_reserve('r-6', 'a-5')), 'CAPABILITY_REVOKED', 'a revoked capability can never be reserved again'));
 select public.t23_auth('a-6');
-select t(is((select reason from public.t23_reserve('r-7', 'a-6')), 'CONNECTOR_NOT_CONFIGURED', 'and no new reservation can be made once disconnected'));
+-- This task was already first-use-pinned to the widgetco connection by the
+-- reservations earlier in this suite (task_connector_bindings). Embedded
+-- customer connections (20261003000004_task_customer_binding.sql) rewrote
+-- reserve_connector_execution's connection resolution so a pre-bound task
+-- re-verifies its OWN pinned connection first, before ever asking "is
+-- anything configured for this provider at all" -- needed once a tenant can
+-- hold several simultaneous connections per provider, so a bound task can
+-- never silently drift onto a different one. A pinned connection that is now
+-- disconnected is therefore reported as CONNECTOR_CONNECTION_CHANGED, not the
+-- old CONNECTOR_NOT_CONFIGURED -- strictly more specific (something WAS
+-- configured for this task; it specifically went away), and the reservation
+-- is rejected either way, so no capability ever resolves to a disconnected
+-- connection under either reason code.
+select t(is((select reason from public.t23_reserve('r-7', 'a-6')), 'CONNECTOR_CONNECTION_CHANGED', 'and no new reservation can be made once disconnected'));
 select t(is((select count(*)::int from public.connector_execution_receipts where tenant_id = '11111111-1111-4111-8111-111111111111'), 4,
   'every receipt written before disconnect is preserved'));
 

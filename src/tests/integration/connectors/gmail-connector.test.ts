@@ -291,6 +291,11 @@ describe("Gmail connector (in-memory fixture API, real database)", () => {
         /REVOKED|CONNECTOR_NOT_CONFIGURED|CONNECTION_UNAVAILABLE/,
       );
     } finally {
+      // The just-disconnected connection is no longer used by anything --
+      // delete it before replacing `connection`, or it leaks as an orphaned
+      // row (with its secret) forever, since afterAll only ever cleans up
+      // whichever connection this variable currently points to.
+      await connection.cleanup();
       connection = await createGmailConnection({
         tenantId: TENANT_A_ID,
         adminUserId: ADMIN_A_USER_ID,
@@ -346,7 +351,12 @@ describe("Gmail connector (in-memory fixture API, real database)", () => {
           args,
           idempotencyKey: key("exec"),
         },
-        { ...defaultConnectorExecutorDeps, deadlineMs: 150 },
+        // Wide enough to comfortably clear the real round trips before the
+        // send itself (credential resolution, now including the auth-mode
+        // lookup every accessTokenFor() call makes) against the real
+        // hosted dev database -- still far shorter than the send's promise,
+        // which never resolves at all, so the deadline still fires on it.
+        { ...defaultConnectorExecutorDeps, deadlineMs: 2000 },
       );
       expect(result.http).toBe(504);
       expect(result.body.error).toMatchObject({ code: "EXECUTION_INDETERMINATE" });

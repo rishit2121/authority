@@ -241,7 +241,21 @@ select t(is((select status from public.capability_tokens where token_hash = enco
 select t(is((select replayed::text || result from public.t19c('c-1', 'g-1', 'github.get_issue', '{"note":"SENTINEL-RAW-VALUE-123","issue_number":"991"}')), 'trueaccepted', 'retrying with the same idempotency key replays the original result'));
 select t(is((select uses from public.capability_tokens where token_hash = encode(extensions.digest('authcap_v1_g-1', 'sha256'), 'hex')), 1, 'the idempotent retry did not consume a second use'));
 select t(is((select reason from public.t19c('c-2', 'g-1', 'github.get_issue', '{"note":"SENTINEL-RAW-VALUE-123","issue_number":"991"}')), 'CAPABILITY_ALREADY_USED', 'replay with a new key is rejected as already used'));
-select t(is((select count(*)::int from public.capability_consumptions where reason_code = 'CAPABILITY_ALREADY_USED' and tenant_id in ('11111111-1111-4111-8111-111111111111', '22222222-2222-4222-8222-222222222222')), 1, 'the replay attempt is recorded for audit'));
+-- Scoped to exactly the g-1 capability this suite's own replay attempt (c-2,
+-- above) targeted, not a blanket count across both shared seeded tenants --
+-- capability_consumptions is real, committed, never-rolled-back data, and
+-- the vitest integration suite's own connector tests (concurrent-consumption,
+-- wrong-operation-substitution, etc.) routinely produce their own genuine
+-- CAPABILITY_ALREADY_USED rows for these same tenants outside this
+-- transaction. A bare tenant-wide count made this assertion hostage to how
+-- much of that unrelated, real activity happened to exist already, not to
+-- whether *this* replay attempt was actually audited.
+select t(is(
+  (select count(*)::int from public.capability_consumptions cc
+     join public.capability_tokens ct on ct.id = cc.capability_id
+   where ct.token_hash = encode(extensions.digest('authcap_v1_g-1', 'sha256'), 'hex')
+     and cc.reason_code = 'CAPABILITY_ALREADY_USED'),
+  1, 'the replay attempt is recorded for audit'));
 select t(is((select reason from public.t19c('c-1', 'g-1', 'github.get_issue', '{"different":"args"}')), 'IDEMPOTENCY_CONFLICT', 'reusing a consumption key with a different call is a conflict'));
 
 select t(is((select reason from public.t19c('c-3', 'g-4', 'github.create_branch', '{"branch":"fix-2"}')), 'SCOPE_MISMATCH', 'a capability cannot authorize different arguments than the decision was made for'));

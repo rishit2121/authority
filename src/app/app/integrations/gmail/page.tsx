@@ -42,6 +42,7 @@ export interface GmailConnectionRow {
   status: string;
   environment: string;
   oauthConnected: boolean;
+  connectedEmail: string | null;
 }
 
 export default async function GmailIntegrationPage({
@@ -56,7 +57,7 @@ export default async function GmailIntegrationPage({
   const [{ data: connections }, { data: secrets }] = await Promise.all([
     context.supabase
       .from("connector_connections")
-      .select("id, name, status, environment")
+      .select("id, name, status, environment, config")
       .eq("connector_id", "gmail")
       .order("created_at", { ascending: false }),
     context.supabase
@@ -66,13 +67,18 @@ export default async function GmailIntegrationPage({
   ]);
   const connectedIds = new Set((secrets ?? []).map((s) => s.connection_id));
 
-  const rows: GmailConnectionRow[] = (connections ?? []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    status: c.status,
-    environment: c.environment,
-    oauthConnected: connectedIds.has(c.id),
-  }));
+  const rows: GmailConnectionRow[] = (connections ?? []).map((c) => {
+    const config = c.config as Record<string, unknown> | null;
+    const connectedEmail = typeof config?.connectedEmail === "string" ? config.connectedEmail : null;
+    return {
+      id: c.id,
+      name: c.name,
+      status: c.status,
+      environment: c.environment,
+      oauthConnected: connectedIds.has(c.id),
+      connectedEmail,
+    };
+  });
 
   const error = typeof params.error === "string" ? params.error : null;
 

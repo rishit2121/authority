@@ -215,3 +215,66 @@ export function failureContract(status: Exclude<GatewayStatus, "ok">): FailureCo
       };
   }
 }
+
+/**
+ * The developer API's own failure contract. Unlike failureContract() above,
+ * this is not an exhaustive switch over a closed union -- every developer-API
+ * RPC (gateway.resolve_backend_credential and everything layered on it)
+ * returns a plain string status, the same deliberate choice already made for
+ * reserve_connector_execution's reasonCode (see rpc-connectors.ts). New RPCs
+ * can add new statuses without this function needing to stay exhaustive;
+ * anything unrecognized falls through to a generic 400 rather than ever
+ * defaulting to success or leaking an internal detail.
+ */
+export function developerApiFailureContract(status: string): FailureContract {
+  switch (status) {
+    case "malformed":
+    case "not_found":
+    case "revoked":
+      // Same anti-enumeration answer as an agent runtime key: a caller cannot
+      // tell a malformed secret from an unknown or revoked one.
+      return {
+        http: 401,
+        code: "UNAUTHENTICATED",
+        message: "The backend credential is missing, invalid or revoked.",
+      };
+    case "customer_not_found":
+      return { http: 404, code: "CUSTOMER_NOT_FOUND", message: "Customer not found for this application." };
+    case "agent_not_found":
+      return { http: 404, code: "AGENT_NOT_FOUND", message: "Agent not found for this tenant." };
+    case "connection_not_found":
+    case "session_not_found":
+    case "broker_not_found":
+      return { http: 404, code: "NOT_FOUND", message: "The requested resource was not found." };
+    case "invalid_broker_connection_ref":
+    case "invalid_verified_account_ref":
+      return { http: 400, code: "INVALID_REQUEST", message: "Request failed validation." };
+    case "connection_not_usable_by_customer":
+      return {
+        http: 403,
+        code: "CONNECTION_NOT_USABLE_BY_CUSTOMER",
+        message: "This connection does not belong to, and is not delegated to, this customer.",
+      };
+    case "already_bound_to_different_connection":
+      return {
+        http: 409,
+        code: "ALREADY_BOUND_TO_DIFFERENT_CONNECTION",
+        message: "This task is already bound to a different connection for this connector.",
+      };
+    case "return_url_not_allowed":
+      return {
+        http: 400,
+        code: "RETURN_URL_NOT_ALLOWED",
+        message: "This return URL is not registered for this application.",
+      };
+    case "invalid_external_id":
+    case "invalid_metadata":
+    case "invalid_intent":
+    case "invalid_connector_bindings":
+    case "task_not_customer_scoped":
+    case "task_not_found":
+      return { http: 400, code: "INVALID_REQUEST", message: "Request failed validation." };
+    default:
+      return { http: 400, code: "INVALID_REQUEST", message: "The request could not be completed." };
+  }
+}
