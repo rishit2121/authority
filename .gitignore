@@ -27,3 +27,6 @@ supabase/.branches/
 # Local secret files (GitHub App private key etc.). Never commit.
 .secrets/
 *.pem
+
+# Workspace package build output -- built locally via `npm run sdk:build`.
+packages/*/dist/

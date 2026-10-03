@@ -163,6 +163,35 @@ idempotency key and arguments to receive the capability.
 `POST /api/github/connect`, `GET /api/github/setup`, `GET /api/github/oauth/callback`, `POST /api/github/webhook`
 (HMAC-SHA256 `X-Hub-Signature-256`, delivery-id de-duplication).
 
+## Developer API: task lifecycle (backend credential)
+
+Authenticated by a backend credential (`authority_dk_…`), never an agent key — see `/customers` and
+`/customers/{customerId}/tasks` (OpenAPI only) for the rest of this group. See also `packages/authority-sdk`
+for a typed client over all of it, and `examples/gmail-quickstart` for a runnable end-to-end example.
+
+### `POST /tasks/{taskId}/prepare`
+
+Body: `{ plan }` (a structured `CandidatePlan`, same shape the dashboard's candidate-plan editor produces) or
+`{ generate: true }` for an AI-drafted one, plus an optional `idempotencyKey`. Runs the same
+validate → solve → compile → derive-approvals → verify pipeline the dashboard's "propose contract" action
+runs, persists the result, then attempts automatic activation. Always `200` with a discriminated `status`:
+
+- `ready` — activated automatically. `{ contractId, version, tools }`.
+- `awaiting_approval` — proposed, waiting on a human (or an admin has not allow-listed this task's tools
+  under Settings → Applications → Automation). `{ contractId, version, approvalPath }`.
+- `clarification` — the plan (structured or generated) could not be compiled as given. `{ reason, details? }`.
+- `rejected` — the solver or verifier refused outright. `{ reason }`.
+- `ai_unavailable` — `generate: true` was set but no model credentials are configured. Never a silent mock.
+
+Automatic activation never widens what the compiler itself decided: it only skips a human clicking "activate"
+on a contract whose own freshly recomputed required-approvals list is independently empty **and** every
+allowed tool is allow-listed for this specific application.
+
+### `GET /contracts/{contractId}`
+
+`{ contractId, taskId, status, tools, requiredApprovalsCount }`. Poll this on an `awaiting_approval` outcome
+until `status` becomes `active` or `rejected`.
+
 ### Recovery guidance (`guidance`)
 
 Every `/api/v1/authorize` response carries `guidance: { nextStep, message }` where `nextStep` is one of `proceed | replan |

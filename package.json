@@ -2,7 +2,12 @@
   "name": "authority-next",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "packages/*",
+    "examples/gmail-quickstart"
+  ],
   "scripts": {
+    "sdk:build": "npm run build -w @authority/sdk",
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
