@@ -12,6 +12,17 @@ export default function QuickstartPage() {
       title="Quickstart"
       description="Connect your own agent to Authority in about ten minutes, using a throwaway GitHub repository. Do the whole thing as an admin or owner — a few steps below (connecting GitHub, allowing a repository, activating a contract) specifically require that role."
     >
+      <DocsSection title="Prefer code over curl?">
+        <p>
+          Everything below is the raw HTTP API, one <code>curl</code> at a time, useful for seeing exactly
+          what each call does. For a Gmail-based example that does the equivalent from a few lines of
+          TypeScript — create a customer, prepare a contract, run a tool call — using the typed{" "}
+          <code>@authority/sdk</code> client instead, see <code>examples/gmail-quickstart</code> in the
+          repository. A filtered-tool, model-driven agent built on the same SDK is at{" "}
+          <code>examples/model-driven-agent</code>.
+        </p>
+      </DocsSection>
+
       <DocsSection title="1. Connect GitHub">
         <p>
           <code>/app/integrations/github</code> → <strong>Connect GitHub</strong>, install the App on a

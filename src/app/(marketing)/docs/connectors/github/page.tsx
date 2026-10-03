@@ -20,6 +20,22 @@ export default function GithubConnectorPage() {
         </p>
       </DocsSection>
 
+      <DocsSection title="Customer delegation (developer API)">
+        <p>
+          A repository is tenant-owned, never customer-owned — there is no per-customer GitHub connection. To
+          let a customer-scoped task (created via{" "}
+          <code>POST /api/v1/customers/&#123;customerId&#125;/tasks</code>) use a repository, an admin must
+          explicitly delegate it to that customer first (same application page, below the repository
+          allowlist), then the backend binds it with{" "}
+          <code>POST /api/v1/tasks/&#123;taskId&#125;/github-repository</code> — a separate step from task
+          creation, the same way a human developer already binds a repository to a task as its own dashboard
+          action. Delegating never widens the tenant&apos;s own allowlist; it only decides which already-
+          allowed repositories a given customer&apos;s tasks may use. See <code>packages/authority-sdk</code>
+          &apos;s <code>backend.githubRepositories.list</code> /{" "}
+          <code>backend.tasks.bindGithubRepository</code>.
+        </p>
+      </DocsSection>
+
       <DocsSection title="Required permissions">
         <p>
           The App requests exactly <code>contents: write</code>, <code>issues: read</code>,{" "}
