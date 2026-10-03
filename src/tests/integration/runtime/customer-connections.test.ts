@@ -191,6 +191,28 @@ describe("customer connections (real database)", () => {
     expect(bobList.connections.map((c) => c.connectionId)).toEqual([bobConnection]);
   });
 
+  it("a real customer with zero connections gets an ok, empty list -- not an error", async () => {
+    // Regression for a real bug found during a live end-to-end run:
+    // gateway.list_customer_connections' success branch was a bare set-
+    // returning query with no guaranteed row, so a legitimately-scoped
+    // customer who simply hasn't connected anything yet got zero rows back
+    // (not even one with status='ok') -- the TS wrapper then read that as
+    // status "unknown", which the route's failure-contract switch doesn't
+    // recognize, surfacing as a generic 400 for what should have been a
+    // normal, successful empty list.
+    const app = await createApplicationFixture(randomBytes(4).toString("hex"));
+    apps.push(app);
+    const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
+    expect(bob.status).toBe("ok");
+
+    const bobList = await listCustomerConnections({
+      credentialSecret: app.backendSecret,
+      customerId: bob.customerId!,
+    });
+    expect(bobList.status).toBe("ok");
+    expect(bobList.connections).toEqual([]);
+  });
+
   it("a customer-scoped task created with another customer's connection is refused, and no task is created", async () => {
     const app = await createApplicationFixture(randomBytes(4).toString("hex"));
     apps.push(app);

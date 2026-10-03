@@ -44,6 +44,15 @@
  * http://localhost:3000/api/connectors/gmail/embedded-callback (the
  * embedded flow's own callback -- distinct from the dashboard's
  * /api/connectors/gmail/callback).
+ *
+ * Resuming after step 2 (so a real Google consent is never repeated
+ * needlessly): every run prints a `Resume with:` line once Alex's
+ * connection exists. Pasting that back in -- three env vars,
+ * RESUME_ALEX_CUSTOMER_ID / RESUME_BOB_CUSTOMER_ID / RESUME_CONNECTION_ID --
+ * skips straight to step 3 using the existing customers and connection:
+ *
+ *     RESUME_ALEX_CUSTOMER_ID=... RESUME_BOB_CUSTOMER_ID=... RESUME_CONNECTION_ID=... \
+ *       node examples/customer-app/live-gmail-test.mjs
  */
 
 import { createServer } from "node:http";
@@ -117,6 +126,39 @@ function assert(condition, message) {
   if (!condition) throw new Error(`ASSERTION FAILED: ${message}`);
 }
 
+/**
+ * Every field here is already part of the server's own sanitized error
+ * contract (see jsonError in src/lib/gateway/http.ts) -- a fixed code, a
+ * generic message, a requestId -- never a stack trace, never a secret, so
+ * this is always safe to print in full. Use this instead of bare
+ * `error.message` for anything from backend-client.mjs, so a real failure
+ * shows the HTTP status, the error code, and the requestId to cross-
+ * reference against server logs, not just a generic sentence.
+ */
+function describeError(error) {
+  if (error instanceof BackendApiError) {
+    const parts = [`HTTP ${error.status ?? "?"}`];
+    if (error.code) parts.push(`code=${error.code}`);
+    if (error.requestId) parts.push(`requestId=${error.requestId}`);
+    if (error.path) parts.push(`path=${error.path}`);
+    return `${error.message} (${parts.join(", ")})`;
+  }
+  return error.message;
+}
+
+/**
+ * Same idea for the two raw fetch() calls in step 7 (no backend-client.mjs
+ * wrapper there) -- takes the response and its ALREADY-parsed body (a
+ * Response's own body can only be read once, and the caller already needs
+ * to inspect the parsed JSON regardless of success or failure).
+ */
+function describeFetchFailure(response, body) {
+  const parts = [`HTTP ${response.status}`];
+  if (body?.error?.code) parts.push(`code=${body.error.code}`);
+  if (body?.error?.requestId) parts.push(`requestId=${body.error.requestId}`);
+  return { message: body?.error?.message ?? "request failed", detail: parts.join(", "), body };
+}
+
 async function waitForBrowserReturn(port) {
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
@@ -151,47 +193,90 @@ async function main() {
   const authority = createBackendClient({ baseUrl: AUTHORITY_URL, backendKey });
   const suffix = Date.now().toString(36);
 
-  // ---- 1: Alex and Bob, two independent customers ----
-  console.log("\n[1/7] Creating Alex and Bob as independent customers...");
-  const alex = await authority.createOrResolveCustomer(`live-alex-${suffix}`);
-  const bob = await authority.createOrResolveCustomer(`live-bob-${suffix}`);
-  assert(alex.customerId, "Alex's customerId was not returned");
-  assert(bob.customerId, "Bob's customerId was not returned");
-  assert(bob.customerId !== alex.customerId, "Alex and Bob must be different customers");
-  console.log(`  Alex: ${alex.customerId}\n  Bob:  ${bob.customerId}`);
+  const resumeAlex = process.env.RESUME_ALEX_CUSTOMER_ID;
+  const resumeBob = process.env.RESUME_BOB_CUSTOMER_ID;
+  const resumeConnection = process.env.RESUME_CONNECTION_ID;
+  const resuming = Boolean(resumeAlex && resumeBob && resumeConnection);
 
-  // ---- 2: open Alex's embedded connect session, print the URL, wait for the real browser ----
-  console.log(`\n[2/7] Opening Alex's embedded Gmail connection session (return URL: ${RETURN_URL})...`);
-  const session = await authority.createConnectionSession(alex.customerId, "gmail", RETURN_URL);
-  assert(session.sessionId && session.url, "createConnectionSession did not return a session");
-  const connectUrl = new URL(session.url, AUTHORITY_URL).toString();
+  let alex;
+  let bob;
+  let connectionId;
 
-  console.log("\n  Open this URL in a real browser and sign in with a disposable Gmail account:\n");
-  console.log(`    ${connectUrl}\n`);
-  console.log("  Waiting for the browser to complete consent and return here...");
+  if (resuming) {
+    console.log("\n[1-2/7] Resuming with an existing connection -- no new consent needed.");
+    alex = { customerId: resumeAlex };
+    bob = { customerId: resumeBob };
+    connectionId = resumeConnection;
+    console.log(`  Alex: ${alex.customerId}\n  Bob:  ${bob.customerId}\n  connectionId: ${connectionId}`);
+  } else {
+    // ---- 1: Alex and Bob, two independent customers ----
+    console.log("\n[1/7] Creating Alex and Bob as independent customers...");
+    alex = await authority.createOrResolveCustomer(`live-alex-${suffix}`);
+    bob = await authority.createOrResolveCustomer(`live-bob-${suffix}`);
+    assert(alex.customerId, "Alex's customerId was not returned");
+    assert(bob.customerId, "Bob's customerId was not returned");
+    assert(bob.customerId !== alex.customerId, "Alex and Bob must be different customers");
+    console.log(`  Alex: ${alex.customerId}\n  Bob:  ${bob.customerId}`);
 
-  const returnedSessionId = await waitForBrowserReturn(PORT);
-  assert(
-    returnedSessionId === session.sessionId,
-    "the browser returned a different session id than expected",
-  );
+    // ---- 2: open Alex's embedded connect session, print the URL, wait for the real browser ----
+    console.log(`\n[2/7] Opening Alex's embedded Gmail connection session (return URL: ${RETURN_URL})...`);
+    const session = await authority.createConnectionSession(alex.customerId, "gmail", RETURN_URL);
+    assert(session.sessionId && session.url, "createConnectionSession did not return a session");
+    const connectUrl = new URL(session.url, AUTHORITY_URL).toString();
 
-  const status = await authority.connectionSessionStatus(session.sessionId);
-  assert(status.status === "completed", `session did not complete (status: ${status.status})`);
-  assert(status.connectionId, "a completed session must report a connectionId");
-  const connectionId = status.connectionId;
-  console.log(`  Connected. connectionId = ${connectionId}`);
+    console.log("\n  Open this URL in a real browser and sign in with a disposable Gmail account:\n");
+    console.log(`    ${connectUrl}\n`);
+    console.log("  Waiting for the browser to complete consent and return here...");
 
+    const returnedSessionId = await waitForBrowserReturn(PORT);
+    assert(
+      returnedSessionId === session.sessionId,
+      "the browser returned a different session id than expected",
+    );
+
+    const status = await authority.connectionSessionStatus(session.sessionId);
+    assert(status.status === "completed", `session did not complete (status: ${status.status})`);
+    assert(status.connectionId, "a completed session must report a connectionId");
+    connectionId = status.connectionId;
+    console.log(`  Connected. connectionId = ${connectionId}`);
+  }
+
+  // From here on, every later failure can resume without repeating consent --
+  // printed once now, and again from the catch block below if anything
+  // after this point fails.
+  const resumeHint = `RESUME_ALEX_CUSTOMER_ID=${alex.customerId} RESUME_BOB_CUSTOMER_ID=${bob.customerId} RESUME_CONNECTION_ID=${connectionId}`;
+  console.log(`\n  Resume with: ${resumeHint}`);
+
+  try {
+    await runFromConnection({ authority, agentId, alex, bob, connectionId, suffix });
+  } catch (error) {
+    console.error(`\nFAILED: ${describeError(error)}`);
+    if (error.body) console.error(`  Response: ${JSON.stringify(error.body)}`);
+    console.error(
+      `\n  Resume without repeating Google consent:\n    ${resumeHint} \\\n      node ${process.argv[1]}`,
+    );
+    process.exitCode = 1;
+  }
+}
+
+async function runFromConnection({ authority, agentId, alex, bob, connectionId, suffix }) {
   // ---- 3: the connection belongs to Alex, and only Alex ----
+  // (backend-client.mjs already throws a BackendApiError for any non-2xx
+  // response -- reaching these assertions at all means the server already
+  // reported "ok"; its success body is just { connections }, no separate
+  // status field.)
   console.log("\n[3/7] Verifying the connection belongs to Alex, and only Alex...");
   const alexConnections = await authority.listCustomerConnections(alex.customerId);
   assert(
     alexConnections.connections.length === 1 && alexConnections.connections[0].connectionId === connectionId,
-    "Alex's own connection listing does not show exactly this one connection",
+    `Alex's own connection listing does not show exactly this one connection (got: ${JSON.stringify(alexConnections.connections)})`,
   );
   assert(alexConnections.connections[0].ownerKind === "customer", "the connection must be customer-owned");
   const bobConnectionsBefore = await authority.listCustomerConnections(bob.customerId);
-  assert(bobConnectionsBefore.connections.length === 0, "Bob must see no connections before any attempt");
+  assert(
+    bobConnectionsBefore.connections.length === 0,
+    `Bob must see no connections before any attempt (got: ${JSON.stringify(bobConnectionsBefore.connections)})`,
+  );
   console.log("  Confirmed: owner_kind=customer, visible only in Alex's own connection list.");
 
   // ---- 4: a customer-scoped task for Alex, with the connection explicitly bound ----
@@ -259,8 +344,9 @@ async function main() {
   });
   const authorizeBody = await authorizeRes.json();
   if (authorizeRes.status !== 200 || !["allow", "allow_constrained"].includes(authorizeBody.status)) {
+    const failure = describeFetchFailure(authorizeRes, authorizeBody);
     throw new Error(
-      `authorize did not allow gmail.list_labels: http ${authorizeRes.status}, status=${authorizeBody.status}, reasons=${JSON.stringify(authorizeBody.reasonCodes)}`,
+      `authorize did not allow gmail.list_labels: ${failure.detail}, decision=${authorizeBody.status}, reasons=${JSON.stringify(authorizeBody.reasonCodes)}`,
     );
   }
   assert(authorizeBody.capability?.token, "authorize succeeded but returned no capability token");
@@ -280,7 +366,8 @@ async function main() {
   });
   const executeBody = await executeRes.json();
   if (executeRes.status !== 200) {
-    throw new Error(`execute failed: http ${executeRes.status}, body=${JSON.stringify(executeBody)}`);
+    const failure = describeFetchFailure(executeRes, executeBody);
+    throw new Error(`execute failed: ${failure.detail}, message=${failure.message}`);
   }
   assert(executeBody.result === "succeeded", `expected result "succeeded", got "${executeBody.result}"`);
   assert(executeBody.receiptId, "a successful execute must report a receiptId (the persisted receipt)");
@@ -304,6 +391,6 @@ requires a signed-in admin session, not the backend or runtime credential.
 }
 
 main().catch((error) => {
-  console.error(`\nFAILED: ${error.message}`);
+  console.error(`\nFAILED: ${describeError(error)}`);
   process.exit(1);
 });

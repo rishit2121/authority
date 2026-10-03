@@ -11,11 +11,12 @@
  */
 
 export class BackendApiError extends Error {
-  constructor(message, { status, code } = {}) {
+  constructor(message, { status, code, requestId } = {}) {
     super(message);
     this.name = "BackendApiError";
     this.status = status;
     this.code = code;
+    this.requestId = requestId;
   }
 }
 
@@ -35,10 +36,17 @@ export function createBackendClient({ baseUrl, backendKey }) {
     const text = await response.text();
     const parsed = text ? JSON.parse(text) : null;
     if (!response.ok) {
-      throw new BackendApiError(parsed?.error?.message ?? `HTTP ${response.status}`, {
+      const error = new BackendApiError(parsed?.error?.message ?? `HTTP ${response.status}`, {
         status: response.status,
         code: parsed?.error?.code,
+        requestId: parsed?.error?.requestId,
       });
+      // The response body is already the server's own sanitized error
+      // contract (never a raw stack trace, never a secret) -- safe to
+      // surface in full to a caller that wants more than the message alone.
+      error.path = `${method} ${path}`;
+      error.body = parsed;
+      throw error;
     }
     return parsed;
   }
