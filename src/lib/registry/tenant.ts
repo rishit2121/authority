@@ -41,6 +41,16 @@ interface TenantPublishedItem {
   /** The operation/query slug -- used only as ToolOperation.resourceType's grouping label. */
   slug: string;
   inputSchema: Record<string, unknown>;
+  /**
+   * Which kind of tenant-published source this is -- drives
+   * `externalCommunication` below. A Postgres connection targets the
+   * tenant's OWN database (never a third party, regardless of effect); a
+   * Custom API connection targets an operator-chosen third-party endpoint,
+   * but only a non-read call actually sends anything to it (a GET/read
+   * discloses nothing -- only a request body/params sent TO the third
+   * party on a write could).
+   */
+  source: "postgres" | "custom_api";
   /** Sort/fingerprint key for registryVersionFor -- content hashes concatenated so either one changing bumps the version. */
   fingerprint: string;
 }
@@ -52,6 +62,7 @@ function fromCustomOperation(op: TenantPublishedOperation): TenantPublishedItem 
     effect: op.effect,
     slug: op.operationSlug,
     inputSchema: op.inputSchema,
+    source: "custom_api",
     fingerprint: `${op.toolName}:${op.inputSchemaHash ?? ""}:${op.requestMappingHash ?? ""}`,
   };
 }
@@ -63,6 +74,7 @@ function fromPostgresQuery(q: TenantPublishedQuery): TenantPublishedItem {
     effect: q.effect,
     slug: q.querySlug,
     inputSchema: q.inputSchema,
+    source: "postgres",
     fingerprint: `${q.toolName}:${q.inputSchemaHash ?? ""}:${q.sqlTemplateHash ?? ""}`,
   };
 }
@@ -103,10 +115,20 @@ function toolOperationFor(item: TenantPublishedItem): ToolOperation {
     // not something this registry can vouch for the sensitivity of --
     // default to the conservative end of the scale rather than guess "public".
     dataSensitivity: "confidential",
-    // Calling an operator-chosen external system is external communication
-    // by definition; this unconditionally forces plan-validator's
-    // requires_review gate (see plan-validator.ts), regardless of effect.
-    externalCommunication: true,
+    // externalCommunication means disclosure -- information leaving the
+    // organization to a recipient this registry cannot vouch for (the
+    // established paradigm case is gmail.send_email) -- not merely "this
+    // operation happens to target a system outside this process." A
+    // Postgres connection targets the TENANT'S OWN database, never a third
+    // party, regardless of effect. A Custom API connection genuinely does
+    // target an operator-chosen third-party endpoint, but only a non-read
+    // call actually sends it anything (a GET/read's response flows IN,
+    // disclosing nothing; a write's request body/params flow OUT). Setting
+    // this unconditionally for every tenant-published operation, including
+    // reads, used to force plan-validator's requires_review gate even for
+    // operations that disclose nothing -- conflating "reaches an external
+    // system" with "discloses something to one."
+    externalCommunication: item.source === "custom_api" && item.effect !== "read",
     financialImpact: false,
     requiresApproval: item.effect !== "read",
     argumentFields: fields.map((f) => ({
