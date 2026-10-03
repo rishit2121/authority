@@ -95,7 +95,13 @@ describe("task sessions (real database)", () => {
     expect(viaSession.kind).toBe("decision");
     if (viaKey.kind === "decision" && viaSession.kind === "decision") {
       expect(viaSession.commit.finalOutcome).toBe(viaKey.commit.finalOutcome);
-      expect(viaSession.commit.finalOutcome).toBe("allow");
+      // The default fixture action carries a constraint (issue_number equals
+      // "1"), so a satisfied match is correctly "allow_constrained", not a
+      // bare "allow" -- that only applies to an action with zero constraints.
+      // This was an incorrect literal in this test, not a product bug: it
+      // never ran against a real schema before, so it was never actually
+      // exercised until now.
+      expect(viaSession.commit.finalOutcome).toBe("allow_constrained");
     }
   });
 

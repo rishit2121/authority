@@ -291,6 +291,11 @@ describe("Gmail connector (in-memory fixture API, real database)", () => {
         /REVOKED|CONNECTOR_NOT_CONFIGURED|CONNECTION_UNAVAILABLE/,
       );
     } finally {
+      // The just-disconnected connection is no longer used by anything --
+      // delete it before replacing `connection`, or it leaks as an orphaned
+      // row (with its secret) forever, since afterAll only ever cleans up
+      // whichever connection this variable currently points to.
+      await connection.cleanup();
       connection = await createGmailConnection({
         tenantId: TENANT_A_ID,
         adminUserId: ADMIN_A_USER_ID,

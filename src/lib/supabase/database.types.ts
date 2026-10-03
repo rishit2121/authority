@@ -1010,6 +1010,13 @@ export type Database = {
             referencedRelation: "applications";
             referencedColumns: ["id", "tenant_id"];
           },
+          {
+            foreignKeyName: "connection_brokers_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
         ];
       };
       connection_delegations: {
@@ -1057,6 +1064,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "customers";
             referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connection_delegations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1115,11 +1129,25 @@ export type Database = {
             referencedColumns: ["id", "tenant_id"];
           },
           {
+            foreignKeyName: "connection_sessions_created_connection_id_tenant_id_fkey";
+            columns: ["created_connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
             foreignKeyName: "connection_sessions_customer_id_tenant_id_fkey";
             columns: ["customer_id", "tenant_id"];
             isOneToOne: false;
             referencedRelation: "customers";
             referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connection_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
           },
         ];
       };
@@ -1266,10 +1294,10 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "connector_connections_owner_customer_id_tenant_id_fkey";
-            columns: ["owner_customer_id", "tenant_id"];
+            foreignKeyName: "connector_connections_broker_id_tenant_id_fkey";
+            columns: ["broker_id", "tenant_id"];
             isOneToOne: false;
-            referencedRelation: "customers";
+            referencedRelation: "connection_brokers";
             referencedColumns: ["id", "tenant_id"];
           },
           {
@@ -1284,6 +1312,13 @@ export type Database = {
             columns: ["disconnected_by_principal_id", "tenant_id"];
             isOneToOne: false;
             referencedRelation: "principals";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "connector_connections_owner_customer_id_tenant_id_fkey";
+            columns: ["owner_customer_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
             referencedColumns: ["id", "tenant_id"];
           },
           {
@@ -1821,7 +1856,7 @@ export type Database = {
           revocation_reason: string | null;
           revoked_at: string | null;
           revoked_by: string | null;
-          status: string;
+          status: Database["public"]["Enums"]["backend_credential_status"];
           tenant_id: string;
         };
         Insert: {
@@ -1837,7 +1872,7 @@ export type Database = {
           revocation_reason?: string | null;
           revoked_at?: string | null;
           revoked_by?: string | null;
-          status?: string;
+          status?: Database["public"]["Enums"]["backend_credential_status"];
           tenant_id: string;
         };
         Update: {
@@ -1853,7 +1888,7 @@ export type Database = {
           revocation_reason?: string | null;
           revoked_at?: string | null;
           revoked_by?: string | null;
-          status?: string;
+          status?: Database["public"]["Enums"]["backend_credential_status"];
           tenant_id?: string;
         };
         Relationships: [
@@ -4023,6 +4058,7 @@ export type Database = {
       };
       task_connector_bindings: {
         Row: {
+          bound_by: string;
           connection_id: string;
           connector_id: string;
           created_at: string;
@@ -4031,6 +4067,7 @@ export type Database = {
           tenant_id: string;
         };
         Insert: {
+          bound_by?: string;
           connection_id: string;
           connector_id: string;
           created_at?: string;
@@ -4039,6 +4076,7 @@ export type Database = {
           tenant_id: string;
         };
         Update: {
+          bound_by?: string;
           connection_id?: string;
           connector_id?: string;
           created_at?: string;
@@ -4126,6 +4164,96 @@ export type Database = {
           },
         ];
       };
+      task_sessions: {
+        Row: {
+          agent_id: string;
+          contract_id: string;
+          contract_version: number;
+          expires_at: string;
+          format_version: number;
+          id: string;
+          issued_at: string;
+          issuing_credential_id: string;
+          last_used_at: string | null;
+          revocation_reason: string | null;
+          revoked_at: string | null;
+          status: string;
+          task_id: string;
+          tenant_id: string;
+          token_hash: string;
+        };
+        Insert: {
+          agent_id: string;
+          contract_id: string;
+          contract_version: number;
+          expires_at: string;
+          format_version?: number;
+          id?: string;
+          issued_at?: string;
+          issuing_credential_id: string;
+          last_used_at?: string | null;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          status?: string;
+          task_id: string;
+          tenant_id: string;
+          token_hash: string;
+        };
+        Update: {
+          agent_id?: string;
+          contract_id?: string;
+          contract_version?: number;
+          expires_at?: string;
+          format_version?: number;
+          id?: string;
+          issued_at?: string;
+          issuing_credential_id?: string;
+          last_used_at?: string | null;
+          revocation_reason?: string | null;
+          revoked_at?: string | null;
+          status?: string;
+          task_id?: string;
+          tenant_id?: string;
+          token_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_sessions_agent_id_tenant_id_fkey";
+            columns: ["agent_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_sessions_contract_id_tenant_id_fkey";
+            columns: ["contract_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "task_authority_contracts";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_sessions_issuing_credential_id_tenant_id_fkey";
+            columns: ["issuing_credential_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "agent_credentials";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_sessions_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_sessions_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       tasks: {
         Row: {
           agent_id: string;
@@ -4183,17 +4311,17 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "tasks_customer_id_tenant_id_fkey";
-            columns: ["customer_id", "tenant_id"];
-            isOneToOne: false;
-            referencedRelation: "customers";
-            referencedColumns: ["id", "tenant_id"];
-          },
-          {
             foreignKeyName: "tasks_agent_id_tenant_id_fkey";
             columns: ["agent_id", "tenant_id"];
             isOneToOne: false;
             referencedRelation: "agents";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "tasks_customer_id_tenant_id_fkey";
+            columns: ["customer_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
             referencedColumns: ["id", "tenant_id"];
           },
           {
@@ -4964,12 +5092,12 @@ export type Database = {
           p_tenant_id: string;
         };
         Returns: {
+          app_application_id: string;
           app_status: string;
-          app_application_id: string | null;
         }[];
       };
       create_backend_credential: {
-        Args: { p_application_id: string; p_name: string | null };
+        Args: { p_application_id: string; p_name: string };
         Returns: {
           credential_id: string;
           key_prefix: string;
@@ -4990,10 +5118,14 @@ export type Database = {
         }[];
       };
       create_connection_broker: {
-        Args: { p_application_id: string; p_shared_secret: string; p_url: string };
+        Args: {
+          p_application_id: string;
+          p_shared_secret: string;
+          p_url: string;
+        };
         Returns: {
+          cb_broker_id: string;
           cb_status: string;
-          cb_broker_id: string | null;
         }[];
       };
       create_task: {

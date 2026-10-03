@@ -40,7 +40,12 @@ interface AppFixture {
 }
 
 async function createApplicationFixture(suffix: string): Promise<AppFixture> {
-  const applicationId = `aaaa0000-0000-4000-8000-${suffix}`;
+  // The last UUID group needs 12 hex characters; `suffix` is 8 (4 random
+  // bytes), so pad it out -- this was invisible as long as every call here
+  // failed first with "function does not exist" against the unmigrated
+  // schema, and only surfaced once a real `applications` table existed to
+  // reject the malformed id.
+  const applicationId = `aaaa0000-0000-4000-8000-${suffix}0000`;
   const { plaintext, hash } = mintBackendSecret();
   const keyPrefix = plaintext.slice(0, 21);
 
@@ -124,12 +129,19 @@ describe("customer connections (real database)", () => {
   const connectionIds: string[] = [];
 
   afterEach(async () => {
+    // Strict dependency order: connections (and the bindings/reservations/
+    // delegations pointing at them) first, then tasks (which may point at a
+    // customer via tasks.customer_id), then the customers/application those
+    // tasks and connections reference. Reversing any of these violates a
+    // foreign key -- task_connector_bindings references both a task and a
+    // connection, connector_connections and tasks can each reference a
+    // customer, so nothing downstream may be deleted before them.
     await cleanupConnections(connectionIds.splice(0, connectionIds.length));
-    while (apps.length > 0) {
-      await apps.pop()?.cleanup();
-    }
     while (fixtures.length > 0) {
       await fixtures.pop()?.cleanup();
+    }
+    while (apps.length > 0) {
+      await apps.pop()?.cleanup();
     }
   });
 

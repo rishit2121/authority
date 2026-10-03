@@ -77,7 +77,12 @@ export async function createBackendCredentialAction(
     const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
     const { data, error } = await context.supabase.rpc("create_backend_credential", {
       p_application_id: applicationId,
-      p_name: name || null,
+      // The RPC itself treats an empty string identically to SQL NULL
+      // (`nullif(btrim(coalesce(p_name, '')), '')`), so this never changes
+      // behavior -- it only satisfies the generated Args type, which (unlike
+      // a table column's nullability) doesn't know this parameter accepts
+      // NULL at the SQL level.
+      p_name: name,
     });
     if (error) return { ok: false, error: error.message };
     const row = data?.[0];
