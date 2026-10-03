@@ -88,3 +88,40 @@ This last step reuses the existing, already-proven agent-facing runtime API
 end to end (task session → tool manifest → authorize → execute) — nothing
 about it is specific to customer connections; the only difference is whose
 connection the task is bound to.
+
+## A single-command live verification: `live-gmail-test.mjs`
+
+A self-contained alternative to the manual steps above, for verifying the
+whole customer-owned flow against one real, disposable Gmail account in one
+run: Alex connects (no Authority login), the connection is confirmed to
+belong to her alone, her task explicitly binds it, Bob's attempt to bind the
+same connection is confirmed refused, and — after you activate a contract
+for Alex's task in the dashboard — exactly one `gmail.list_labels` call runs
+through authorize → execute and its receipt is verified. It never sends
+email.
+
+Prerequisites:
+
+- A real `GOOGLE_OAUTH_CLIENT_ID`/`GOOGLE_OAUTH_CLIENT_SECRET` configured on
+  the Authority server, **not** running with `GMAIL_FIXTURE_MODE`.
+- That OAuth client's consent screen must authorize the redirect URI
+  `http://localhost:3000/api/connectors/gmail/embedded-callback` — the
+  embedded flow's own callback, distinct from the dashboard's
+  `/api/connectors/gmail/callback`.
+- An application (dashboard: Settings → Developer applications) whose
+  allowed return URLs include exactly `http://127.0.0.1:4100/connected` —
+  this script always uses that fixed port, so you can register the URL
+  before running it.
+- An agent already created (dashboard: Agents).
+
+```bash
+node examples/customer-app/live-gmail-test.mjs
+```
+
+It reads `AUTHORITY_BACKEND_KEY` from `.env.local` if present there, or
+prompts for it (and later, the agent's runtime credential) without echoing
+either back. It prints the connect URL for you to open in a real browser,
+waits for that browser to return, then verifies each step above from the
+API's own responses before moving to the next. The one thing it cannot do
+for you is revoke the runtime credential afterward — that requires a
+signed-in dashboard admin session — so it ends by telling you to do that.
