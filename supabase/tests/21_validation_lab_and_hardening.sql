@@ -133,4 +133,9 @@ select t(is((select count(*)::int from gateway.webhook_retry_due(50) where r_del
 select gateway.webhook_retry_mark('t21-delivery-0001', false, 'timeout');
 select t(is((select count(*)::int from gateway.webhook_retry_due(50) where r_delivery_id = 't21-delivery-0001'), 0, 'a failed attempt backs off'));
 select t(throws_ok($$ insert into public.github_webhook_retries (delivery_id, event, github_installation_id) values ('t21-bad-event-00', 'push', 1) $$, '23514', null, 'only installation events are queued'));
-select t(is(gateway.schema_version(), '20261001000011', 'the schema-version probe reports the newest migration'));
+-- This literal must track the newest migration's own gateway.schema_version()
+-- (see src/lib/gateway/schema-version.ts's EXPECTED_SCHEMA_VERSION, which the
+-- application checks against at startup) -- it is not meant to pin one
+-- specific migration forever, just to prove the probe reports whatever the
+-- newest one actually set.
+select t(is(gateway.schema_version(), '20261003000012', 'the schema-version probe reports the newest migration'));

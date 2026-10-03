@@ -16,6 +16,15 @@ select plan(37);
 
 set local role postgres;
 
+-- A pre-existing, real principal for admin.a/dev.a/owner.a may already
+-- exist in this shared dev database (gateway.actor_principal lazily creates
+-- one on first real use, e.g. a Playwright sign-in, outside this suite's own
+-- transaction). That's harmless here: decide_contract_approval
+-- (20261003000012_contract_approval_identity_by_user.sql) checks "does the
+-- signed-in user hold a principal with this exact id," not "does the
+-- lookup's one arbitrarily-resolved principal equal it" -- so it never
+-- matters whether a user holds one principal row or several.
+
 -- Principals linked to real auth ids for every actor whose identity this
 -- suite compares by principal (submitter, task owner, each approver) — the
 -- demo-installer's own fixture principals are deliberately never linked to
