@@ -1,6 +1,12 @@
 import type { CommitResult, GatewayStatus } from "./rpc";
 import { agentGuidance, type AgentGuidance } from "./guidance";
 import type { ApprovalStatus } from "./rpc-github";
+// Imported from the specific submodules, never the `@/lib/connectors` barrel
+// (which re-exports `./executor`, and `executor.ts` itself imports this
+// file for `failureContract` -- going through the barrel here would be a
+// real import cycle, not just a style issue).
+import { ensureConnectorsRegistered } from "@/lib/connectors/register";
+import { resolveConnectorForTool } from "@/lib/connectors/registry";
 
 /**
  * What an AGENT is allowed to see. The dashboard shows internal reason codes,
@@ -37,8 +43,16 @@ const AGENT_SUMMARY: Record<string, string> = {
   APPROVAL_GRANTED: "Permitted after human approval.",
 };
 
-/** Tools executed by a real connector (mirrors gateway.is_connector_tool). */
-export const CONNECTOR_TOOLS: ReadonlySet<string> = new Set([
+/**
+ * GitHub's six connector-tool ids (mirrors `gateway.is_connector_tool`) --
+ * GitHub still runs through its own dedicated route and executor
+ * (`/api/v1/github/execute`, `gateway.reserve_execution`), unmigrated onto
+ * the generic `AuthorityConnector` registry (see `register.ts`'s own
+ * comment), so it cannot be detected via `resolveConnectorForTool` below.
+ * Kept as a fixed list for exactly that reason -- this is GitHub's whole
+ * real tool surface, not a sample.
+ */
+const GITHUB_CONNECTOR_TOOLS: ReadonlySet<string> = new Set([
   "github.get_issue",
   "github.read_repository",
   "github.create_branch",
@@ -46,6 +60,26 @@ export const CONNECTOR_TOOLS: ReadonlySet<string> = new Set([
   "github.create_pull_request",
   "github.get_pull_request",
 ]);
+
+/**
+ * True for any tool a real connector actually dispatches to a live
+ * provider at `/api/v1/execute` -- GitHub's fixed list above, plus every
+ * tool whose provider prefix resolves to a registered `AuthorityConnector`
+ * (Gmail, Stripe, Slack, Postgres, Custom API — including the latter two's
+ * per-tenant dynamic `postgres_<connectionId>`/`custom_<connectionId>`
+ * prefixes). Previously this only ever checked the GitHub list above, so
+ * every one of those five connectors' real executions were mislabeled
+ * `simulation: true` in the agent-facing authorize response even after
+ * they stopped being demo-only (github-demo.ts's own module comment
+ * documents when each one became real) -- found via a capability-matrix
+ * review, fixed here rather than left for whichever caller eventually
+ * branches on this flag and gets the wrong answer.
+ */
+function isConnectorTool(tool: string): boolean {
+  if (GITHUB_CONNECTOR_TOOLS.has(tool)) return true;
+  ensureConnectorsRegistered();
+  return resolveConnectorForTool(tool) !== null;
+}
 
 export function agentReasonCodes(internal: readonly string[]): string[] {
   return internal.filter((c) => !HIDDEN_REASONS.has(c)).map((c) => AGENT_REASON[c] ?? c);
@@ -143,7 +177,7 @@ export function toAgentResponse(input: {
           }
         : null,
     guidance: agentGuidance(final, codes),
-    simulation: !CONNECTOR_TOOLS.has(input.tool),
+    simulation: !isConnectorTool(input.tool),
   };
 }
 
@@ -245,6 +279,7 @@ export function developerApiFailureContract(status: string): FailureContract {
     case "connection_not_found":
     case "session_not_found":
     case "broker_not_found":
+    case "not_found":
       return { http: 404, code: "NOT_FOUND", message: "The requested resource was not found." };
     case "invalid_broker_connection_ref":
     case "invalid_verified_account_ref":
@@ -255,6 +290,26 @@ export function developerApiFailureContract(status: string): FailureContract {
         code: "CONNECTION_NOT_USABLE_BY_CUSTOMER",
         message: "This connection does not belong to, and is not delegated to, this customer.",
       };
+    case "repository_not_usable_by_customer":
+      return {
+        http: 403,
+        code: "REPOSITORY_NOT_USABLE_BY_CUSTOMER",
+        message: "This repository is not delegated to this customer.",
+      };
+    case "repository_not_allowed":
+      return {
+        http: 403,
+        code: "REPOSITORY_NOT_ALLOWED",
+        message: "This repository is not on the tenant's allowlist, or its installation is not active.",
+      };
+    case "already_bound":
+      return {
+        http: 409,
+        code: "ALREADY_BOUND",
+        message: "This task is already bound to a repository.",
+      };
+    case "task_closed":
+      return { http: 409, code: "TASK_CLOSED", message: "This task has already ended." };
     case "already_bound_to_different_connection":
       return {
         http: 409,

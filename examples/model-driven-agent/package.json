@@ -1,0 +1,11 @@
+{
+  "name": "model-driven-agent-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node agent.mjs"
+  },
+  "dependencies": {
+    "@authority/sdk": "*"
+  }
+}

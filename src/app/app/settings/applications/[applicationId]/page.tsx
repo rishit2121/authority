@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import {
+  AutomationPoliciesPanel,
+  type AutomationPolicyRow,
+} from "@/components/application/AutomationPoliciesPanel";
+import {
   BackendCredentialsPanel,
   type BackendCredentialRow,
 } from "@/components/application/BackendCredentialsPanel";
@@ -15,6 +19,10 @@ import {
   type OrganizationConnectionRow,
 } from "@/components/application/ConnectionDelegationPanel";
 import { CustomersPanel, type CustomerRow } from "@/components/application/CustomersPanel";
+import {
+  GithubRepositoryDelegationPanel,
+  type GithubRepositoryRow,
+} from "@/components/application/GithubRepositoryDelegationPanel";
 import { ReturnUrlsForm } from "@/components/application/ReturnUrlsForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
@@ -38,34 +46,53 @@ export default async function ApplicationDetailPage({
     .maybeSingle();
   if (!application || !identity.tenant.tenantId) notFound();
 
-  const [credentialsResult, customersResult, orgConnectionsResult, delegationsResult, brokersResult] =
-    await Promise.all([
-      context.supabase
-        .from("developer_backend_credentials")
-        .select("id, key_prefix, status, created_at, last_used_at, revoked_at, revocation_reason")
-        .eq("application_id", applicationId)
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("customers")
-        .select("id, external_id, display_label, status, created_at")
-        .eq("application_id", applicationId)
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("connector_connections")
-        .select("id, connector_id, status, verified_account_ref")
-        .eq("owner_kind", "organization")
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("connection_delegations")
-        .select("connection_id, customer_id")
-        .is("revoked_at", null),
-      context.supabase
-        .from("connection_brokers")
-        .select("id, url, status, created_at")
-        .eq("application_id", applicationId)
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    credentialsResult,
+    customersResult,
+    orgConnectionsResult,
+    delegationsResult,
+    brokersResult,
+    automationPoliciesResult,
+    githubRepositoriesResult,
+  ] = await Promise.all([
+    context.supabase
+      .from("developer_backend_credentials")
+      .select("id, key_prefix, status, created_at, last_used_at, revoked_at, revocation_reason")
+      .eq("application_id", applicationId)
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("customers")
+      .select("id, external_id, display_label, status, created_at")
+      .eq("application_id", applicationId)
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, connector_id, status, verified_account_ref")
+      .eq("owner_kind", "organization")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connection_delegations")
+      .select("connection_id, customer_id")
+      .is("revoked_at", null),
+    context.supabase
+      .from("connection_brokers")
+      .select("id, url, status, created_at")
+      .eq("application_id", applicationId)
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("automation_policies")
+      .select("id, tool, created_at")
+      .eq("application_id", applicationId)
+      .is("revoked_at", null)
+      .order("tool", { ascending: true }),
+    context.supabase
+      .from("github_repositories")
+      .select("id, owner, name")
+      .eq("allowed", true)
+      .eq("present", true)
+      .order("owner", { ascending: true }),
+  ]);
 
   const customersById = new Map((customersResult.data ?? []).map((c) => [c.id, c]));
 
@@ -140,6 +167,36 @@ export default async function ApplicationDetailPage({
     createdAt: b.created_at,
   }));
 
+  const automationPolicies: AutomationPolicyRow[] = (automationPoliciesResult.data ?? []).map((p) => ({
+    id: p.id,
+    tool: p.tool,
+    createdAt: p.created_at,
+  }));
+
+  const githubRepoIds = (githubRepositoriesResult.data ?? []).map((r) => r.id);
+  const { data: githubRepoDelegations } =
+    githubRepoIds.length > 0
+      ? await context.supabase
+          .from("github_repository_customer_delegations")
+          .select("repository_id, customer_id")
+          .in("repository_id", githubRepoIds)
+          .is("revoked_at", null)
+      : { data: [] };
+  const githubDelegationsByRepo = new Map<string, string[]>();
+  for (const d of githubRepoDelegations ?? []) {
+    const list = githubDelegationsByRepo.get(d.repository_id) ?? [];
+    list.push(d.customer_id);
+    githubDelegationsByRepo.set(d.repository_id, list);
+  }
+  const githubRepositories: GithubRepositoryRow[] = (githubRepositoriesResult.data ?? []).map((r) => ({
+    repositoryId: r.id,
+    fullName: `${r.owner}/${r.name}`,
+    delegations: (githubDelegationsByRepo.get(r.id) ?? []).map((customerId) => ({
+      customerId,
+      customerLabel: customerLabel(customerId),
+    })),
+  }));
+
   return (
     <div className="flex flex-col gap-space-lg">
       <PageHeader
@@ -155,6 +212,12 @@ export default async function ApplicationDetailPage({
       <ConnectionDelegationPanel
         applicationId={applicationId}
         connections={orgConnections}
+        customerOptions={customerOptions}
+      />
+      <AutomationPoliciesPanel applicationId={applicationId} policies={automationPolicies} />
+      <GithubRepositoryDelegationPanel
+        applicationId={applicationId}
+        repositories={githubRepositories}
         customerOptions={customerOptions}
       />
     </div>

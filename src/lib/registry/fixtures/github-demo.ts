@@ -44,6 +44,25 @@ import type { RegistryData } from "../types";
  *    deriver's irreversible-operation rule, since deleting a branch is the
  *    one destructive action a real issue-resolution task could plausibly
  *    need.
+ *  - `gmail.labels_read` / `gmail.messages_read` vs `gmail.read_scope`: the
+ *    same `issues_read` vs `repo_read` pattern, applied to Gmail. Before
+ *    these two existed, EVERY plan touching Gmail reads -- even one
+ *    requesting only `list_labels` -- was forced onto the one bundled
+ *    `read_scope` permission and incurred "excess operations" for whichever
+ *    sibling(s) it didn't ask for, which unconditionally requires a
+ *    security_admin approval (deriveRequiredApprovals' rule 6) regardless of
+ *    what the compiled contract's own `allowedActions` actually grants (see
+ *    solver.ts's own module doc: a selected *permission* may expose more
+ *    than a task needs when the provider's permission granularity forces
+ *    that, but the compiled *contract* -- what `authorize()` actually
+ *    checks a tool call against -- is always narrowed to exactly the
+ *    accepted plan's own operations regardless). A `list_labels`-only plan
+ *    now solves with zero excess operations and, like
+ *    `github.get_issue`, is eligible for bounded automatic activation
+ *    (`gateway.activate_task_contract_for_backend`) once an admin allow-
+ *    lists it -- without that admin action ever granting message-reading
+ *    authority, because `list_messages`/`get_message` were never, and still
+ *    are not, in that contract's `allowedActions` either way.
  *
  * Despite the name, this is now the one base registry fixture merged into
  * every tenant's compiled registry (see tenant.ts), not GitHub-fixture-only
@@ -74,7 +93,7 @@ import type { RegistryData } from "../types";
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
-  registryVersion: "github-demo-2026-10-02d",
+  registryVersion: "github-demo-2026-10-03a",
   operations: [
     {
       id: "github.get_issue",
@@ -540,6 +559,35 @@ export const githubDemoRegistry: RegistryData = {
       classification: "read",
       riskCost: 2,
       resourceBreadth: 3,
+      allowsExternalCommunication: false,
+    },
+    // Mirrors the issues_read/repository_read vs repo_read pattern above: a
+    // plan needing only list_labels (or only the two message operations)
+    // now has a genuinely narrower option than the full bundle, so the
+    // solver's own "excess operations" signal (and the security_admin
+    // approval it unconditionally triggers) correctly reflects what the
+    // PLAN actually needs, not merely what gmail.read_scope happens to
+    // bundle. Costs are split so that labels_read + messages_read sums to
+    // exactly read_scope's own (riskCost 2, resourceBreadth 3) -- a plan
+    // genuinely needing all three operations still prefers the one bundled
+    // permission over two narrower ones, on tier 4 (fewer permissions),
+    // unchanged from before this split existed.
+    {
+      id: "gmail.labels_read",
+      provider: "gmail",
+      operations: ["gmail.list_labels"],
+      classification: "read",
+      riskCost: 1,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "gmail.messages_read",
+      provider: "gmail",
+      operations: ["gmail.list_messages", "gmail.get_message"],
+      classification: "read",
+      riskCost: 1,
+      resourceBreadth: 2,
       allowsExternalCommunication: false,
     },
     {

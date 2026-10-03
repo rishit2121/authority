@@ -70,6 +70,14 @@ describe("solveMinimumAuthority vs. brute-force oracle", () => {
     });
   }
 
+  // The brute-force oracle's own cost is exponential in relevant-permission
+  // count (unlike the solver itself, which is fast at this scale) -- two
+  // permissions were added to the audited registry (gmail.labels_read/
+  // messages_read) to fix a real false-positive approval signal, pushing
+  // this specific "require nearly everything at once" case past the
+  // default 5s timeout under ordinary load. The explicit timeout below is a
+  // test-performance adjustment only; the oracle's own correctness is
+  // unchanged.
   it("also agrees with the oracle on the audited demo registry for every single-operation and full-coverage query", () => {
     const registry = loadRegistry(githubDemoRegistry);
     const allOps = [...registry.operations.keys()];
@@ -109,5 +117,5 @@ describe("solveMinimumAuthority vs. brute-force oracle", () => {
       expect(solverAll.solution.selectedPermissionIds).toEqual(oracleAll.solution.selectedPermissionIds);
       expect(solverAll.solution.score).toEqual(oracleAll.solution.score);
     }
-  });
+  }, 20_000);
 });

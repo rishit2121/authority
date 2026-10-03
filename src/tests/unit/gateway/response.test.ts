@@ -45,10 +45,28 @@ describe("toAgentResponse", () => {
     expect(replay.capability?.tokenAlreadyIssued).toBe(true);
   });
 
-  it("is always labeled a simulation", () => {
+  it("labels an unrecognized tool a simulation", () => {
     expect(
       toAgentResponse({ commit: base, capabilityToken: null, tool: "a.b", operation: "b" }).simulation,
     ).toBe(true);
+  });
+
+  it("labels GitHub's six connector tools, and every other registered connector's tools, as real -- not simulated", () => {
+    // Regression: CONNECTOR_TOOLS used to be a hand-maintained, GitHub-only
+    // list, so a real connector's own real execution (Stripe, Slack, Gmail,
+    // Postgres, Custom API) was mislabeled `simulation: true` in the agent-
+    // facing authorize response even though /api/v1/execute genuinely
+    // dispatched it to a live provider.
+    for (const tool of [
+      "github.get_issue",
+      "stripe.issue_refund",
+      "slack.post_message",
+      "gmail.list_labels",
+    ]) {
+      expect(toAgentResponse({ commit: base, capabilityToken: null, tool, operation: "x" }).simulation).toBe(
+        false,
+      );
+    }
   });
 
   it("gives an agent no signals, indicators, provider, confidence or raw semantic codes", () => {

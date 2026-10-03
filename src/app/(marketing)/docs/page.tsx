@@ -16,8 +16,12 @@ export default function DocsIndexPage() {
         Authority developer docs
       </h1>
       <p className="mt-2 text-[15px] leading-[1.6] text-ink-soft">
-        Connect your own agent to Authority&apos;s real, already-implemented runtime API — no SDK required.
-        Two credentials, one authorize call, one execute call. Start with the Quickstart.
+        Connect your own agent to Authority&apos;s real, already-implemented runtime API. Use the typed{" "}
+        <code className="font-mono-code text-[13px]">@authority/sdk</code> client (
+        <code className="font-mono-code text-[13px]">examples/gmail-quickstart</code>,{" "}
+        <code className="font-mono-code text-[13px]">examples/model-driven-agent</code>) or call the raw HTTP
+        API directly — no SDK is required either way. Two credentials, one authorize call, one execute call.
+        Start with the Quickstart.
       </p>
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
         {DOCS_NAV.flatMap((item) => (item.children ? item.children : [item])).map((item) => (

@@ -26,13 +26,14 @@ type Db = SupabaseClient<Database>;
 
 async function loadOnboardingProgress(db: Db): Promise<OnboardingProgress> {
   const head = { count: "exact", head: true } as const;
-  const [agents, tasks, decisions, github, validation, contracts] = await Promise.all([
+  const [agents, tasks, decisions, github, validation, contracts, backendCredentials] = await Promise.all([
     db.from("agents").select("id", head),
     db.from("tasks").select("id", head),
     db.from("authorization_decisions").select("id", head),
     db.from("github_installations").select("id", head).neq("status", "disconnected"),
     db.from("validation_campaigns").select("id", head),
     db.from("task_authority_contracts").select("id", head).eq("contract_status", "active"),
+    db.from("developer_backend_credentials").select("id", head).eq("status", "active"),
   ]);
   return {
     agent: (agents.count ?? 0) > 0,
@@ -41,6 +42,7 @@ async function loadOnboardingProgress(db: Db): Promise<OnboardingProgress> {
     runtimeCall: (decisions.count ?? 0) > 0,
     githubConnected: (github.count ?? 0) > 0,
     validationRun: (validation.count ?? 0) > 0,
+    developerApiConfigured: (backendCredentials.count ?? 0) > 0,
   };
 }
 
