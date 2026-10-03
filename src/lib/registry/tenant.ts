@@ -129,6 +129,16 @@ function toolOperationFor(item: TenantPublishedItem): ToolOperation {
     // operations that disclose nothing -- conflating "reaches an external
     // system" with "discloses something to one."
     externalCommunication: item.source === "custom_api" && item.effect !== "read",
+    // Same structural limitation as dataSensitivity above, not a separate
+    // oversight: whether a tenant-defined operation moves money is exactly
+    // as unknowable to this registry as its true sensitivity, and there is
+    // no admin-settable signal for it today either. Left `false` rather
+    // than guessed `true` -- this has no net effect on whether approval is
+    // required, since dataSensitivity:"confidential" already forces it
+    // (approval-rules.ts's HIGH_SENSITIVITY rule) regardless of this flag;
+    // the only difference a future admin-settable override would add here
+    // is a more specific recorded reason ("financial operation" vs.
+    // "touches confidential data"), never a security gap closed.
     financialImpact: false,
     requiresApproval: item.effect !== "read",
     argumentFields: fields.map((f) => ({
