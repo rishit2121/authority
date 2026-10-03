@@ -24,6 +24,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    globalSetup: ["./src/tests/integration/global-setup.ts"],
     setupFiles: ["./src/tests/integration/setup.ts"],
     include: ["src/tests/integration/**/*.test.ts"],
     // Real network calls; a tight default timeout would make this flaky
