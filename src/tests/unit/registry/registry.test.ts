@@ -10,9 +10,9 @@ import {
 describe("loadRegistry", () => {
   it("loads the audited demo registry without error", () => {
     const loaded = loadRegistry(githubDemoRegistry);
-    expect(loaded.registryVersion).toBe("github-demo-2026-10-02d");
+    expect(loaded.registryVersion).toBe("github-demo-2026-10-03a");
     expect(loaded.operations.size).toBe(19);
-    expect(loaded.permissions.size).toBe(20);
+    expect(loaded.permissions.size).toBe(22);
   });
 
   it("computes deterministic, sorted coverage per operation", () => {

@@ -32,6 +32,30 @@ describe("solveMinimumAuthority — the registry's designed scenarios", () => {
     expect(outcome.solution.score.totalRiskCost).toBe(2); // beats issues_read(1)+repository_read(2)=3
   });
 
+  it("gmail: a list_labels-only plan gets the dedicated narrow permission, zero excess", () => {
+    const outcome = solve(["gmail.list_labels"]);
+    if (outcome.status !== "solved") throw new Error(outcome.status);
+    expect(outcome.solution.selectedPermissionIds).toEqual(["gmail.labels_read"]);
+    expect(outcome.solution.excessOperations).toEqual([]);
+  });
+
+  it("gmail: a messages-only plan gets the dedicated narrow permission, zero excess", () => {
+    const outcome = solve(["gmail.list_messages", "gmail.get_message"]);
+    if (outcome.status !== "solved") throw new Error(outcome.status);
+    expect(outcome.solution.selectedPermissionIds).toEqual(["gmail.messages_read"]);
+    expect(outcome.solution.excessOperations).toEqual([]);
+  });
+
+  it("gmail: a plan needing all three read operations still prefers the one bundled permission", () => {
+    const outcome = solve(["gmail.list_labels", "gmail.list_messages", "gmail.get_message"]);
+    if (outcome.status !== "solved") throw new Error(outcome.status);
+    // labels_read + messages_read cost exactly the same as read_scope (tiers 1-3 tie);
+    // read_scope wins on tier 4 (one permission instead of two) -- unchanged from
+    // before the narrow permissions existed.
+    expect(outcome.solution.selectedPermissionIds).toEqual(["gmail.read_scope"]);
+    expect(outcome.solution.excessOperations).toEqual([]);
+  });
+
   it("resolves multiple equivalent optima deterministically by permission ID", () => {
     const outcome = solve(["github.get_issue"]);
     if (outcome.status !== "solved") throw new Error(outcome.status);

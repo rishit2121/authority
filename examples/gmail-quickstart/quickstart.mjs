@@ -13,25 +13,21 @@
  *      -> Applications, and Agents -- see .env.example's own comments).
  *   2. Register this script's fixed return URL on your application:
  *      http://127.0.0.1:4300/connected
+ *   3. (Optional, for automatic activation without a dashboard click):
+ *      Settings -> Applications -> (your application) -> Automation ->
+ *      allow-list "gmail.list_labels". gmail.list_labels has its own
+ *      dedicated registry permission (gmail.labels_read), disjoint from
+ *      gmail.list_messages/get_message's permission, so allow-listing it
+ *      can never grant message-reading access -- see
+ *      src/lib/registry/fixtures/github-demo.ts's own comment on
+ *      gmail.labels_read for exactly why. Without this step, the script
+ *      still works end to end; it just stops at "awaiting_approval" the
+ *      first time, until a human activates the proposed contract once from
+ *      the dashboard.
  *
  * Run:
  *   npm install && npm run sdk:build   (from the repo root, once)
  *   npm start                          (from this directory, every time)
- *
- * The first run will stop at "awaiting_approval" -- open the printed
- * dashboard link and activate the contract once. This is expected, not a
- * bug: Authority's registry groups gmail.list_labels with two sibling read
- * operations (list_messages, get_message) under one bundled permission, so
- * the solver cannot grant list_labels alone without including them as
- * excess scope -- which always requires a human sign-off, regardless of
- * any automation-policy allowlist (Settings -> Applications -> Automation
- * only ever narrows which already-zero-approval contracts activate
- * automatically; it can never waive a genuine one). A task built from a
- * tool with its own dedicated, unbundled permission -- see
- * src/tests/integration/runtime/task-lifecycle-backend.test.ts's
- * github.get_issue case -- can reach full automatic activation; this
- * example intentionally keeps the one-time human click instead, since it's
- * the more common real-world case.
  *
  * This script never sends email -- the only tool call it ever makes is the
  * read-only gmail.list_labels.
@@ -176,10 +172,8 @@ async function main() {
     console.log(
       `\nContract ${outcome.contractId} is proposed but needs a human to activate it once:\n` +
         `  ${new URL(outcome.approvalPath, AUTHORITY_URL)}\n` +
-        `(Expected here, not a bug -- gmail.list_labels shares a bundled permission with two\n` +
-        ` sibling read operations, which always requires a human sign-off; see this script's\n` +
-        ` own header comment. Re-run this script after activating and it will pick up the now-\n` +
-        ` active contract and run the tool call.)`,
+        `(Or allow-list "gmail.list_labels" for this application under Settings -> Applications ->\n` +
+        ` Automation, then re-run this script -- it will activate automatically next time.)`,
     );
     return;
   }

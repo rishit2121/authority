@@ -192,6 +192,57 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(afterAllow.contractStatus).toBe("active");
   });
 
+  it("a gmail.list_labels-only plan solves with zero excess operations and reaches ready once allow-listed", async () => {
+    // Regression for the exact scenario a live quickstart run surfaced:
+    // gmail.list_labels used to be coverable only by the bundled
+    // gmail.read_scope permission (list_messages + get_message +
+    // list_labels), so ANY plan requesting it alone incurred "excess
+    // operations" and an unconditional security_admin approval -- even
+    // though the compiled contract's own allowedActions never included the
+    // sibling tools either way (see contract-compiler.ts's buildAllowedActions,
+    // which only ever includes the plan's own requested tools, and
+    // evaluate.ts's TOOL_NOT_IN_CONTRACT check, which is what actually gates
+    // every tool call at authorize() time -- the registry PERMISSION a
+    // solver selects to justify minimum coverage is never itself the
+    // runtime authority boundary). Adding a dedicated gmail.labels_read
+    // permission (github-demo.ts) fixes the false signal without touching
+    // runtime enforcement at all: list_messages/get_message were never
+    // reachable through this contract, and remain exactly as unreachable
+    // now as before this fix.
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix);
+    apps.push(app);
+    const agent = await mkAgent("lifecycle-gmail-labels");
+    const customer = await createOrResolveCustomer({
+      credentialSecret: app.backendSecret,
+      externalId: "alex",
+    });
+
+    const created = await createCustomerTask({
+      credentialSecret: app.backendSecret,
+      customerId: customer.customerId!,
+      agentId: agent.agentId,
+      intent: "List my Gmail labels",
+      connectorBindings: [],
+    });
+    const taskId = created.taskId!;
+    taskIds.push(taskId);
+
+    await allowAutomation(app.applicationId, "gmail.list_labels");
+
+    const plan = planFor(taskId, "gmail.list_labels", {});
+    const result = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.outcome.status).toBe("ready");
+    if (result.outcome.status !== "ready") return;
+    expect(result.outcome.tools).toEqual(["gmail.list_labels"]);
+
+    const contract = await getContractForBackend(app.backendSecret, result.outcome.contractId);
+    expect(contract.requiredApprovalsCount).toBe(0);
+    expect(contract.tools).toEqual(["gmail.list_labels"]);
+  });
+
   it("never auto-activates a tool that genuinely requires approval, even once allow-listed", async () => {
     const suffix = randomBytes(4).toString("hex");
     const app = await createApplicationFixture(suffix);

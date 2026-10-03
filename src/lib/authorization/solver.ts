@@ -56,26 +56,27 @@ import { comparePermissionIds } from "@/lib/registry";
  * test registry (see solver-oracle.test.ts), not merely asserted.
  *
  * Limits and benchmark (see solver-benchmark.test.ts): `MAX_RELEVANT_PERMISSIONS`
- * is set to 20 — the same scale the specification's own example suggested —
- * based on measuring a deliberately adversarial "ring" registry at that size
- * (every operation covered by exactly 2 permissions, so forced-permission
- * preprocessing never fires, and near-identical costs, so bound pruning has
- * minimal early signal): 20 permissions produced roughly 9,400 branch-and-
- * bound node visits and ~13ms wall-clock time, against a hard cap of
- * `MAX_NODE_VISITS` = 200,000 — over 20x headroom below the cap even in this
- * constructed worst case. At 25 permissions the same construction reached
- * ~66,000 node visits (~80ms); the limit is kept at 20 rather than pushed
- * higher, in line with "reduce supported registry size if necessary" —
- * correctness and a comfortable safety margin took priority over supporting
- * a larger registry. `search_space_exceeded` is returned, with no partial
- * answer, whenever the relevant-permission or required-operation count
- * exceeds its limit, or the node-visit cap is hit mid-search — a distinct
- * outcome from `no_valid_solution` (see the type below): the former means
- * "this exceeded configured limits," the latter means "the full space was
- * searched and no covering, policy-compliant selection exists."
+ * is set to 22, based on measuring a deliberately adversarial "ring" registry
+ * at that scale (every operation covered by exactly 2 permissions, so
+ * forced-permission preprocessing never fires, and near-identical costs, so
+ * bound pruning has minimal early signal): 20 permissions produced roughly
+ * 9,400 branch-and-bound node visits and ~13ms wall-clock time, 25
+ * permissions reached ~66,000 node visits (~80ms), against a hard cap of
+ * `MAX_NODE_VISITS` = 200,000 — comfortable headroom at either end. Raised
+ * from 20 to 22 (not higher) when the audited demo registry's own legitimate
+ * "require every non-restricted operation at once" oracle case
+ * (solver-oracle.test.ts) grew past 20 relevant permissions following the
+ * addition of `gmail.labels_read`/`gmail.messages_read` — the minimum bump
+ * that case needed, re-benchmarked rather than assumed safe. `search_space_exceeded`
+ * is returned, with no partial answer, whenever the relevant-permission or
+ * required-operation count exceeds its limit, or the node-visit cap is hit
+ * mid-search — a distinct outcome from `no_valid_solution` (see the type
+ * below): the former means "this exceeded configured limits," the latter
+ * means "the full space was searched and no covering, policy-compliant
+ * selection exists."
  */
 
-export const MAX_RELEVANT_PERMISSIONS = 20;
+export const MAX_RELEVANT_PERMISSIONS = 22;
 export const MAX_REQUIRED_OPERATIONS = 30;
 /** A hard, deterministic work limit — counted in branch-and-bound node visits, never wall-clock time. */
 export const MAX_NODE_VISITS = 200_000;
