@@ -1,14 +1,24 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { hashCapabilityToken } from "@/lib/gateway/capability-token";
+import { authorizeThroughGateway } from "@/lib/gateway/pipeline";
 import {
   bindTaskGithubRepositoryForBackend,
   listCustomerGithubRepositoriesForBackend,
 } from "@/lib/gateway/rpc-github-delegation";
 import { createCustomerTask, createOrResolveCustomer } from "@/lib/gateway/rpc-customers";
+import { prepareTask } from "@/lib/gateway/prepare-task";
+import { getContractForBackend } from "@/lib/gateway/rpc-tasks-lifecycle";
+import { defaultExecutorDeps, executeGithubOperation } from "@/lib/github/executor";
 
-import { createGatewayFixture, ensureMockInstallation, type GatewayFixture } from "../gateway-support";
+import {
+  createGatewayFixture,
+  currentVersions,
+  ensureMockInstallation,
+  type GatewayFixture,
+} from "../gateway-support";
 import { managementQuery, TENANT_A_ID } from "../support";
 
 /**
@@ -54,6 +64,7 @@ async function createApplicationFixture(suffix: string): Promise<AppFixture> {
       await managementQuery(`
         set local role postgres;
         select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.automation_policies where application_id = '${applicationId}';
         delete from public.developer_backend_credentials where application_id = '${applicationId}';
         delete from public.customers where application_id = '${applicationId}';
         delete from public.applications where id = '${applicationId}';
@@ -78,17 +89,51 @@ async function delegateRepository(repositoryId: string, customerId: string): Pro
   `);
 }
 
+async function allowAutomation(applicationId: string, tool: string): Promise<void> {
+  await managementQuery(`
+    insert into public.automation_policies (tenant_id, application_id, tool)
+    values ('${TENANT_A_ID}', '${applicationId}', '${tool}');
+  `);
+}
+
 describe("GitHub repository customer delegation (real database)", () => {
   const apps: AppFixture[] = [];
   const taskIds: string[] = [];
   const fixtures: GatewayFixture[] = [];
+
+  // Required for executeGithubOperation to route to the in-memory mock
+  // instead of attempting a real GitHub call -- same flag
+  // github-connector.test.ts's own beforeAll sets.
+  beforeAll(() => {
+    process.env.GITHUB_EXECUTION_MODE = "mock";
+  });
 
   afterEach(async () => {
     for (const taskId of taskIds.splice(0, taskIds.length)) {
       await managementQuery(`
         set local role postgres;
         select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.jev_risk_evaluations where task_id = '${taskId}';
+        delete from public.jev_necessity_evaluations where task_id = '${taskId}';
+        delete from public.jev_plan_completeness_evaluations where task_id = '${taskId}';
+        delete from public.github_execution_receipts where task_id = '${taskId}';
+        delete from public.capability_reservations where task_id = '${taskId}';
+        delete from public.runtime_approval_decisions where request_id in (select id from public.runtime_approval_requests where task_id = '${taskId}');
+        delete from public.capability_consumptions where capability_id in (select id from public.capability_tokens where task_id = '${taskId}');
+        delete from public.capability_tokens where task_id = '${taskId}';
+        delete from public.runtime_approval_requests where task_id = '${taskId}';
+        delete from public.final_decisions where task_id = '${taskId}';
+        delete from public.semantic_evaluations where task_id = '${taskId}';
+        delete from public.semantic_shadow_evaluations where task_id = '${taskId}';
+        delete from public.execution_events where task_id = '${taskId}';
+        delete from public.authorization_decisions where task_id = '${taskId}';
+        delete from public.capabilities where task_id = '${taskId}';
+        delete from public.tool_requests where task_id = '${taskId}';
         delete from public.task_repository_bindings where task_id = '${taskId}';
+        delete from public.contract_compilations where task_id = '${taskId}';
+        delete from public.task_authority_contracts where task_id = '${taskId}';
+        delete from public.plan_nodes where plan_id in (select id from public.plans where task_id = '${taskId}');
+        delete from public.plans where task_id = '${taskId}';
         delete from public.tasks where id = '${taskId}';
       `);
     }
@@ -208,5 +253,107 @@ describe("GitHub repository customer delegation (real database)", () => {
       `select 1 from public.task_repository_bindings where task_id = '${task.taskId}';`,
     );
     expect(bound).toEqual([]);
+  });
+
+  it("a GitHub task goes all the way from creation through a real (mock) execution via the backend API", async () => {
+    // The end-to-end proof that GitHub now participates in the same
+    // developer workflow as every other connector: create a customer-scoped
+    // task with no connector_connections at all, bind a delegated
+    // repository as its own explicit step, prepare a contract for
+    // github.get_issue through the identical deterministic pipeline, reach
+    // automatic activation the same way github.get_issue already does in
+    // task-lifecycle-backend.test.ts, then run a real authorize -> execute
+    // call against the mock GitHub backend -- GitHub's own execution path,
+    // approvals and replay protection, completely unchanged.
+    await ensureMockInstallation();
+    const repoId = await repositoryIdFor("acme/widgets");
+
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix);
+    apps.push(app);
+
+    const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
+    await delegateRepository(repoId, alex.customerId!);
+
+    const agent = await mkAgent("github-full-workflow");
+    const task = await createCustomerTask({
+      credentialSecret: app.backendSecret,
+      customerId: alex.customerId!,
+      agentId: agent.agentId,
+      intent: "Read issue 1 in acme/widgets",
+      connectorBindings: [],
+    });
+    taskIds.push(task.taskId!);
+
+    const bindResult = await bindTaskGithubRepositoryForBackend({
+      credentialSecret: app.backendSecret,
+      taskId: task.taskId!,
+      repositoryId: repoId,
+    });
+    expect(bindResult).toBe("ok");
+
+    await allowAutomation(app.applicationId, "github.get_issue");
+
+    const outcome = await prepareTask({
+      credentialSecret: app.backendSecret,
+      taskId: task.taskId!,
+      plan: {
+        schemaVersion: 1,
+        taskId: task.taskId!,
+        nodes: [
+          {
+            id: "n1",
+            sequence: 0,
+            tool: "github.get_issue",
+            arguments: { issue_number: "1" },
+            resourceBinding: "acme/widgets",
+            dependencies: [],
+            declaredOutputs: [],
+            dataFlowRefs: [],
+            expectedSideEffect: "read",
+            maxInvocations: 1,
+          },
+        ],
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.outcome.status).toBe("ready");
+
+    const contract = await getContractForBackend(
+      app.backendSecret,
+      (outcome.outcome as { contractId: string }).contractId,
+    );
+    expect(contract.contractStatus).toBe("active");
+
+    const decision = await authorizeThroughGateway({
+      credentialSecret: agent.secret,
+      taskId: task.taskId!,
+      tool: "github.get_issue",
+      operation: "get_issue",
+      resource: "acme/widgets",
+      arguments: { issue_number: "1" },
+      idempotencyKey: `github-full-workflow-auth-${suffix}`,
+      ...currentVersions(),
+    });
+    expect(decision.kind).toBe("decision");
+    if (decision.kind !== "decision") return;
+    expect(["allow", "allow_constrained"]).toContain(decision.commit.finalOutcome);
+    expect(decision.capabilityToken).toBeTruthy();
+
+    const executed = await executeGithubOperation(
+      {
+        credentialSecret: agent.secret,
+        tokenHash: hashCapabilityToken(decision.capabilityToken!),
+        tool: "github.get_issue",
+        operation: "get_issue",
+        resource: "acme/widgets",
+        args: { issue_number: "1" },
+        idempotencyKey: `github-full-workflow-exec-${suffix}`,
+      },
+      defaultExecutorDeps,
+    );
+    expect(executed.http).toBe(200);
+    expect((executed.body as { result?: string }).result).toMatch(/^succeeded/);
   });
 });
