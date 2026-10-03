@@ -6,6 +6,15 @@ import "server-only";
  * Identical logic to src/lib/github/config.ts's own `publicBaseUrl` --
  * duplicated rather than imported so connector modules stay independent of
  * one another, not because the two should ever diverge.
+ *
+ * The `http://localhost:3000` development fallback is a convenience for
+ * Authority's own default (`npm run dev` binds port 3000), not a guess at
+ * the inbound request's actual origin -- deliberately not derived from a
+ * request's Host header, which would make an OAuth redirect URI depend on
+ * caller-supplied input. Running dev on any other port requires setting
+ * `AUTHORITY_PUBLIC_URL` explicitly in that server's own environment, or
+ * the embedded connect flow's redirect will target the wrong origin (see
+ * examples/gmail-quickstart/.env.example's own note on this).
  */
 export function publicBaseUrl(env: NodeJS.ProcessEnv = process.env): string | null {
   const raw =
