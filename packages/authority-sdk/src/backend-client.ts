@@ -104,19 +104,30 @@ export class AuthorityBackendClient {
      * and "clarification" are expected, common results, never errors. Poll
      * `contracts.getStatus` on an "awaiting_approval" outcome's `contractId`
      * until a human activates or rejects it on the dashboard.
+     *
+     * `CandidatePlanInput` has no `taskId` field of its own -- the server's
+     * candidate-plan schema requires one (and, on the dashboard path,
+     * enforces it matches the task being proposed for), but a caller here
+     * already named the task as this method's own first argument, so this
+     * stamps it onto the plan before sending rather than making every
+     * backend-API caller repeat it a second time, redundantly, inside the
+     * plan body itself.
      */
     prepare: (
       taskId: string,
       input: { plan: CandidatePlanInput } | { generate: true },
       idempotencyKey?: string,
       options?: RequestOptions,
-    ) =>
-      request<PrepareTaskOutcome & { taskId: string }>(
+    ) => {
+      const body =
+        "plan" in input ? { plan: { ...input.plan, taskId }, idempotencyKey } : { ...input, idempotencyKey };
+      return request<PrepareTaskOutcome & { taskId: string }>(
         this.config,
         `/api/v1/tasks/${taskId}/prepare`,
-        { method: "POST", body: { ...input, idempotencyKey } },
+        { method: "POST", body },
         options,
-      ),
+      );
+    },
   };
 
   contracts = {
