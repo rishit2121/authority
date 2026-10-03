@@ -33,9 +33,12 @@ const env = {
   ...loadEnv(path.join(root, ".supabase-cli.env")),
   ...process.env,
 };
-const dir = path.join(root, ".next", "static");
+const distDir = process.env.NEXT_DIST_DIR || ".next";
+const dir = path.join(root, distDir, "static");
 if (!existsSync(dir)) {
-  console.error("No .next/static found: run `npm run build` first.");
+  console.error(
+    `No ${distDir}/static found: run \`npm run build\` first (with the same NEXT_DIST_DIR, if set).`,
+  );
   process.exit(2);
 }
 
