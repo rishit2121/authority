@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "examples/gmail-quickstart"
+    "examples/gmail-quickstart",
+    "examples/model-driven-agent"
   ],
   "scripts": {
     "sdk:build": "npm run build -w @authority/sdk",
