@@ -2503,6 +2503,61 @@ export type Database = {
           },
         ];
       };
+      github_repository_customer_delegations: {
+        Row: {
+          created_at: string;
+          created_by: string | null;
+          customer_id: string;
+          id: string;
+          repository_id: string;
+          revoked_at: string | null;
+          revoked_by: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by?: string | null;
+          customer_id: string;
+          id?: string;
+          repository_id: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by?: string | null;
+          customer_id?: string;
+          id?: string;
+          repository_id?: string;
+          revoked_at?: string | null;
+          revoked_by?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "github_repository_customer_delegat_repository_id_tenant_id_fkey";
+            columns: ["repository_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "github_repositories";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_repository_customer_delegatio_customer_id_tenant_id_fkey";
+            columns: ["customer_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "customers";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "github_repository_customer_delegations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       github_webhook_deliveries: {
         Row: {
           action: string | null;
@@ -5213,6 +5268,10 @@ export type Database = {
         Args: { p_decision: string; p_id: string; p_note: string };
         Returns: string;
       };
+      delegate_github_repository_to_customer: {
+        Args: { p_customer_id: string; p_repository_id: string };
+        Returns: string;
+      };
       ensure_onboarded: {
         Args: never;
         Returns: {
@@ -5237,6 +5296,15 @@ export type Database = {
           ctx_timeout_ms: number;
           ctx_tool: string;
         }[];
+      };
+      github_bind_task_repository: {
+        Args: {
+          p_repository_id: string;
+          p_task_id: string;
+          p_tenant_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
       };
       grant_connection_delegation: {
         Args: { p_connection_id: string; p_customer_id: string };
@@ -5335,6 +5403,10 @@ export type Database = {
       };
       revoke_connection_delegation: {
         Args: { p_connection_id: string; p_customer_id: string };
+        Returns: string;
+      };
+      revoke_github_repository_delegation: {
+        Args: { p_customer_id: string; p_repository_id: string };
         Returns: string;
       };
       revoke_task_contract: {

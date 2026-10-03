@@ -190,6 +190,20 @@ describe("backend-credential task lifecycle (real database)", () => {
 
     const afterAllow = await getContractForBackend(app.backendSecret, contractId!);
     expect(afterAllow.contractStatus).toBe("active");
+
+    // Regression: a THIRD prepare() call, after the contract is already
+    // active, must still report "ready" -- not regress to
+    // "awaiting_approval" merely because the contract is no longer in a
+    // state activate_task_contract_core() would normally transition from
+    // (found via a live end-to-end run: the backend wrapper's blanket
+    // exception handler was swallowing "already active" into the same
+    // status as a genuinely ineligible contract).
+    const third = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan, idempotencyKey });
+    expect(third.ok).toBe(true);
+    if (!third.ok) return;
+    expect(third.outcome.status).toBe("ready");
+    if (third.outcome.status !== "ready") return;
+    expect(third.outcome.contractId).toBe(contractId);
   });
 
   it("a gmail.list_labels-only plan solves with zero excess operations and reaches ready once allow-listed", async () => {

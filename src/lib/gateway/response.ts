@@ -290,6 +290,26 @@ export function developerApiFailureContract(status: string): FailureContract {
         code: "CONNECTION_NOT_USABLE_BY_CUSTOMER",
         message: "This connection does not belong to, and is not delegated to, this customer.",
       };
+    case "repository_not_usable_by_customer":
+      return {
+        http: 403,
+        code: "REPOSITORY_NOT_USABLE_BY_CUSTOMER",
+        message: "This repository is not delegated to this customer.",
+      };
+    case "repository_not_allowed":
+      return {
+        http: 403,
+        code: "REPOSITORY_NOT_ALLOWED",
+        message: "This repository is not on the tenant's allowlist, or its installation is not active.",
+      };
+    case "already_bound":
+      return {
+        http: 409,
+        code: "ALREADY_BOUND",
+        message: "This task is already bound to a repository.",
+      };
+    case "task_closed":
+      return { http: 409, code: "TASK_CLOSED", message: "This task has already ended." };
     case "already_bound_to_different_connection":
       return {
         http: 409,

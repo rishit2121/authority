@@ -310,3 +310,52 @@ export async function revokeAutomationPolicyAction(
     return { ok: false, error: presentActionError(error) };
   }
 }
+
+export async function delegateGithubRepositoryToCustomerAction(
+  applicationId: string,
+  repositoryId: string,
+  customerId: string,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("delegate_github_repository_to_customer", {
+      p_repository_id: repositoryId,
+      p_customer_id: customerId,
+    });
+    if (error) return { ok: false, error: error.message };
+    if (data !== "ok") {
+      const messages: Record<string, string> = {
+        forbidden: "Admin role required.",
+        repository_not_found: "Repository not found.",
+        customer_not_found: "Customer not found.",
+      };
+      return { ok: false, error: messages[data as string] ?? "Could not delegate the repository." };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+export async function revokeGithubRepositoryDelegationAction(
+  applicationId: string,
+  repositoryId: string,
+  customerId: string,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("revoke_github_repository_delegation", {
+      p_repository_id: repositoryId,
+      p_customer_id: customerId,
+    });
+    if (error) return { ok: false, error: error.message };
+    if (data !== "ok") {
+      return { ok: false, error: data === "forbidden" ? "Admin role required." : "Delegation not found." };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}

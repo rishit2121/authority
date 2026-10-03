@@ -174,7 +174,18 @@ export class AuthorityAgentClient {
     );
   }
 
-  /** Low-level: spend a capability already issued by `authorize`. Exposed for callers that manage the capability token themselves. */
+  /**
+   * Low-level: spend a capability already issued by `authorize`. Exposed
+   * for callers that manage the capability token themselves.
+   *
+   * `github.*` tools still run through their own dedicated route
+   * (`/api/v1/github/execute`) rather than the generic connector route --
+   * GitHub has not been migrated onto the shared connector executor (see
+   * `src/lib/connectors/register.ts`'s own comment on why), so this is the
+   * one place the SDK's otherwise-uniform agent surface has to know that.
+   * Same request/response shape either way; callers never need to branch
+   * on this themselves.
+   */
   executeCapability(
     input: {
       capability: string;
@@ -186,11 +197,7 @@ export class AuthorityAgentClient {
     },
     options?: RequestOptions,
   ) {
-    return request<Record<string, unknown>>(
-      this.config,
-      "/api/v1/execute",
-      { method: "POST", body: input },
-      options,
-    );
+    const path = input.tool.startsWith("github.") ? "/api/v1/github/execute" : "/api/v1/execute";
+    return request<Record<string, unknown>>(this.config, path, { method: "POST", body: input }, options);
   }
 }

@@ -7,6 +7,21 @@ export interface CustomerConnection {
   createdAt: string;
 }
 
+/**
+ * A GitHub repository explicitly delegated to a customer -- not a
+ * `CustomerConnection`, since a GitHub repository is never represented as
+ * an OAuth connection (see the backend migration's own module comment on
+ * why). Discovered via `backend.githubRepositories.list`, bound to a task
+ * via `backend.tasks.bindGithubRepository`.
+ */
+export interface CustomerGithubRepository {
+  repositoryId: string;
+  owner: string;
+  name: string;
+  defaultBranch: string;
+  isPrivate: boolean;
+}
+
 export type PrepareTaskOutcome =
   | { status: "ready"; contractId: string; version: number; tools: string[] }
   | { status: "awaiting_approval"; contractId: string; version: number; approvalPath: string }

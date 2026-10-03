@@ -1,5 +1,11 @@
 import { request, type ClientConfig, type RequestOptions } from "./http.js";
-import type { CandidatePlanInput, ContractStatus, CustomerConnection, PrepareTaskOutcome } from "./types.js";
+import type {
+  CandidatePlanInput,
+  ContractStatus,
+  CustomerConnection,
+  CustomerGithubRepository,
+  PrepareTaskOutcome,
+} from "./types.js";
 
 export interface AuthorityBackendClientOptions {
   /** The Authority deployment's origin, e.g. "https://authority.example.com" or "http://localhost:3000". */
@@ -69,6 +75,25 @@ export class AuthorityBackendClient {
       ),
   };
 
+  /**
+   * GitHub repositories, kept separate from `connections` above: a GitHub
+   * repository is never an OAuth connection, so it cannot be named in
+   * `tasks.create`'s own `connections` array -- bind one to a task via
+   * `tasks.bindGithubRepository` as a distinct step instead, the same way a
+   * human developer already binds a repository on the dashboard separately
+   * from creating the task itself.
+   */
+  githubRepositories = {
+    /** Every repository explicitly delegated to this customer (Settings -> Applications -> an admin action). */
+    list: (customerId: string, options?: RequestOptions) =>
+      request<{ repositories: CustomerGithubRepository[] }>(
+        this.config,
+        `/api/v1/customers/${customerId}/github-repositories`,
+        { method: "GET" },
+        options,
+      ),
+  };
+
   tasks = {
     /** Creates a customer-scoped task with its connector bindings set atomically, before any contract can be proposed. */
     create: (
@@ -128,6 +153,22 @@ export class AuthorityBackendClient {
         options,
       );
     },
+
+    /**
+     * Binds a task to a GitHub repository delegated to that task's own
+     * customer (`githubRepositories.list` discovers which ones). Required
+     * once, before `tasks.prepare` compiles a contract containing any
+     * `github.*` tool -- this call grants no tool authority by itself, it
+     * only makes the repository available for the deterministic pipeline
+     * to bind a plan node's resource against.
+     */
+    bindGithubRepository: (taskId: string, repositoryId: string, options?: RequestOptions) =>
+      request<{ taskId: string; repositoryId: string }>(
+        this.config,
+        `/api/v1/tasks/${taskId}/github-repository`,
+        { method: "POST", body: { repositoryId } },
+        options,
+      ),
   };
 
   contracts = {

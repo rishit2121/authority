@@ -19,6 +19,10 @@ import {
   type OrganizationConnectionRow,
 } from "@/components/application/ConnectionDelegationPanel";
 import { CustomersPanel, type CustomerRow } from "@/components/application/CustomersPanel";
+import {
+  GithubRepositoryDelegationPanel,
+  type GithubRepositoryRow,
+} from "@/components/application/GithubRepositoryDelegationPanel";
 import { ReturnUrlsForm } from "@/components/application/ReturnUrlsForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
@@ -49,6 +53,7 @@ export default async function ApplicationDetailPage({
     delegationsResult,
     brokersResult,
     automationPoliciesResult,
+    githubRepositoriesResult,
   ] = await Promise.all([
     context.supabase
       .from("developer_backend_credentials")
@@ -81,6 +86,12 @@ export default async function ApplicationDetailPage({
       .eq("application_id", applicationId)
       .is("revoked_at", null)
       .order("tool", { ascending: true }),
+    context.supabase
+      .from("github_repositories")
+      .select("id, owner, name")
+      .eq("allowed", true)
+      .eq("present", true)
+      .order("owner", { ascending: true }),
   ]);
 
   const customersById = new Map((customersResult.data ?? []).map((c) => [c.id, c]));
@@ -162,6 +173,30 @@ export default async function ApplicationDetailPage({
     createdAt: p.created_at,
   }));
 
+  const githubRepoIds = (githubRepositoriesResult.data ?? []).map((r) => r.id);
+  const { data: githubRepoDelegations } =
+    githubRepoIds.length > 0
+      ? await context.supabase
+          .from("github_repository_customer_delegations")
+          .select("repository_id, customer_id")
+          .in("repository_id", githubRepoIds)
+          .is("revoked_at", null)
+      : { data: [] };
+  const githubDelegationsByRepo = new Map<string, string[]>();
+  for (const d of githubRepoDelegations ?? []) {
+    const list = githubDelegationsByRepo.get(d.repository_id) ?? [];
+    list.push(d.customer_id);
+    githubDelegationsByRepo.set(d.repository_id, list);
+  }
+  const githubRepositories: GithubRepositoryRow[] = (githubRepositoriesResult.data ?? []).map((r) => ({
+    repositoryId: r.id,
+    fullName: `${r.owner}/${r.name}`,
+    delegations: (githubDelegationsByRepo.get(r.id) ?? []).map((customerId) => ({
+      customerId,
+      customerLabel: customerLabel(customerId),
+    })),
+  }));
+
   return (
     <div className="flex flex-col gap-space-lg">
       <PageHeader
@@ -180,6 +215,11 @@ export default async function ApplicationDetailPage({
         customerOptions={customerOptions}
       />
       <AutomationPoliciesPanel applicationId={applicationId} policies={automationPolicies} />
+      <GithubRepositoryDelegationPanel
+        applicationId={applicationId}
+        repositories={githubRepositories}
+        customerOptions={customerOptions}
+      />
     </div>
   );
 }
