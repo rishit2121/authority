@@ -86,7 +86,21 @@ export async function requestBrokerAccessToken(input: {
     return { status: "error", reason: "BROKER_RESPONSE_TOO_LARGE" };
   }
   if (Math.floor(response.status / 100) !== 2) {
-    return { status: "error", reason: `BROKER_STATUS_${response.status}` };
+    // `reason` ultimately becomes a connector_execution_receipts.reason_code
+    // (checked as `^[A-Z_]{1,60}$` -- letters and underscores only), so the
+    // raw numeric status can never be embedded directly, the same
+    // constraint gmail/connector.ts's own execute() already respects for an
+    // upstream Gmail API error (UPSTREAM_CLIENT_ERROR/UPSTREAM_SERVER_ERROR,
+    // not the literal status code). Classifying by status class here keeps
+    // every broker rejection able to actually be recorded as a receipt,
+    // instead of silently failing to settle (a real failure found by
+    // gmail-broker.test.ts: any non-2xx broker response previously produced
+    // a reason code the database would reject on insert).
+    const statusClass = Math.floor(response.status / 100);
+    return {
+      status: "error",
+      reason: statusClass === 4 ? "BROKER_REJECTED" : "BROKER_UPSTREAM_ERROR",
+    };
   }
 
   let parsed: unknown;
