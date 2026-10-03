@@ -29,15 +29,35 @@ export const PKCE_COOKIE = "authority_gmail_pkce";
 export const COOKIE_MAX_AGE_SECONDS = 15 * 60;
 
 /**
- * Full Gmail account access, not just `gmail.send`. The OAuth grant is
- * intentionally broad so a reconnect is never needed again as more
- * operations are added to the connector (../connector.ts) -- Authority's own
- * capability/contract system, not this scope, is what decides which of the
- * connector's fixed, individually-audited operations an agent may actually
- * call for a given task. A broad grant here never widens what an agent can
- * do; only adding a new operation to the connector does that.
+ * The narrowest combination of Google-defined scopes that exactly covers
+ * every operation this connector implements (../connector.ts):
+ * `gmail.readonly` for list_messages/get_message/list_labels and the
+ * account-label lookup (`users.getProfile`), `gmail.send` for send_email.
+ * Neither allows what this connector never does -- permanently deleting
+ * mail (bypassing trash), modifying or moving existing messages/labels, or
+ * touching account settings -- all of which the previously-requested
+ * `https://mail.google.com/` scope did allow. Both are still in Google's
+ * "restricted"/"sensitive" OAuth tiers (reading message content is
+ * inherently sensitive; there is no scope that both reads mail and skips
+ * that), so this does not reduce Google's own app-verification
+ * requirement -- the benefit is a smaller blast radius if a stored
+ * refresh token is ever compromised, not a lighter review process.
+ *
+ * Authority's own capability/contract system is still what actually
+ * decides which of this connector's fixed, individually-audited
+ * operations an agent may call for a given task -- this scope only bounds
+ * what the stored credential itself could ever be used for, independent
+ * of Authority.
+ *
+ * This only changes what a NEW OAuth consent requests. An already-connected
+ * account's stored refresh token keeps whatever scope it originally
+ * consented to (Google does not retroactively narrow an issued token) --
+ * nothing about an existing connection changes until that account
+ * disconnects and reconnects, which re-runs this same consent screen under
+ * the new, narrower scope.
  */
-const GMAIL_SCOPE = "https://mail.google.com/";
+const GMAIL_SCOPE =
+  "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
 const NONCE_SHAPE = /^[A-Za-z0-9_-]{43}$/;
 
 const b64url = (b: Buffer) => b.toString("base64url");
@@ -172,8 +192,8 @@ export async function exchangeGmailOAuthCode(input: {
 /**
  * Best-effort label for which Google account was just connected, so the
  * dashboard can show it instead of a bare "connected" badge. Uses
- * `users.getProfile`, already covered by the `https://mail.google.com/`
- * scope this connector requests -- no extra consent needed. Returns null on
+ * `users.getProfile`, already covered by the `gmail.readonly` scope this
+ * connector requests -- no extra consent needed. Returns null on
  * any failure; a connection without a resolved label is still a working
  * connection, and this must never be the reason a connect attempt fails.
  */

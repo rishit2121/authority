@@ -18,9 +18,13 @@ export default function GmailConnectorPage() {
 
       <DocsSection title="OAuth scope">
         <p>
-          The requested scope is <code>https://mail.google.com/</code> (full mailbox access) — intentionally
-          broad so a reconnect is never needed again as more operations are added. The scope authorizes
-          nothing by itself; only the operations below are ever actually callable.
+          The requested scopes are <code>gmail.readonly</code> and <code>gmail.send</code> — the narrowest
+          combination that covers every operation below: reading (list/get messages, list labels) and sending,
+          nothing else. Neither allows permanently deleting mail, modifying existing messages or labels, or
+          changing account settings. The scope authorizes nothing by itself; only the operations below are
+          ever actually callable, and only through Authority&apos;s own capability/contract system. An account
+          connected before this scope narrowed keeps whatever broader scope it originally consented to until
+          it disconnects and reconnects.
         </p>
       </DocsSection>
 
