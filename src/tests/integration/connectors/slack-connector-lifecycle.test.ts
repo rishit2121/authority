@@ -236,7 +236,11 @@ describe("Slack connector -- full backend lifecycle (prepareTask -> session -> t
       taskIds.push(alexTask.taskId!);
 
       const plan = planFor(alexTask.taskId!, TOOL, {});
-      const prepared = await prepareTask({ credentialSecret: app.backendSecret, taskId: alexTask.taskId!, plan });
+      const prepared = await prepareTask({
+        credentialSecret: app.backendSecret,
+        taskId: alexTask.taskId!,
+        plan,
+      });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
       expect(prepared.outcome.status).toBe("ready");

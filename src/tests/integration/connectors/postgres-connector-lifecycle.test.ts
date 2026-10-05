@@ -280,7 +280,11 @@ describe("Postgres connector -- full backend lifecycle (prepareTask -> session -
       taskIds.push(alexTask.taskId!);
 
       const plan = planFor(alexTask.taskId!, TOOL, { customerId: "cust_1" }, { resourceBinding: "cust_1" });
-      const prepared = await prepareTask({ credentialSecret: app.backendSecret, taskId: alexTask.taskId!, plan });
+      const prepared = await prepareTask({
+        credentialSecret: app.backendSecret,
+        taskId: alexTask.taskId!,
+        plan,
+      });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
       expect(prepared.outcome.status).toBe("awaiting_approval");
