@@ -206,6 +206,73 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(third.outcome.contractId).toBe(contractId);
   });
 
+  it("mints a fresh contract on re-prepare once the previously-activated one has expired, rather than re-reporting the dead one as ready", async () => {
+    // Regression for a real bug found via a live model-driven-agent run
+    // against the deployed service: propose_task_contract_core's own dedup
+    // (task_id, plan_id, registry_version, compiler_version, input_hash)
+    // had no contract_status/expires_at filter at all, so it just as happily
+    // "reused" an expired contract as a live one -- prepare() kept reporting
+    // "ready" with a dead contractId that the real runtime execute() path
+    // (which does check expiry) immediately rejected. Fixed in
+    // 20261003000018 to require the matched row be either a still-undecided
+    // proposal or genuinely currently-active (authz.contract_is_currently_active)
+    // before treating it as reusable.
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix);
+    apps.push(app);
+    const agent = await mkAgent("lifecycle-expiry");
+    const customer = await createOrResolveCustomer({
+      credentialSecret: app.backendSecret,
+      externalId: "alex",
+    });
+
+    const created = await createCustomerTask({
+      credentialSecret: app.backendSecret,
+      customerId: customer.customerId!,
+      agentId: agent.agentId,
+      intent: "List my Gmail labels",
+      connectorBindings: [],
+    });
+    const taskId = created.taskId!;
+    taskIds.push(taskId);
+
+    await allowAutomation(app.applicationId, "gmail.list_labels");
+
+    const idempotencyKey = `prep-expiry-${suffix}`;
+    const plan = planFor(taskId, "gmail.list_labels", {});
+    const first = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan, idempotencyKey });
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(first.outcome.status).toBe("ready");
+    if (first.outcome.status !== "ready") return;
+    const firstContractId = first.outcome.contractId;
+
+    const beforeExpiry = await getContractForBackend(app.backendSecret, firstContractId);
+    expect(beforeExpiry.contractStatus).toBe("active");
+
+    // Simulate the real passage of time past the contract's own ephemeral
+    // window -- the same condition the runtime execute() path already
+    // checks via authz.contract_is_currently_active.
+    await managementQuery(`
+      update public.task_authority_contracts
+      set expires_at = now() - interval '1 minute'
+      where id = '${firstContractId}';
+    `);
+
+    const second = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan, idempotencyKey });
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.outcome.status).toBe("ready");
+    if (second.outcome.status !== "ready") return;
+
+    // The real proof: a genuinely fresh contract, not the expired one handed
+    // back again.
+    expect(second.outcome.contractId).not.toBe(firstContractId);
+    const afterExpiry = await getContractForBackend(app.backendSecret, second.outcome.contractId);
+    expect(afterExpiry.contractStatus).toBe("active");
+    expect(afterExpiry.tools).toEqual(["gmail.list_labels"]);
+  });
+
   it("a gmail.list_labels-only plan solves with zero excess operations and reaches ready once allow-listed", async () => {
     // Regression for the exact scenario a live quickstart run surfaced:
     // gmail.list_labels used to be coverable only by the bundled

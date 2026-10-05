@@ -103,6 +103,13 @@ async function askModelToPickATool(manifest, instruction) {
     headers: { authorization: `Bearer ${OPENAI_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: OPENAI_MODEL,
+      // gpt-6-luna defaults to reasoning, which OpenAI's /v1/chat/completions
+      // refuses to combine with function tools ("Function tools with
+      // reasoning_effort are not supported ... set reasoning_effort to
+      // 'none'" -- confirmed directly against the API). This script wants an
+      // immediate tool pick, not a reasoning trace, so disable it explicitly
+      // rather than switching endpoints.
+      reasoning_effort: "none",
       messages: [
         {
           role: "system",
@@ -223,7 +230,9 @@ async function main() {
       console.log(`Executed: ${result.result}. Receipt: ${result.receiptId ?? "(none)"}`);
       console.log(`Data: ${JSON.stringify(result.data)}`);
     } else {
-      console.log(`Not executed: ${result.status} -- stopping here, as a real agent should.`);
+      console.log(
+        `Not executed: ${result.status}${"summary" in result ? ` -- ${result.summary}` : ""} -- stopping here, as a real agent should.`,
+      );
     }
   }
 
