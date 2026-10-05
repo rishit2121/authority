@@ -5,7 +5,8 @@
   "workspaces": [
     "packages/*",
     "examples/gmail-quickstart",
-    "examples/model-driven-agent"
+    "examples/model-driven-agent",
+    "examples/connector-quickstart"
   ],
   "scripts": {
     "sdk:build": "npm run build -w @authority/sdk",

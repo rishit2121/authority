@@ -1,0 +1,16 @@
+{
+  "name": "connector-quickstart-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gmail": "node run.mjs --connector=gmail",
+    "github": "node run.mjs --connector=github",
+    "stripe": "node run.mjs --connector=stripe",
+    "slack": "node run.mjs --connector=slack",
+    "postgres": "node run.mjs --connector=postgres",
+    "custom-api": "node run.mjs --connector=custom-api"
+  },
+  "dependencies": {
+    "@authority/sdk": "*"
+  }
+}
