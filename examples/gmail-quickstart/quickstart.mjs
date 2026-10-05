@@ -35,6 +35,7 @@
 
 import { createServer } from "node:http";
 import { readFileSync, existsSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -83,6 +84,18 @@ const CUSTOMER_EXTERNAL_ID = env.CUSTOMER_EXTERNAL_ID || "quickstart-customer";
 // skips customers.ensure() entirely. Find it under Settings -> Applications
 // -> (your application) -> Customers.
 const CUSTOMER_ID = env.CUSTOMER_ID || null;
+
+// Each logical run gets its own task/plan identity, so a contract that
+// expired (default 1 hour) never permanently locks this customer+intent to
+// "awaiting_approval" -- a brand new RUN_ID mints a brand new task, always
+// eligible for a fresh contract regardless of what happened to an earlier
+// one. Set RUN_ID yourself to RESUME a specific prior run (e.g. while an
+// approval is still pending) -- every call within that run reuses it, so
+// retries stay idempotent; omitting it always starts a new logical run.
+const RUN_ID = env.RUN_ID || `run-${Date.now()}-${randomBytes(3).toString("hex")}`;
+if (!env.RUN_ID) {
+  console.log(`Run ID: ${RUN_ID} (set RUN_ID=${RUN_ID} to resume this exact run)`);
+}
 
 /** Never prints a token, a capability, or a raw error body -- only the already-sanitized fields an AuthorityApiError carries. */
 function describeError(error) {
@@ -145,14 +158,17 @@ async function main() {
     );
   }
 
-  // Idempotent on both id fields: re-running this script never creates a
-  // second task or a second contract for the same customer.
+  // Idempotent within one RUN_ID: retrying this exact run never creates a
+  // second task or a second contract. A fresh RUN_ID (the default, unless
+  // you set one to resume) always starts a genuinely new logical run, so an
+  // expired contract from an earlier run never permanently blocks this
+  // customer.
   const task = await backend.tasks.create({
     customerId: customer.customerId,
     agentId: AGENT_ID,
     intent: "List my Gmail labels (quickstart)",
     connections: [{ connectorId: "gmail", connectionId: connection.connectionId }],
-    idempotencyKey: `quickstart-task-${customer.customerId}`,
+    idempotencyKey: `quickstart-task-${customer.customerId}-${RUN_ID}`,
   });
   console.log(`Task: ${task.taskId}${task.wasCreated ? " (just created)" : ""}`);
 
@@ -172,7 +188,7 @@ async function main() {
         ],
       },
     },
-    `quickstart-prepare-${customer.customerId}`,
+    `quickstart-prepare-${customer.customerId}-${RUN_ID}`,
   );
 
   if (outcome.status === "awaiting_approval") {

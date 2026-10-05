@@ -260,11 +260,16 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(beforeExpiry.contractStatus).toBe("active");
 
     // Simulate the real passage of time past the contract's own ephemeral
-    // window -- the same condition the runtime execute() path already
-    // checks via authz.contract_is_currently_active.
+    // window via the one lifecycle transition that can represent it
+    // (active -> expired) -- the contract_authority_contracts_lifecycle
+    // trigger (20260926000004) forbids touching expires_at directly without
+    // an accompanying status transition ("lifecycle metadata may only
+    // change alongside a status transition"), so this is the only
+    // trigger-legal way to make authz.contract_is_currently_active return
+    // false for this row, exactly as it would once real time passed.
     await managementQuery(`
       update public.task_authority_contracts
-      set expires_at = now() - interval '1 minute'
+      set contract_status = 'expired'
       where id = '${firstContractId}';
     `);
 
@@ -277,7 +282,86 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(second.outcome.contractId).toBe(firstContractId);
 
     const afterExpiry = await getContractForBackend(app.backendSecret, firstContractId);
-    expect(afterExpiry.contractStatus).toBe("active");
+    expect(afterExpiry.contractStatus).toBe("expired");
+  });
+
+  it("a fresh run (new task, new idempotency key) reaches ready again for the same customer and connection after an earlier run's contract expired", async () => {
+    // Proves the actual, usable escape hatch from the previous test's dead
+    // end: this schema cannot resurrect or replace a specific expired
+    // contract (see 20261003000019), but nothing stops a NEW logical run --
+    // a new task, carrying its own idempotency key -- for the SAME customer
+    // from reaching a genuinely fresh, active contract. This is exactly
+    // what examples/gmail-quickstart and examples/model-driven-agent now do
+    // via their own RUN_ID (a fresh one by default, reusable to resume a
+    // specific prior run).
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix);
+    apps.push(app);
+    const agent = await mkAgent("lifecycle-repeat");
+    const customer = await createOrResolveCustomer({
+      credentialSecret: app.backendSecret,
+      externalId: "alex",
+    });
+    await allowAutomation(app.applicationId, "gmail.list_labels");
+
+    async function runOnce(runId: string) {
+      const created = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: customer.customerId!,
+        agentId: agent.agentId,
+        intent: `List my Gmail labels (run ${runId})`,
+        connectorBindings: [],
+        idempotencyKey: `repeat-task-${suffix}-${runId}`,
+      });
+      const taskId = created.taskId!;
+      taskIds.push(taskId);
+      const plan = planFor(taskId, "gmail.list_labels", {});
+      const result = await prepareTask({
+        credentialSecret: app.backendSecret,
+        taskId,
+        plan,
+        idempotencyKey: `repeat-prepare-${suffix}-${runId}`,
+      });
+      return { taskId, result };
+    }
+
+    const run1 = await runOnce("run-1");
+    expect(run1.result.ok).toBe(true);
+    if (!run1.result.ok) return;
+    expect(run1.result.outcome.status).toBe("ready");
+    if (run1.result.outcome.status !== "ready") return;
+
+    // Retrying the SAME run id is idempotent: same task, same contract.
+    const run1Retry = await runOnce("run-1");
+    expect(run1Retry.result.ok).toBe(true);
+    if (!run1Retry.result.ok) return;
+    expect(run1Retry.result.outcome.status).toBe("ready");
+    if (run1Retry.result.outcome.status !== "ready") return;
+    expect(run1Retry.taskId).toBe(run1.taskId);
+    expect(run1Retry.result.outcome.contractId).toBe(run1.result.outcome.contractId);
+
+    // Expire run 1's contract via the one trigger-legal transition that can
+    // represent real time having passed (see the comment on the same
+    // pattern above).
+    await managementQuery(`
+      update public.task_authority_contracts
+      set contract_status = 'expired'
+      where id = '${run1.result.outcome.contractId}';
+    `);
+
+    // A second, independent logical run for the SAME customer and the SAME
+    // underlying Gmail connection reaches ready again, with its own task
+    // and its own contract -- run 1's expiry never touches it.
+    const run2 = await runOnce("run-2");
+    expect(run2.result.ok).toBe(true);
+    if (!run2.result.ok) return;
+    expect(run2.result.outcome.status).toBe("ready");
+    if (run2.result.outcome.status !== "ready") return;
+    expect(run2.taskId).not.toBe(run1.taskId);
+    expect(run2.result.outcome.contractId).not.toBe(run1.result.outcome.contractId);
+
+    const run2Contract = await getContractForBackend(app.backendSecret, run2.result.outcome.contractId);
+    expect(run2Contract.contractStatus).toBe("active");
   });
 
   it("a gmail.list_labels-only plan solves with zero excess operations and reaches ready once allow-listed", async () => {

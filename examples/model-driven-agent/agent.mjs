@@ -36,6 +36,7 @@
  */
 
 import { readFileSync, existsSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -75,6 +76,19 @@ const BACKEND_API_KEY = requireEnv("AUTHORITY_BACKEND_API_KEY");
 const AGENT_ID = requireEnv("AUTHORITY_AGENT_ID");
 const AGENT_RUNTIME_KEY = requireEnv("AUTHORITY_AGENT_RUNTIME_KEY");
 const CUSTOMER_ID = requireEnv("CUSTOMER_ID");
+
+// Each logical run gets its own task/plan identity, so a contract that
+// expired (default 1 hour) never permanently locks this customer+intent
+// to "awaiting_approval" -- a brand new RUN_ID mints a brand new task,
+// which is always eligible for a fresh contract regardless of what
+// happened to an earlier one. Set RUN_ID yourself to RESUME a specific
+// prior run (e.g. after a crash, or while an approval is still pending) --
+// every call within that run reuses it, so retries stay idempotent;
+// omitting it always starts a genuinely new logical run.
+const RUN_ID = env.RUN_ID || `run-${Date.now()}-${randomBytes(3).toString("hex")}`;
+if (!env.RUN_ID) {
+  console.log(`Run ID: ${RUN_ID} (set RUN_ID=${RUN_ID} to resume this exact run)`);
+}
 
 // Model credentials -- intentionally read and used only here, never passed
 // to any AuthorityBackendClient/AuthorityAgentClient call.
@@ -165,7 +179,7 @@ async function main() {
     agentId: AGENT_ID,
     intent: "Model-driven agent example: list Gmail labels",
     connections: [{ connectorId: "gmail", connectionId: connection.connectionId }],
-    idempotencyKey: `model-agent-task-${CUSTOMER_ID}`,
+    idempotencyKey: `model-agent-task-${CUSTOMER_ID}-${RUN_ID}`,
   });
   console.log(`Task: ${task.taskId}`);
 
@@ -185,7 +199,7 @@ async function main() {
         ],
       },
     },
-    `model-agent-prepare-${CUSTOMER_ID}`,
+    `model-agent-prepare-${CUSTOMER_ID}-${RUN_ID}`,
   );
 
   if (outcome.status !== "ready") {
