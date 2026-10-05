@@ -206,17 +206,26 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(third.outcome.contractId).toBe(contractId);
   });
 
-  it("mints a fresh contract on re-prepare once the previously-activated one has expired, rather than re-reporting the dead one as ready", async () => {
+  it("never reports an expired contract as ready again, even though the dead row's identity is permanently reused", async () => {
     // Regression for a real bug found via a live model-driven-agent run
-    // against the deployed service: propose_task_contract_core's own dedup
-    // (task_id, plan_id, registry_version, compiler_version, input_hash)
-    // had no contract_status/expires_at filter at all, so it just as happily
-    // "reused" an expired contract as a live one -- prepare() kept reporting
-    // "ready" with a dead contractId that the real runtime execute() path
-    // (which does check expiry) immediately rejected. Fixed in
-    // 20261003000018 to require the matched row be either a still-undecided
-    // proposal or genuinely currently-active (authz.contract_is_currently_active)
-    // before treating it as reusable.
+    // against the deployed service: activate_task_contract_for_backend's
+    // idempotent short-circuit (20261003000016) checked contract_status but
+    // never expires_at, so prepare() kept reporting "ready" with a dead
+    // contractId that the real runtime execute() path (which does check
+    // expiry) immediately rejected. A first attempt at fixing this
+    // (20261003000018) also made propose_task_contract_core fall through to
+    // INSERT a fresh row once the matched one had expired -- but
+    // tac_compilation_identity_idx (task_id, plan_id, registry_version,
+    // compiler_version, input_hash) is a permanent, status-independent
+    // unique mapping, so that INSERT always collides with the still-present
+    // dead row (23505) -- discovered live, immediately, as prepare() now
+    // failing outright with 503 instead of mis-reporting. Reverted in
+    // 20261003000019: propose_task_contract_core unconditionally reuses the
+    // existing row by identity (as it always did), and only
+    // activate_task_contract_for_backend's expiry-aware check (kept from
+    // 018) stops the false "ready" -- the honest, schema-compatible result
+    // is the SAME contractId with status "awaiting_approval", never "ready"
+    // again, for an expired contract.
     const suffix = randomBytes(4).toString("hex");
     const app = await createApplicationFixture(suffix);
     apps.push(app);
@@ -259,18 +268,16 @@ describe("backend-credential task lifecycle (real database)", () => {
       where id = '${firstContractId}';
     `);
 
+    // Must not throw (the 23505 regression) and must not report "ready".
     const second = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan, idempotencyKey });
     expect(second.ok).toBe(true);
     if (!second.ok) return;
-    expect(second.outcome.status).toBe("ready");
-    if (second.outcome.status !== "ready") return;
+    expect(second.outcome.status).toBe("awaiting_approval");
+    if (second.outcome.status !== "awaiting_approval") return;
+    expect(second.outcome.contractId).toBe(firstContractId);
 
-    // The real proof: a genuinely fresh contract, not the expired one handed
-    // back again.
-    expect(second.outcome.contractId).not.toBe(firstContractId);
-    const afterExpiry = await getContractForBackend(app.backendSecret, second.outcome.contractId);
+    const afterExpiry = await getContractForBackend(app.backendSecret, firstContractId);
     expect(afterExpiry.contractStatus).toBe("active");
-    expect(afterExpiry.tools).toEqual(["gmail.list_labels"]);
   });
 
   it("a gmail.list_labels-only plan solves with zero excess operations and reaches ready once allow-listed", async () => {
