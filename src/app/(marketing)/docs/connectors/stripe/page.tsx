@@ -39,6 +39,31 @@ export default function StripeConnectorPage() {
         </p>
       </DocsSection>
 
+      <DocsSection title="One merchant account, many of your customers">
+        <p>
+          A Stripe connection is one merchant&apos;s own secret key — your business&apos;s Stripe account, not
+          a per-end-user credential. Delegate that single connection to as many of your own customers as
+          should be able to use it (Settings → the connection → Delegations, or the developer API&apos;s
+          connection-delegation calls) — the same organization-owned-connection-plus-delegation model GitHub
+          repositories, Slack workspaces and database connections all use. Revoking a delegation stops that
+          customer&apos;s access to this connection immediately; it never touches the merchant key itself.
+        </p>
+        <p>
+          Don&apos;t confuse the two &quot;customer&quot; concepts in play: <strong>your</strong> customer is
+          who a task runs on behalf of (an Authority concept, scoped by delegation as above).{" "}
+          <code>stripe.retrieve_customer</code>&apos;s and <code>stripe.list_charges</code>&apos;s{" "}
+          <code>customer_id</code> argument is a <strong>Stripe Customer object ID</strong> — a record inside
+          the merchant&apos;s own Stripe account, unrelated to and never derived from your Authority customer
+          ID.
+        </p>
+        <p>
+          There is no Stripe Connect support — every connection is one directly-entered secret key for one
+          Stripe account, never an OAuth flow onboarding multiple separate merchant accounts. If your product
+          needs to act on behalf of many independent Stripe accounts (a true multi-merchant platform), that is
+          not implemented today.
+        </p>
+      </DocsSection>
+
       <DocsSection title="Resource binding">
         <p>
           <code>payment_id</code>/<code>customer_id</code> identifies the resource a capability binds to — a
