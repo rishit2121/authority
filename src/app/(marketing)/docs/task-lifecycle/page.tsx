@@ -122,7 +122,17 @@ const outcome = await backend.tasks.prepare(task.taskId, {
           See <code>examples/gmail-quickstart</code> for a complete, runnable version (idempotent, reuses an
           existing connection across runs) and <code>examples/model-driven-agent</code> for a model-driven
           agent built on the same client, using <code>AuthorityAgentClient</code> for the session/manifest/
-          authorize/execute side.
+          authorize/execute side. <code>examples/connector-quickstart</code> runs the identical flow against
+          any of the six connectors from one script (<code>node run.mjs --connector=gmail</code>,{" "}
+          <code>--connector=github</code>, <code>stripe</code>, <code>slack</code>, <code>postgres</code>,{" "}
+          <code>custom-api</code>).
+        </p>
+        <p>
+          Every example generates a fresh <code>RUN_ID</code> by default -- a new logical run, with its own
+          task and its own contract. A contract&apos;s default one-hour authority window means a stale{" "}
+          <code>RUN_ID</code> eventually stops reaching <code>ready</code> again (this schema maps one
+          compiled plan identity to exactly one contract, permanently -- it cannot be refreshed in place); set{" "}
+          <code>RUN_ID</code> yourself only to resume a specific prior run before that happens.
         </p>
       </DocsSection>
 
