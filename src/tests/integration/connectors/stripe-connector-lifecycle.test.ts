@@ -207,4 +207,131 @@ describe("Stripe connector -- full backend lifecycle (prepareTask -> session -> 
       await app.cleanup();
     }
   });
+
+  it("Alex (delegated) executes successfully; Bob (same app, not delegated) is denied with zero dispatch; revocation then denies Alex too", async () => {
+    // Connector-named cross-customer proof (the matrix review flagged
+    // Stripe/Slack/Postgres/Custom API as having only the generic,
+    // synthetic-connector-id version of this test). This organization
+    // owns ONE Stripe account -- never a mailbox-style per-customer
+    // ownership model -- so the only sane multi-customer pattern is
+    // delegating that one connection to the customers allowed to use it,
+    // exactly as `connection_delegations` already supports.
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix, "stripe-ab");
+    const agent = await createAgentWithRuntimeKey(`stripe-ab-${suffix}`);
+    const taskIds: string[] = [];
+
+    try {
+      const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
+      const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
+      await delegateConnection(connection.connectionId, alex.customerId!);
+
+      // Bob: same app, same (org-owned) connection, never delegated to him.
+      const bobTask = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: bob.customerId!,
+        agentId: agent.agentId,
+        intent: "Retrieve payment pi_1demo",
+        connectorBindings: [{ connectorId: "stripe", connectionId: connection.connectionId }],
+      });
+      expect(bobTask.status).toBe("connection_not_usable_by_customer");
+      expect(bobTask.taskId).toBeNull();
+
+      // Alex: genuinely delegated -- goes all the way to a real (fixture) execution with a persisted receipt.
+      await allowAutomation(app.applicationId, TOOL);
+      const alexTask = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: alex.customerId!,
+        agentId: agent.agentId,
+        intent: "Retrieve payment pi_1demo",
+        connectorBindings: [{ connectorId: "stripe", connectionId: connection.connectionId }],
+      });
+      expect(alexTask.status).toBe("ok");
+      taskIds.push(alexTask.taskId!);
+
+      const plan = planFor(
+        alexTask.taskId!,
+        TOOL,
+        { payment_id: "pi_1demo" },
+        { resourceBinding: "pi_1demo" },
+      );
+      const prepared = await prepareTask({
+        credentialSecret: app.backendSecret,
+        taskId: alexTask.taskId!,
+        plan,
+      });
+      expect(prepared.ok).toBe(true);
+      if (!prepared.ok) return;
+      expect(prepared.outcome.status).toBe("awaiting_approval");
+      if (prepared.outcome.status !== "awaiting_approval") return;
+      await activateContractDirectly(prepared.outcome.contractId, TENANT_A_ID, app.applicationId);
+
+      const { plaintext: sessionToken, hash: tokenHash } = generateTaskSessionToken();
+      const session = await createTaskSession({
+        credentialSecret: agent.agentSecret,
+        taskId: alexTask.taskId!,
+        tokenHash,
+        ttlSeconds: 300,
+      });
+      expect(session.status).toBe("ok");
+
+      const activeContract = await getContractForBackend(app.backendSecret, prepared.outcome.contractId);
+      const authResult = await authorizeThroughGateway({
+        credentialSecret: sessionToken,
+        taskId: alexTask.taskId!,
+        tool: TOOL,
+        operation: "retrieve_payment",
+        resource: "pi_1demo",
+        arguments: { payment_id: "pi_1demo" },
+        idempotencyKey: `ab-auth-${suffix}`,
+        maxUses: 1,
+        registryVersion: activeContract.registryVersion!,
+        compilerVersion: activeContract.compilerVersion!,
+      });
+      expect(authResult.kind).toBe("decision");
+      if (authResult.kind !== "decision" || !authResult.capabilityToken) return;
+
+      const execResult = await executeConnectorOperation(
+        {
+          credentialSecret: sessionToken,
+          tokenHash: hashCapabilityToken(authResult.capabilityToken),
+          tool: TOOL,
+          operation: "retrieve_payment",
+          resource: "pi_1demo",
+          args: { payment_id: "pi_1demo" },
+          idempotencyKey: `ab-exec-${suffix}`,
+        },
+        defaultConnectorExecutorDeps,
+      );
+      expect(execResult.http).toBe(200);
+      expect(execResult.body.data).toMatchObject({ id: "pi_1demo", status: "succeeded" });
+
+      // Revoke Alex's delegation; a brand new task for Alex against the
+      // same connection is denied identically to Bob's -- revocation
+      // genuinely prevents subsequent use, not merely "never delegated."
+      await managementQuery(`
+        set local role postgres;
+        update public.connection_delegations
+        set revoked_at = now()
+        where connection_id = '${connection.connectionId}' and customer_id = '${alex.customerId}' and revoked_at is null;
+      `);
+      const alexTask2 = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: alex.customerId!,
+        agentId: agent.agentId,
+        intent: "Retrieve payment pi_1demo (after revocation)",
+        connectorBindings: [{ connectorId: "stripe", connectionId: connection.connectionId }],
+      });
+      expect(alexTask2.status).toBe("connection_not_usable_by_customer");
+    } finally {
+      for (const taskId of taskIds) await cleanupTask(taskId);
+      await managementQuery(`
+        set local role postgres;
+        select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.connection_delegations where connection_id = '${connection.connectionId}';
+      `);
+      await agent.cleanup();
+      await app.cleanup();
+    }
+  });
 });
