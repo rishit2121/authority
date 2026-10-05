@@ -255,6 +255,157 @@ describe("GitHub repository customer delegation (real database)", () => {
     expect(bound).toEqual([]);
   });
 
+  it("Alex (delegated) executes successfully; Bob (same app, not delegated) is denied with zero dispatch; revocation then denies Alex too", async () => {
+    // The true two-customer proof point 3 of the connector-matrix review
+    // flagged as missing: the pre-existing "refuses to bind a repository
+    // never delegated to this customer" test used a single customer who
+    // never had ANY delegation -- it never proved that one customer's own,
+    // real delegation leaves a DIFFERENT customer denied for the exact same
+    // repository, nor that revoking a delegation actually prevents later
+    // use (rather than just a hypothetical no-delegation state).
+    await ensureMockInstallation();
+    const repoId = await repositoryIdFor("acme/widgets");
+
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix);
+    apps.push(app);
+
+    const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
+    const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
+    await delegateRepository(repoId, alex.customerId!);
+    await allowAutomation(app.applicationId, "github.get_issue");
+
+    const agent = await mkAgent("github-ab-delegation");
+
+    // Bob: same app, same repository, never delegated to him -- denied
+    // before any task_repository_bindings row, before any contract, before
+    // any dispatch to GitHub at all.
+    const bobTask = await createCustomerTask({
+      credentialSecret: app.backendSecret,
+      customerId: bob.customerId!,
+      agentId: agent.agentId,
+      intent: "Read issue 1 in acme/widgets",
+      connectorBindings: [],
+    });
+    taskIds.push(bobTask.taskId!);
+    const bobBind = await bindTaskGithubRepositoryForBackend({
+      credentialSecret: app.backendSecret,
+      taskId: bobTask.taskId!,
+      repositoryId: repoId,
+    });
+    expect(bobBind).toBe("repository_not_usable_by_customer");
+    const bobBound = await managementQuery(
+      `select 1 from public.task_repository_bindings where task_id = '${bobTask.taskId}';`,
+    );
+    expect(bobBound).toEqual([]);
+    const bobReceipts = await managementQuery(
+      `select 1 from public.github_execution_receipts where task_id = '${bobTask.taskId}';`,
+    );
+    expect(bobReceipts).toEqual([]);
+
+    // Alex: genuinely delegated, same repository -- goes all the way to a
+    // real (mock) execution and a persisted receipt.
+    const alexTask = await createCustomerTask({
+      credentialSecret: app.backendSecret,
+      customerId: alex.customerId!,
+      agentId: agent.agentId,
+      intent: "Read issue 1 in acme/widgets",
+      connectorBindings: [],
+    });
+    taskIds.push(alexTask.taskId!);
+    const alexBind = await bindTaskGithubRepositoryForBackend({
+      credentialSecret: app.backendSecret,
+      taskId: alexTask.taskId!,
+      repositoryId: repoId,
+    });
+    expect(alexBind).toBe("ok");
+
+    const alexOutcome = await prepareTask({
+      credentialSecret: app.backendSecret,
+      taskId: alexTask.taskId!,
+      plan: {
+        schemaVersion: 1,
+        taskId: alexTask.taskId!,
+        nodes: [
+          {
+            id: "n1",
+            sequence: 0,
+            tool: "github.get_issue",
+            arguments: { issue_number: "1" },
+            resourceBinding: "acme/widgets",
+            dependencies: [],
+            declaredOutputs: [],
+            dataFlowRefs: [],
+            expectedSideEffect: "read",
+            maxInvocations: 1,
+          },
+        ],
+      },
+    });
+    expect(alexOutcome.ok).toBe(true);
+    if (!alexOutcome.ok) return;
+    expect(alexOutcome.outcome.status).toBe("ready");
+
+    const alexDecision = await authorizeThroughGateway({
+      credentialSecret: agent.secret,
+      taskId: alexTask.taskId!,
+      tool: "github.get_issue",
+      operation: "get_issue",
+      resource: "acme/widgets",
+      arguments: { issue_number: "1" },
+      idempotencyKey: `github-ab-auth-${suffix}`,
+      ...currentVersions(),
+    });
+    expect(alexDecision.kind).toBe("decision");
+    if (alexDecision.kind !== "decision") return;
+    expect(["allow", "allow_constrained"]).toContain(alexDecision.commit.finalOutcome);
+
+    const alexExecuted = await executeGithubOperation(
+      {
+        credentialSecret: agent.secret,
+        tokenHash: hashCapabilityToken(alexDecision.capabilityToken!),
+        tool: "github.get_issue",
+        operation: "get_issue",
+        resource: "acme/widgets",
+        args: { issue_number: "1" },
+        idempotencyKey: `github-ab-exec-${suffix}`,
+      },
+      defaultExecutorDeps,
+    );
+    expect(alexExecuted.http).toBe(200);
+    expect((alexExecuted.body as { result?: string }).result).toMatch(/^succeeded/);
+
+    // Revoke Alex's delegation (direct SQL, mirroring this file's own
+    // cleanup convention -- public.revoke_github_repository_delegation()
+    // itself requires a real auth.uid() dashboard session). A second,
+    // never-bound task for Alex against the same repository must now be
+    // denied exactly like Bob's -- revocation genuinely prevents
+    // subsequent use, not merely "no delegation was ever granted."
+    await managementQuery(`
+      set local role postgres;
+      update public.github_repository_customer_delegations
+      set revoked_at = now(), revoked_by = (
+        select tm.user_id from public.tenant_memberships tm where tm.tenant_id = '${TENANT_A_ID}' limit 1
+      )
+      where repository_id = '${repoId}' and customer_id = '${alex.customerId}' and revoked_at is null;
+    `);
+
+    const alexTask2 = await createCustomerTask({
+      credentialSecret: app.backendSecret,
+      customerId: alex.customerId!,
+      agentId: agent.agentId,
+      intent: "Read issue 1 in acme/widgets (after revocation)",
+      connectorBindings: [],
+    });
+    taskIds.push(alexTask2.taskId!);
+    const alexBind2 = await bindTaskGithubRepositoryForBackend({
+      credentialSecret: app.backendSecret,
+      taskId: alexTask2.taskId!,
+      repositoryId: repoId,
+    });
+    expect(alexBind2).toBe("repository_not_usable_by_customer");
+  });
+
   it("a GitHub task goes all the way from creation through a real (mock) execution via the backend API", async () => {
     // The end-to-end proof that GitHub now participates in the same
     // developer workflow as every other connector: create a customer-scoped
