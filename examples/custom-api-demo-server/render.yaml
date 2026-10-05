@@ -1,0 +1,17 @@
+# Optional: deploy this as its own, separate Render service (Render -> New ->
+# Blueprint -> this directory) to get a real HTTPS endpoint for live-testing
+# Authority's Custom API connector. Entirely independent of the main
+# `authority` service's render.yaml -- this is demo data, nothing shared.
+services:
+  - type: web
+    name: custom-api-demo-server
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: false
+    envVars:
+      - key: DEMO_BEARER_TOKEN
+        sync: false
