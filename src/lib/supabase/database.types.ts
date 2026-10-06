@@ -200,6 +200,64 @@ export type Database = {
           },
         ];
       };
+      application_connection_access_policies: {
+        Row: {
+          application_id: string;
+          connection_id: string;
+          created_at: string;
+          created_by: string | null;
+          id: string;
+          max_grant_seconds: number | null;
+          scope: Database["public"]["Enums"]["application_access_scope"];
+          tenant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          application_id: string;
+          connection_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          max_grant_seconds?: number | null;
+          scope?: Database["public"]["Enums"]["application_access_scope"];
+          tenant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          application_id?: string;
+          connection_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          id?: string;
+          max_grant_seconds?: number | null;
+          scope?: Database["public"]["Enums"]["application_access_scope"];
+          tenant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "application_connection_access_pol_application_id_tenant_id_fkey";
+            columns: ["application_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "applications";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "application_connection_access_poli_connection_id_tenant_id_fkey";
+            columns: ["connection_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connector_connections";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "application_connection_access_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       applications: {
         Row: {
           allowed_return_urls: string[];
@@ -545,6 +603,75 @@ export type Database = {
           },
           {
             foreignKeyName: "automation_policies_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      backend_connection_access_grants: {
+        Row: {
+          delegation_id: string;
+          granted_at: string;
+          granted_by_credential_id: string;
+          id: string;
+          policy_id: string;
+          revoked_at: string | null;
+          revoked_by_credential_id: string | null;
+          tenant_id: string;
+        };
+        Insert: {
+          delegation_id: string;
+          granted_at?: string;
+          granted_by_credential_id: string;
+          id?: string;
+          policy_id: string;
+          revoked_at?: string | null;
+          revoked_by_credential_id?: string | null;
+          tenant_id: string;
+        };
+        Update: {
+          delegation_id?: string;
+          granted_at?: string;
+          granted_by_credential_id?: string;
+          id?: string;
+          policy_id?: string;
+          revoked_at?: string | null;
+          revoked_by_credential_id?: string | null;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "backend_connection_access_gra_granted_by_credential_id_ten_fkey";
+            columns: ["granted_by_credential_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "developer_backend_credentials";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "backend_connection_access_gra_revoked_by_credential_id_ten_fkey";
+            columns: ["revoked_by_credential_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "developer_backend_credentials";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "backend_connection_access_grants_delegation_id_tenant_id_fkey";
+            columns: ["delegation_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "connection_delegations";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "backend_connection_access_grants_policy_id_tenant_id_fkey";
+            columns: ["policy_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "application_connection_access_policies";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "backend_connection_access_grants_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -1893,6 +2020,7 @@ export type Database = {
       developer_backend_credentials: {
         Row: {
           application_id: string;
+          can_manage_access: boolean;
           created_at: string;
           created_by: string | null;
           environment: Database["public"]["Enums"]["tenant_environment"];
@@ -1909,6 +2037,7 @@ export type Database = {
         };
         Insert: {
           application_id: string;
+          can_manage_access?: boolean;
           created_at?: string;
           created_by?: string | null;
           environment?: Database["public"]["Enums"]["tenant_environment"];
@@ -1925,6 +2054,7 @@ export type Database = {
         };
         Update: {
           application_id?: string;
+          can_manage_access?: boolean;
           created_at?: string;
           created_by?: string | null;
           environment?: Database["public"]["Enums"]["tenant_environment"];
@@ -5413,6 +5543,19 @@ export type Database = {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
       };
+      set_application_connection_access_policy: {
+        Args: {
+          p_application_id: string;
+          p_connection_id: string;
+          p_max_grant_seconds: number;
+          p_scope: Database["public"]["Enums"]["application_access_scope"];
+        };
+        Returns: string;
+      };
+      set_backend_credential_access_management_scope: {
+        Args: { p_can_manage_access: boolean; p_credential_id: string };
+        Returns: string;
+      };
       set_jev_settings: {
         Args: {
           p_approve_enforcement: boolean;
@@ -5471,6 +5614,7 @@ export type Database = {
       agent_credential_status: "active" | "revoked";
       agent_risk_tier: "low" | "medium" | "high";
       agent_status: "active" | "paused" | "revoked";
+      application_access_scope: "customer_owned" | "backend_grantable" | "application_shared" | "admin_only";
       approval_requirement_kind: "task_owner" | "role";
       approval_status: "pending" | "approved" | "rejected" | "expired";
       authorization_outcome:
@@ -5650,6 +5794,7 @@ export const Constants = {
       agent_credential_status: ["active", "revoked"],
       agent_risk_tier: ["low", "medium", "high"],
       agent_status: ["active", "paused", "revoked"],
+      application_access_scope: ["customer_owned", "backend_grantable", "application_shared", "admin_only"],
       approval_requirement_kind: ["task_owner", "role"],
       approval_status: ["pending", "approved", "rejected", "expired"],
       authorization_outcome: ["allow", "allow_constrained", "replan", "clarify", "require_approval", "deny"],
