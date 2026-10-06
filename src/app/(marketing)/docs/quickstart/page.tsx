@@ -15,11 +15,12 @@ export default function QuickstartPage() {
       <DocsSection title="Prefer code over curl?">
         <p>
           Everything below is the raw HTTP API, one <code>curl</code> at a time, useful for seeing exactly
-          what each call does. For a Gmail-based example that does the equivalent from a few lines of
-          TypeScript — create a customer, prepare a contract, run a tool call — using the typed{" "}
-          <code>@authority/sdk</code> client instead, see <code>examples/gmail-quickstart</code> in the
-          repository. A filtered-tool, model-driven agent built on the same SDK is at{" "}
-          <code>examples/model-driven-agent</code>.
+          what each call does. The canonical, code-based equivalent — create a customer, prepare a contract,
+          run a tool call, using the typed <code>@authority/sdk</code> client — is{" "}
+          <code>examples/connector-quickstart</code> in the repository: one script, one shared flow, for every
+          connector (<code>--connector=gmail</code>, <code>github</code>, <code>stripe</code>,{" "}
+          <code>slack</code>, <code>postgres</code>, <code>custom-api</code>). A filtered-tool, model-driven
+          agent built on the same SDK is at <code>examples/model-driven-agent</code>.
         </p>
       </DocsSection>
 
@@ -175,9 +176,8 @@ AUTHORITY_REPOSITORY=<owner>/<repo>`}
         <p>
           Prefer not to re-send the runtime key on every call?{" "}
           <Link href="/docs/task-sessions">Task sessions</Link> cover the optional, shorter-lived alternative.
-          Building a model-driven agent? See <code>examples/agent/model-driven-example.mjs</code> for a
-          tool-call loop using the contract-filtered manifest from{" "}
-          <Link href="/docs/tool-filtering">Tool filtering</Link>.
+          Building a model-driven agent? See <code>examples/model-driven-agent</code> for a tool-call loop
+          using the contract-filtered manifest from <Link href="/docs/tool-filtering">Tool filtering</Link>.
         </p>
       </DocsSection>
     </DocsPage>

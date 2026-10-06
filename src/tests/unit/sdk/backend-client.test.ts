@@ -19,7 +19,7 @@ describe("AuthorityBackendClient.tasks.prepare", () => {
   it("stamps the task's own id onto the plan body -- the server's candidatePlanSchema requires it there", async () => {
     // Regression: this field was missing entirely, so every real prepare()
     // call failed server-side validation as "clarification" (found via a
-    // live end-to-end run of examples/gmail-quickstart).
+    // live end-to-end run of examples/connector-quickstart).
     const fetchMock = vi.fn((_url: string, _init: RequestInit) =>
       jsonResponse(200, { taskId: "t1", status: "awaiting_approval" }),
     );

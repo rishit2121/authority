@@ -18,7 +18,7 @@ export default function DocsIndexPage() {
       <p className="mt-2 text-[15px] leading-[1.6] text-ink-soft">
         Connect your own agent to Authority&apos;s real, already-implemented runtime API. Use the typed{" "}
         <code className="font-mono-code text-[13px]">@authority/sdk</code> client (
-        <code className="font-mono-code text-[13px]">examples/gmail-quickstart</code>,{" "}
+        <code className="font-mono-code text-[13px]">examples/connector-quickstart</code>,{" "}
         <code className="font-mono-code text-[13px]">examples/model-driven-agent</code>) or call the raw HTTP
         API directly — no SDK is required either way. Two credentials, one authorize call, one execute call.
         Start with the Quickstart.

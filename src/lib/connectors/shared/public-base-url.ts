@@ -13,8 +13,7 @@ import "server-only";
  * request's Host header, which would make an OAuth redirect URI depend on
  * caller-supplied input. Running dev on any other port requires setting
  * `AUTHORITY_PUBLIC_URL` explicitly in that server's own environment, or
- * the embedded connect flow's redirect will target the wrong origin (see
- * examples/gmail-quickstart/.env.example's own note on this).
+ * the embedded connect flow's redirect will target the wrong origin.
  */
 export function publicBaseUrl(env: NodeJS.ProcessEnv = process.env): string | null {
   const raw =

@@ -167,7 +167,7 @@ idempotency key and arguments to receive the capability.
 
 Authenticated by a backend credential (`authority_dk_…`), never an agent key — see `/customers` and
 `/customers/{customerId}/tasks` (OpenAPI only) for the rest of this group. See also `packages/authority-sdk`
-for a typed client over all of it, and `examples/gmail-quickstart` for a runnable end-to-end example.
+for a typed client over all of it, and `examples/connector-quickstart` for a runnable end-to-end example.
 
 ### `POST /tasks/{taskId}/prepare`
 

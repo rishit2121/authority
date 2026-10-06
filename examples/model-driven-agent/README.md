@@ -16,8 +16,8 @@ Runtime authorization is mandatory for every call, regardless of what the model 
 
 ## One-time setup
 
-1. Run `examples/gmail-quickstart` first if you don't already have a connected Gmail customer — this example
-   reuses that connection rather than opening a new one.
+1. Run `examples/connector-quickstart --connector=gmail` first if you don't already have a connected Gmail
+   customer — this example reuses that connection rather than opening a new one.
 2. From the repo root: `npm install && npm run sdk:build`
 3. `cp .env.example .env.local` here and fill in the Authority section (same credentials as the quickstart) and
    `CUSTOMER_ID` (the customer id the quickstart printed).
