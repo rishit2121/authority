@@ -32,30 +32,52 @@ function loadEnvFile(file: string): void {
 }
 
 /**
- * Self-healing sweep for createGatewayFixture's own leaked rows
- * (gateway-support.ts), run once before the integration suite starts.
+ * Self-healing sweep for two kinds of leaked fixture, run once before the
+ * integration suite starts:
  *
- * Confirmed this session: `npm run test:integration` runs its files
- * sequentially (`fileParallelism: false`), so this is not inter-file
- * contention within one run -- it reproduces only when something else
- * (pgTAP, Playwright, an ad hoc script) hits the same shared remote
- * database at the same time, exhausting managementQuery's own retry
- * budget on a cleanup delete. 70 of 95 leaked tenant-A tasks found this
- * session traced to exactly that: every one came from a `createGatewayFixture`
- * call (id prefix `dd000000-`), accumulated across many such overlapping
- * runs, never from a single deterministic bug in one test file.
+ *   1. createGatewayFixture's own rows (gateway-support.ts), identified by
+ *      id prefix `dd000000-`. Confirmed this session: `npm run
+ *      test:integration` runs its files sequentially (`fileParallelism:
+ *      false`), so this is not inter-file contention within one run -- it
+ *      reproduces only when something else (pgTAP, Playwright, an ad hoc
+ *      script) hits the same shared remote database at the same time,
+ *      exhausting managementQuery's own retry budget on a cleanup delete.
+ *      70 of 95 leaked tenant-A tasks found this session traced to exactly
+ *      that, accumulated across many such overlapping runs.
  *
- * Rather than chase that specific race (a transient, already-retried
- * failure against a database this suite doesn't control the load on),
- * this reclaims anything a PRIOR run left behind before a NEW one starts,
- * so accumulation stays bounded to "this run's own leaks" instead of
- * growing forever. A fixture younger than an hour is left alone -- it
+ *   2. Custom API / Postgres connector fixtures (custom-api-support.ts,
+ *      postgres-support.ts), identified by tenant instead of id prefix --
+ *      see TEST_TENANT_IDS below. An interrupted run that created a
+ *      connection and published an operation/query but never reached its
+ *      own cleanup leaves that definition in `status = 'published'`
+ *      forever, which is enough to change `buildTenantRegistry()`'s
+ *      computed registry version for every later test against that
+ *      tenant -- confirmed this session as the actual cause of GitHub
+ *      authorize calls failing with UNSUPPORTED_CONTRACT_VERSION, with no
+ *      GitHub-specific code at fault at all.
+ *
+ * Rather than chase either specific race (both are transient, already-
+ * retried failures against a database this suite doesn't control the load
+ * on), this reclaims anything a PRIOR run left behind before a NEW one
+ * starts, so accumulation stays bounded to "this run's own leaks" instead
+ * of growing forever. A fixture younger than an hour is left alone -- it
  * could still belong to a run that is genuinely in progress (e.g. this
  * same suite, mid-file, if a worker crashed between files) or to another
  * tool's own run.
  */
 const STALE_AFTER = "1 hour";
 const FIXTURE_ID_PREFIX = "dd000000-%";
+
+/**
+ * The two fixed, seeded test tenants every integration test runs against
+ * (supabase/seed.sql; mirrors support.ts's own TENANT_A_ID/TENANT_B_ID,
+ * duplicated rather than imported for the same reason loadEnvFile above is
+ * standalone -- this file must not pull in anything that assumes a test
+ * runner context). Never a real tenant, so sweeping every connector
+ * connection these two own -- regardless of which test created it -- is
+ * safe in a way the equivalent sweep would not be for any other tenant.
+ */
+const TEST_TENANT_IDS = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
 
 export default async function setup(): Promise<void> {
   loadEnvFile(path.join(process.cwd(), ".env.local"));
@@ -100,6 +122,7 @@ export default async function setup(): Promise<void> {
         where agent_id in (select id from stale_fixture_agents)
            or (id::text like '${FIXTURE_ID_PREFIX}' and created_at < now() - interval '${STALE_AFTER}');
 
+      delete from public.contract_compilations where task_id in (select id from stale_fixture_tasks);
       delete from public.jev_risk_evaluations where task_id in (select id from stale_fixture_tasks);
       delete from public.jev_necessity_evaluations where task_id in (select id from stale_fixture_tasks);
       delete from public.jev_plan_completeness_evaluations where task_id in (select id from stale_fixture_tasks);
@@ -126,11 +149,47 @@ export default async function setup(): Promise<void> {
       delete from public.capabilities where task_id in (select id from stale_fixture_tasks);
       delete from public.tool_requests where task_id in (select id from stale_fixture_tasks);
       delete from public.task_authority_contracts where task_id in (select id from stale_fixture_tasks);
+      delete from public.plan_nodes where plan_id in (select id from public.plans where task_id in (select id from stale_fixture_tasks));
+      delete from public.plans where task_id in (select id from stale_fixture_tasks);
       delete from public.tasks where id in (select id from stale_fixture_tasks);
 
       delete from public.agent_auth_events where agent_id in (select id from stale_fixture_agents);
       delete from public.agent_credentials where agent_id in (select id from stale_fixture_agents);
       delete from public.agents where id in (select id from stale_fixture_agents);
+
+      -- Second sweep: Custom API / Postgres connector fixtures
+      -- (custom-api-support.ts, postgres-support.ts). Their connections use
+      -- randomUUID(), not a recognizable id prefix, so this one keys on
+      -- tenant instead -- safe here specifically because TEST_TENANT_IDS
+      -- are fixed, seeded, never-real tenants (see the constant's own
+      -- comment). A run interrupted between creating a connection/published
+      -- operation and its own cleanup (confirmed this session: an
+      -- interrupted custom-api and a postgres-query test each left one
+      -- published definition behind, which poisoned every later
+      -- buildTenantRegistry() call for that tenant with a registry-version
+      -- suffix no other test expected) previously accumulated forever.
+      create temporary table stale_connector_connections on commit drop as
+        select id from public.connector_connections
+        where tenant_id = any(array[${TEST_TENANT_IDS.map((id) => `'${id}'::uuid`).join(", ")}])
+          and created_at < now() - interval '${STALE_AFTER}';
+
+      delete from public.backend_connection_access_grants where delegation_id in (
+        select id from public.connection_delegations where connection_id in (select id from stale_connector_connections)
+      );
+      delete from public.connection_delegations where connection_id in (select id from stale_connector_connections);
+      delete from public.application_connection_access_policies where connection_id in (select id from stale_connector_connections);
+      delete from public.connection_sessions where created_connection_id in (select id from stale_connector_connections);
+      delete from public.connector_execution_receipts where connection_id in (select id from stale_connector_connections);
+      delete from public.connector_reservations where connection_id in (select id from stale_connector_connections);
+      delete from public.task_connector_bindings where connector_id in (
+        select 'custom_' || replace(id::text, '-', '') from stale_connector_connections
+        union all
+        select 'postgres_' || replace(id::text, '-', '') from stale_connector_connections
+      );
+      delete from public.custom_operation_definitions where connection_id in (select id from stale_connector_connections);
+      delete from public.postgres_query_definitions where connection_id in (select id from stale_connector_connections);
+      delete from public.connector_connection_secrets where connection_id in (select id from stale_connector_connections);
+      delete from public.connector_connections where id in (select id from stale_connector_connections);
     `);
   } catch {
     // Best-effort: never fail the suite over a sweep of someone else's

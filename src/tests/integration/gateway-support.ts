@@ -39,13 +39,79 @@ export function currentVersions(): { registryVersion: string; compilerVersion: s
   return { registryVersion: registry[1], compilerVersion: compiler[1] };
 }
 
+/**
+ * The counterpart to `currentVersions()` for a test whose authorize call
+ * goes through production code that resolves this tenant's OWN registry
+ * (`prepareTask()`, the MCP bridge, the real `/api/v1/authorize` route --
+ * see each one's own `buildTenantRegistry(tenantId)` call), rather than the
+ * bare fixture file. A tenant with any Custom API or Postgres operation
+ * published (including, as confirmed this session, one left behind by an
+ * interrupted earlier test; see global-setup.ts) gets a registry version
+ * with a content-hash suffix the plain file read above knows nothing about.
+ *
+ * Deliberately reimplements `registry/tenant.ts`'s `registryVersionFor`
+ * against raw SQL instead of importing `buildTenantRegistry` itself: that
+ * module (like the rest of `@/lib/registry`) pulls in `"server-only"`,
+ * which unconditionally throws outside Next's own bundler -- fine for the
+ * vitest suite (aliased to a no-op in vitest.config.mts), fatal for
+ * Playwright's e2e suite, which imports this same file's
+ * `createGatewayFixture` and runs under plain Node with no such alias
+ * (confirmed directly: importing it crashes every e2e spec that uses this
+ * file, immediately, at import time, regardless of whether the import is
+ * ever called). A test helper has no behavior to protect by sharing code
+ * with the thing it is verifying; independently reproducing the same
+ * published-operations-affect-the-version fact is the point.
+ */
+export async function currentTenantVersions(
+  tenantId: string,
+): Promise<{ registryVersion: string; compilerVersion: string }> {
+  const base = currentVersions();
+  const rows = (await managementQuery(
+    `
+    select cod.tool_name, cod.input_schema_hash, cod.request_mapping_hash, null as sql_template_hash
+      from public.custom_operation_definitions cod
+      join public.connector_connections cc on cc.id = cod.connection_id
+      where cod.tenant_id = '${tenantId}' and cod.status = 'published' and cc.status = 'active'
+    union all
+    select pqd.tool_name, pqd.input_schema_hash, null as request_mapping_hash, pqd.sql_template_hash
+      from public.postgres_query_definitions pqd
+      join public.connector_connections cc on cc.id = pqd.connection_id
+      where pqd.tenant_id = '${tenantId}' and pqd.status = 'published' and cc.status = 'active';
+    `,
+  )) as Array<{
+    tool_name: string;
+    input_schema_hash: string | null;
+    request_mapping_hash: string | null;
+    sql_template_hash: string | null;
+  }>;
+  if (rows.length === 0) return base;
+  const fingerprint = rows
+    .map(
+      (r) =>
+        `${r.tool_name}:${r.input_schema_hash ?? ""}:${r.request_mapping_hash ?? r.sql_template_hash ?? ""}`,
+    )
+    .sort()
+    .join("|");
+  const suffix = createHash("sha256").update(fingerprint).digest("hex").slice(0, 8);
+  return { registryVersion: `${base.registryVersion}+c${suffix}`, compilerVersion: base.compilerVersion };
+}
+
 export async function createGatewayFixture(options: {
   label: string;
   actions?: string;
   maxToolInvocations?: number;
   forbiddenResources?: string;
-  /** Use the app's real registry/compiler versions (for tests that go through the HTTP routes). */
-  useCurrentVersions?: boolean;
+  /**
+   * Use the app's real registry/compiler versions (for tests that go
+   * through the HTTP routes). `true` reads the bare fixture file, matching
+   * a test whose own authorize call does the same (every existing caller).
+   * `"tenant"` reads `buildTenantRegistry(TENANT_A_ID)` instead -- required
+   * for a test whose authorize call goes through production code that
+   * independently looks up the tenant's own registry (e.g. the MCP bridge),
+   * since that lookup, unlike the bare file, is affected by whatever
+   * Custom API/Postgres operations this tenant has published.
+   */
+  useCurrentVersions?: boolean | "tenant";
   /** Bind the task to a mock-installation repository (creating the installation if needed). Default: none. */
   githubRepo?: string;
 }): Promise<GatewayFixture> {
@@ -55,9 +121,12 @@ export async function createGatewayFixture(options: {
   const taskId = id(2);
   const contractId = id(3);
   const credentialId = id(4);
-  const versions = options.useCurrentVersions
-    ? currentVersions()
-    : { registryVersion: "rv1", compilerVersion: "cv1" };
+  const versions =
+    options.useCurrentVersions === "tenant"
+      ? await currentTenantVersions(TENANT_A_ID)
+      : options.useCurrentVersions
+        ? currentVersions()
+        : { registryVersion: "rv1", compilerVersion: "cv1" };
   const secret = `authority_rk_${randomBytes(32).toString("hex")}`;
   const hash = createHash("sha256").update(secret).digest("hex");
   const actions =

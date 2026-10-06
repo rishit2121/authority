@@ -37,6 +37,26 @@ export default function SlackConnectorPage() {
         </p>
       </DocsSection>
 
+      <DocsSection title="Every message is sent by the bot — never on behalf of a specific person">
+        <p>
+          A Slack connection is one bot identity in one workspace, not a per-end-user credential — there is no
+          OAuth onboarding where an individual Slack user signs in and grants their own access, and Authority
+          never impersonates a human or posts &quot;as&quot; your customer. Every{" "}
+          <code>slack.post_message</code> call appears in Slack exactly the same way regardless of which of
+          your customers the task runs on behalf of: sent by the bot, under the bot&apos;s own name and
+          avatar.
+        </p>
+        <p>
+          Delegate this one connection to as many of your own customers as should be able to trigger it
+          (Settings → the connection → Delegations, or the developer API&apos;s connection-delegation calls) —
+          the same organization-owned-connection-plus-delegation model Stripe, GitHub repositories and
+          database connections all use. Delegation controls{" "}
+          <strong>which of your customers can cause a message to be sent</strong>, not{" "}
+          <strong>who Slack shows as the sender</strong> — that is always the bot, in every case. Revoking a
+          delegation stops that customer&apos;s access immediately; it never touches the bot token itself.
+        </p>
+      </DocsSection>
+
       <DocsSection title="Resource binding">
         <p>
           A capability authorized to post in one <code>channel</code> cannot be replayed against another.

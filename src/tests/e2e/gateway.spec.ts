@@ -73,7 +73,10 @@ test.describe.serial("trusted gateway", () => {
       actions: ACTIONS,
       maxToolInvocations: 200,
       forbiddenResources: '{"secret-*"}',
-      useCurrentVersions: true,
+      // "tenant", not `true`: this suite calls the real /api/v1/authorize
+      // route, which authorizes through buildTenantRegistry(tenantId)
+      // internally, not the bare fixture file -- the contract must match.
+      useCurrentVersions: "tenant",
       // Explicit, as github-connector.spec.ts's UI-driven binding is: this suite only issues
       // github.* capabilities (never dispatches them through the real connector — see the
       // comment on SIM above), but an explicit bind keeps this fixture from depending on

@@ -46,6 +46,18 @@ export default function PostgresConnectorPage() {
           whichever of its parameters is marked as identifying the resource is what a capability binds to.
         </p>
       </DocsSection>
+
+      <DocsSection title="One database role, many of your customers">
+        <p>
+          A PostgreSQL connection is one database credential, not a per-end-user login — there is no OAuth
+          onboarding here. Every query runs under the same connection&apos;s role regardless of which customer
+          a task runs on behalf of. Delegate the connection to whichever of your customers should be able to
+          trigger its published queries (Settings → the connection → Delegations, or the developer API&apos;s
+          connection-delegation calls) — the same organization-owned-connection-plus-delegation model Stripe,
+          Slack and GitHub repositories all use. Revoking a delegation stops that customer&apos;s access
+          immediately; it never touches the underlying database credential.
+        </p>
+      </DocsSection>
     </DocsPage>
   );
 }

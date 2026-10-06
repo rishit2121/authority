@@ -62,6 +62,17 @@ export class AuthorityBackendClient {
      * user's browser there; they complete provider consent and are sent back
      * to your own `returnUrl`, which must already be registered on this
      * application (Settings -> Applications -> Return URLs).
+     *
+     * Only `connectorId: "gmail"` is wired to this embedded, per-customer
+     * OAuth flow today (fails with `provider_not_supported_for_embedded_connect`
+     * for anything else). GitHub, Stripe, Slack, PostgreSQL and Custom API
+     * are each one connection an admin configures once in the dashboard
+     * (an API key, a bot token, a database credential, or a GitHub App
+     * installation) -- never a per-customer login -- then delegates to
+     * whichever of your customers should be able to use it, either from the
+     * dashboard or via `connections.grantAccess` below. Those connectors
+     * never show up here as something a customer "connects"; see each
+     * connector's own docs page for its actual setup and identity model.
      */
     start: (
       input: { customerId: string; connectorId: string; returnUrl: string },

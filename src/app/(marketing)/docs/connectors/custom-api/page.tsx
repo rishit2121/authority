@@ -95,6 +95,18 @@ curl -s -X POST "$AUTHORITY_URL/api/v1/execute" -H "Authorization: Bearer $AUTHO
           and only the exact request a published operation defines.
         </p>
       </DocsSection>
+
+      <DocsSection title="One credential, many of your customers">
+        <p>
+          A Custom API connection is one stored credential against one base URL, not a per-end-user login —
+          there is no OAuth onboarding here. Every request is sent with the same credential regardless of
+          which customer a task runs on behalf of. Delegate the connection to whichever of your customers
+          should be able to trigger its published operations (Settings → the connection → Delegations, or the
+          developer API&apos;s connection-delegation calls) — the same organization-owned-connection-plus-
+          delegation model Stripe, Slack and GitHub repositories all use. Revoking a delegation stops that
+          customer&apos;s access immediately; it never touches the underlying credential.
+        </p>
+      </DocsSection>
     </DocsPage>
   );
 }

@@ -46,7 +46,10 @@ describe("MCP route (real wire protocol, fixture Stripe connector)", () => {
         schemaVersion: 1,
         items: [{ tool: "stripe.retrieve_payment", constraints: [] }],
       }),
-      useCurrentVersions: true,
+      // "tenant", not `true`: the MCP bridge authorizes through
+      // buildTenantRegistry(tenantId) internally (src/lib/mcp/bridge.ts),
+      // not the bare fixture file -- the contract must match that.
+      useCurrentVersions: "tenant",
     });
   }, 60_000);
 

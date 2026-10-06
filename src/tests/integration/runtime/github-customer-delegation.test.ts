@@ -15,11 +15,17 @@ import { defaultExecutorDeps, executeGithubOperation } from "@/lib/github/execut
 
 import {
   createGatewayFixture,
-  currentVersions,
+  currentTenantVersions,
   ensureMockInstallation,
   type GatewayFixture,
 } from "../gateway-support";
 import { managementQuery, TENANT_A_ID } from "../support";
+import {
+  ADMIN_A_USER_ID,
+  createCustomApiConnection,
+  publishOperation,
+} from "../connectors/custom-api-support";
+import { createPostgresConnection, publishQuery } from "../connectors/postgres-support";
 
 /**
  * Proves GitHub's new customer-delegation layer added in
@@ -354,7 +360,7 @@ describe("GitHub repository customer delegation (real database)", () => {
       resource: "acme/widgets",
       arguments: { issue_number: "1" },
       idempotencyKey: `github-ab-auth-${suffix}`,
-      ...currentVersions(),
+      ...(await currentTenantVersions(TENANT_A_ID)),
     });
     expect(alexDecision.kind).toBe("decision");
     if (alexDecision.kind !== "decision") return;
@@ -485,7 +491,7 @@ describe("GitHub repository customer delegation (real database)", () => {
       resource: "acme/widgets",
       arguments: { issue_number: "1" },
       idempotencyKey: `github-full-workflow-auth-${suffix}`,
-      ...currentVersions(),
+      ...(await currentTenantVersions(TENANT_A_ID)),
     });
     expect(decision.kind).toBe("decision");
     if (decision.kind !== "decision") return;
@@ -506,5 +512,128 @@ describe("GitHub repository customer delegation (real database)", () => {
     );
     expect(executed.http).toBe(200);
     expect((executed.body as { result?: string }).result).toMatch(/^succeeded/);
+  });
+
+  it("GitHub authorization still succeeds for a tenant with published Custom API and Postgres operations", async () => {
+    // Confirmed this session: prepareTask() compiles every contract
+    // against buildTenantRegistry(tenantId), which appends a content-hash
+    // suffix to the registry version the moment this tenant has ANYTHING
+    // published in Custom API or Postgres (registry/tenant.ts). A test
+    // that reads the registry version from the bare fixture file --
+    // instead of the same buildTenantRegistry() call production code
+    // actually uses -- diverges the moment that's true, and GitHub's own
+    // authorize call fails with UNSUPPORTED_CONTRACT_VERSION despite
+    // GitHub's own delegation logic being entirely uninvolved. This proves
+    // the fix (currentTenantVersions()) holds with the tenant in exactly
+    // that state, not just when it happens to be clean.
+    await ensureMockInstallation();
+    const repoId = await repositoryIdFor("acme/widgets");
+
+    const customApi = await createCustomApiConnection({
+      tenantId: TENANT_A_ID,
+      adminUserId: ADMIN_A_USER_ID,
+      label: "alongside-github-custom-api",
+    });
+    const postgres = await createPostgresConnection({
+      tenantId: TENANT_A_ID,
+      adminUserId: ADMIN_A_USER_ID,
+      label: "alongside-github-postgres",
+    });
+    try {
+      await publishOperation(customApi, {
+        operationSlug: "get_order",
+        name: "Get order",
+        method: "GET",
+        pathTemplate: "/v1/orders/{orderId}",
+        effect: "read",
+        inputSchema: {
+          schemaVersion: 1,
+          fields: [{ key: "orderId", type: "string", required: true, identifiesResource: true, in: "path" }],
+        },
+      });
+      await publishQuery(postgres, {
+        querySlug: "get_customer_orders",
+        name: "Get customer orders",
+        sqlTemplate: "select id, status from orders where customer_id = :customerId",
+        effect: "read",
+        inputSchema: {
+          schemaVersion: 1,
+          fields: [{ key: "customerId", type: "string", required: true, identifiesResource: true }],
+        },
+      });
+
+      const suffix = randomBytes(4).toString("hex");
+      const app = await createApplicationFixture(suffix);
+      apps.push(app);
+
+      const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
+      await delegateRepository(repoId, alex.customerId!);
+      await allowAutomation(app.applicationId, "github.get_issue");
+
+      const agent = await mkAgent("github-alongside-custom-api-postgres");
+      const task = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: alex.customerId!,
+        agentId: agent.agentId,
+        intent: "Read issue 1 in acme/widgets",
+        connectorBindings: [],
+      });
+      taskIds.push(task.taskId!);
+
+      const bindResult = await bindTaskGithubRepositoryForBackend({
+        credentialSecret: app.backendSecret,
+        taskId: task.taskId!,
+        repositoryId: repoId,
+      });
+      expect(bindResult).toBe("ok");
+
+      const outcome = await prepareTask({
+        credentialSecret: app.backendSecret,
+        taskId: task.taskId!,
+        plan: {
+          schemaVersion: 1,
+          taskId: task.taskId!,
+          nodes: [
+            {
+              id: "n1",
+              sequence: 0,
+              tool: "github.get_issue",
+              arguments: { issue_number: "1" },
+              resourceBinding: "acme/widgets",
+              dependencies: [],
+              declaredOutputs: [],
+              dataFlowRefs: [],
+              expectedSideEffect: "read",
+              maxInvocations: 1,
+            },
+          ],
+        },
+      });
+      expect(outcome.ok).toBe(true);
+      if (!outcome.ok) return;
+      expect(outcome.outcome.status).toBe("ready");
+
+      const decision = await authorizeThroughGateway({
+        credentialSecret: agent.secret,
+        taskId: task.taskId!,
+        tool: "github.get_issue",
+        operation: "get_issue",
+        resource: "acme/widgets",
+        arguments: { issue_number: "1" },
+        idempotencyKey: `github-alongside-auth-${suffix}`,
+        ...(await currentTenantVersions(TENANT_A_ID)),
+      });
+      expect(decision.kind).toBe("decision");
+      if (decision.kind !== "decision") return;
+      // Not weakened: this is still the real, production version check --
+      // it passes here because both the contract and the authorize call
+      // now read the SAME tenant-scoped registry version, not because the
+      // check itself was loosened.
+      expect(["allow", "allow_constrained"]).toContain(decision.commit.finalOutcome);
+      expect(decision.capabilityToken).toBeTruthy();
+    } finally {
+      await postgres.cleanup();
+      await customApi.cleanup();
+    }
   });
 });

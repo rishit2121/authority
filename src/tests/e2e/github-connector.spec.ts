@@ -110,17 +110,21 @@ test.describe.serial("GitHub connector (mock GitHub)", () => {
       insert into public.semantic_settings (tenant_id, runtime_approval_classes) values ('${TENANT_A_ID}', '{}')
         on conflict (tenant_id) do update set runtime_approval_classes = '{}';
     `);
+    // "tenant", not `true` on both: this suite calls the real
+    // /api/v1/authorize route, which authorizes through
+    // buildTenantRegistry(tenantId) internally, not the bare fixture file --
+    // the contract must match.
     fx = await createGatewayFixture({
       label: "e2e-gh",
       actions: ACTIONS,
       maxToolInvocations: 100,
-      useCurrentVersions: true,
+      useCurrentVersions: "tenant",
     });
     fault = await createGatewayFixture({
       label: "e2e-gh-fault",
       actions: ACTIONS,
       maxToolInvocations: 100,
-      useCurrentVersions: true,
+      useCurrentVersions: "tenant",
     });
     // The task belongs to the signed-in owner, so the owner cannot approve its own runtime requests.
     await managementQuery(`update public.tasks set principal_id = '${P_OWNER}' where id = '${fx.taskId}';`);

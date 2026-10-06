@@ -36,7 +36,10 @@ describe("MCP bridge (real database, fixture Stripe connector)", () => {
     const fx = await createGatewayFixture({
       label,
       actions: JSON.stringify({ schemaVersion: 1, items: tools.map((tool) => ({ tool, constraints: [] })) }),
-      useCurrentVersions: true,
+      // "tenant", not `true`: the MCP bridge authorizes through
+      // buildTenantRegistry(tenantId) internally (src/lib/mcp/bridge.ts),
+      // not the bare fixture file -- the contract must match that.
+      useCurrentVersions: "tenant",
     });
     fixtures.push(fx);
     return fx;
