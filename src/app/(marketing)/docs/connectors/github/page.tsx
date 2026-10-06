@@ -18,6 +18,10 @@ export default function GithubConnectorPage() {
           repository to a task, permanently, from the task&apos;s own <strong>Repository binding</strong>{" "}
           panel.
         </p>
+        <p>
+          No connection-broker support — the GitHub App installation&apos;s credential is Authority&apos;s
+          managed-connection model, held server-side; there is no per-application broker protocol for GitHub.
+        </p>
       </DocsSection>
 
       <DocsSection title="Customer delegation (developer API)">

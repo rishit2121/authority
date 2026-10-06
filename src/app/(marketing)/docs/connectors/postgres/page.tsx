@@ -16,6 +16,10 @@ export default function PostgresConnectorPage() {
           Private network destinations are allowed (unlike Custom API) — your database is expected to live on
           one. A developer then writes a query, an admin publishes it; publishing freezes the SQL forever.
         </p>
+        <p>
+          No connection-broker support — the database credential is stored server-side (Vault-backed) once,
+          through this dashboard flow; there is no per-application broker protocol for PostgreSQL.
+        </p>
       </DocsSection>
 
       <DocsSection title="Execution guarantees">
