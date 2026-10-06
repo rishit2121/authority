@@ -7,8 +7,9 @@ import {
   listConnectionAccessForBackend,
   revokeConnectionAccessForBackend,
 } from "@/lib/gateway/rpc-access-management";
-import { createOrResolveCustomer } from "@/lib/gateway/rpc-customers";
+import { createCustomerTask, createOrResolveCustomer } from "@/lib/gateway/rpc-customers";
 
+import { createGatewayFixture, type GatewayFixture } from "../gateway-support";
 import { managementQuery, TENANT_A_ID } from "../support";
 
 /**
@@ -77,8 +78,8 @@ async function createOrgConnection(suffix: string): Promise<string> {
   const id = randomBytes(16).toString("hex");
   const connectionId = `${id.slice(0, 8)}-${id.slice(8, 12)}-4${id.slice(13, 16)}-8${id.slice(17, 20)}-${id.slice(20, 32)}`;
   await managementQuery(`
-    insert into public.connector_connections (id, tenant_id, connector_id, name, owner_kind, status)
-    values ('${connectionId}', '${TENANT_A_ID}', 'slack', 'access-mgmt test connection ${suffix}', 'organization', 'active');
+    insert into public.connector_connections (id, tenant_id, connector_id, name, owner_kind, verified_account_ref, status)
+    values ('${connectionId}', '${TENANT_A_ID}', 'slack', 'access-mgmt test connection ${suffix}', 'organization', 'access-mgmt-${suffix}', 'active');
   `);
   return connectionId;
 }
@@ -86,7 +87,7 @@ async function createOrgConnection(suffix: string): Promise<string> {
 async function setPolicy(
   applicationId: string,
   connectionId: string,
-  scope: "backend_grantable" | "admin_only",
+  scope: "backend_grantable" | "admin_only" | "application_shared",
 ): Promise<void> {
   await managementQuery(`
     insert into public.application_connection_access_policies (tenant_id, application_id, connection_id, scope)
@@ -103,8 +104,43 @@ async function setCanManageAccess(credentialId: string, value: boolean): Promise
 
 describe("backend self-service connection access management (real database)", () => {
   const apps: AppFixture[] = [];
+  const fixtures: GatewayFixture[] = [];
+  const taskIds: string[] = [];
+  const connectionIds: string[] = [];
 
   afterEach(async () => {
+    // Strict dependency order (same as customer-connections.test.ts's own
+    // cleanupConnections): task_connector_bindings references both a task
+    // and a connection, and connector_connections/tasks can each reference
+    // a customer -- nothing downstream may be deleted before the rows that
+    // reference it.
+    if (connectionIds.length > 0) {
+      const list = connectionIds
+        .splice(0, connectionIds.length)
+        .map((id) => `'${id}'`)
+        .join(", ");
+      await managementQuery(`
+        set local role postgres;
+        select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.task_connector_bindings where connection_id in (${list});
+        delete from public.backend_connection_access_grants where delegation_id in (
+          select id from public.connection_delegations where connection_id in (${list})
+        );
+        delete from public.connection_delegations where connection_id in (${list});
+        delete from public.application_connection_access_policies where connection_id in (${list});
+        delete from public.connector_connections where id in (${list});
+      `);
+    }
+    for (const taskId of taskIds.splice(0, taskIds.length)) {
+      await managementQuery(`
+        set local role postgres;
+        select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.tasks where id = '${taskId}';
+      `);
+    }
+    while (fixtures.length > 0) {
+      await fixtures.pop()?.cleanup();
+    }
     while (apps.length > 0) {
       await apps.pop()?.cleanup();
     }
@@ -115,6 +151,7 @@ describe("backend self-service connection access management (real database)", ()
     const app = await createApplicationFixture(suffix);
     apps.push(app);
     const connectionId = await createOrgConnection(suffix);
+    connectionIds.push(connectionId);
     const customer = await createOrResolveCustomer({
       credentialSecret: app.backendSecret,
       externalId: "alex",
@@ -134,6 +171,7 @@ describe("backend self-service connection access management (real database)", ()
     const app = await createApplicationFixture(suffix);
     apps.push(app);
     const connectionId = await createOrgConnection(suffix);
+    connectionIds.push(connectionId);
     await setPolicy(app.applicationId, connectionId, "backend_grantable");
     const customer = await createOrResolveCustomer({
       credentialSecret: app.backendSecret,
@@ -154,6 +192,7 @@ describe("backend self-service connection access management (real database)", ()
     const app = await createApplicationFixture(suffix);
     apps.push(app);
     const connectionId = await createOrgConnection(suffix);
+    connectionIds.push(connectionId);
     await setPolicy(app.applicationId, connectionId, "backend_grantable");
     await setCanManageAccess(app.credentialId, true);
 
@@ -219,6 +258,7 @@ describe("backend self-service connection access management (real database)", ()
     const app = await createApplicationFixture(suffix);
     apps.push(app);
     const connectionId = await createOrgConnection(suffix);
+    connectionIds.push(connectionId);
     await setPolicy(app.applicationId, connectionId, "backend_grantable");
     await setCanManageAccess(app.credentialId, true);
     const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
@@ -239,6 +279,7 @@ describe("backend self-service connection access management (real database)", ()
     const app = await createApplicationFixture(suffix);
     apps.push(app);
     const connectionId = await createOrgConnection(suffix);
+    connectionIds.push(connectionId);
     await setPolicy(app.applicationId, connectionId, "backend_grantable");
     await setCanManageAccess(app.credentialId, true);
     const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
@@ -250,5 +291,63 @@ describe("backend self-service connection access management (real database)", ()
       customerId: alex.customerId!,
     });
     expect(result).toBe("malformed");
+  });
+
+  it("application_shared lets every one of this application's customers use the connection with no per-customer delegation at all", async () => {
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix);
+    apps.push(app);
+    const connectionId = await createOrgConnection(suffix);
+    connectionIds.push(connectionId);
+    await setPolicy(app.applicationId, connectionId, "application_shared");
+
+    const fx = await createGatewayFixture({ label: `access-shared-${suffix}` });
+    fixtures.push(fx);
+
+    const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
+    const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
+
+    // Neither customer was ever individually delegated this connection.
+    for (const customer of [alex, bob]) {
+      const created = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: customer.customerId!,
+        agentId: fx.agentId,
+        intent: "Use the shared connection",
+        connectorBindings: [{ connectorId: "slack", connectionId }],
+      });
+      expect(created.status).toBe("ok");
+      taskIds.push(created.taskId!);
+    }
+  });
+
+  it("application_shared for one application never leaks access to a different application's customer, even in the same tenant", async () => {
+    const suffix = randomBytes(4).toString("hex");
+    const appA = await createApplicationFixture(suffix);
+    apps.push(appA);
+    const connectionId = await createOrgConnection(suffix);
+    connectionIds.push(connectionId);
+    await setPolicy(appA.applicationId, connectionId, "application_shared");
+
+    const otherSuffix = randomBytes(4).toString("hex");
+    const appB = await createApplicationFixture(otherSuffix);
+    apps.push(appB);
+
+    const fx = await createGatewayFixture({ label: `access-shared-cross-app-${suffix}` });
+    fixtures.push(fx);
+
+    const bobOnAppB = await createOrResolveCustomer({
+      credentialSecret: appB.backendSecret,
+      externalId: "bob",
+    });
+    const created = await createCustomerTask({
+      credentialSecret: appB.backendSecret,
+      customerId: bobOnAppB.customerId!,
+      agentId: fx.agentId,
+      intent: "Try the other application's shared connection",
+      connectorBindings: [{ connectorId: "slack", connectionId }],
+    });
+    expect(created.status).toBe("connection_not_usable_by_customer");
+    expect(created.taskId).toBeNull();
   });
 });
