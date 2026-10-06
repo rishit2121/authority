@@ -13,6 +13,10 @@ export default function SlackConnectorPage() {
           created in your own Slack app&apos;s OAuth settings, scoped to <code>chat:write</code> and{" "}
           <code>channels:read</code>.
         </p>
+        <p>
+          No connection-broker support — the bot token is stored server-side (Vault-backed) once, through this
+          dashboard flow; there is no per-application broker protocol for Slack.
+        </p>
       </DocsSection>
 
       <DocsSection title="Supported operations">

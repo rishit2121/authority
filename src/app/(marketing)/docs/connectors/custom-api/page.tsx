@@ -29,6 +29,10 @@ export default function CustomApiConnectorPage() {
           code={`Name: Widget Orders API
 Base URL: https://api.widgets.example`}
         />
+        <p>
+          No connection-broker support — every credential below is stored server-side (Vault-backed) once,
+          through this flow; there is no per-application broker protocol for Custom API.
+        </p>
         <p>2. Authentication — a credential (bearer, basic, or API key header), stored in Vault:</p>
         <CodeBlock
           code={`Credential type: Bearer token

@@ -17,6 +17,10 @@ export default function StripeConnectorPage() {
           </a>{" "}
           scoped to only the permissions below is recommended over a full secret key.
         </p>
+        <p>
+          No connection-broker support — the secret key is stored server-side (Vault-backed) once, through
+          this dashboard flow; there is no per-application broker protocol for Stripe.
+        </p>
       </DocsSection>
 
       <DocsSection title="Supported operations">

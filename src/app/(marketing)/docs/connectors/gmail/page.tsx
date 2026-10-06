@@ -14,6 +14,13 @@ export default function GmailConnectorPage() {
           requires a server-side <code>GOOGLE_OAUTH_CLIENT_ID</code>/<code>GOOGLE_OAUTH_CLIENT_SECRET</code>{" "}
           to be configured for this deployment first.
         </p>
+        <p>
+          Gmail is the only connector with connection-broker support: an application can run its own broker
+          server holding the real Google OAuth credential, with Authority requesting a short-lived access
+          token from it per call rather than storing the refresh token itself. See{" "}
+          <code>src/lib/connectors/gmail/connector.ts</code> and{" "}
+          <code>src/lib/connectors/broker/client.ts</code> for the protocol if you need this.
+        </p>
       </DocsSection>
 
       <DocsSection title="OAuth scope">
