@@ -176,7 +176,7 @@ export default async function RuntimePage({
   return (
     <div className="flex flex-col gap-space-lg">
       <PageHeader
-        title="Tool calls"
+        title="Activity"
         description="Every authorization request, its decision, and the authority issued."
       />
 

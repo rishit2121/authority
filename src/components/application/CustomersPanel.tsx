@@ -19,11 +19,11 @@ export interface CustomerRow {
 export function CustomersPanel({ customers }: { customers: CustomerRow[] }) {
   return (
     <div className="flex flex-col gap-3 rounded-[10px] border border-line bg-paper-raised p-5">
-      <h2 className="text-[15px] font-semibold text-ink">Customers</h2>
+      <h2 className="text-[15px] font-semibold text-ink">Application users</h2>
       <p className="text-[13px] text-ink-soft">
-        Created only by this application&apos;s own backend, through{" "}
-        <code className="font-mono-code">POST /api/v1/customers</code> — never here, and never given a
-        dashboard login.
+        Stored internally as a <code className="font-mono-code">customer</code> record — created only by this
+        application&apos;s own backend, through <code className="font-mono-code">POST /api/v1/customers</code>{" "}
+        — never here, and never given a dashboard login.
       </p>
       {customers.length === 0 ? (
         <p className="text-[13px] text-ink-soft">No customers yet.</p>

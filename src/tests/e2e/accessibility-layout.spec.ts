@@ -142,7 +142,15 @@ test.describe("mobile drawer at 390px", () => {
     await page.getByRole("button", { name: "Menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Control plane navigation" });
 
-    for (const label of ["Tasks", "Agents", "Policies", "Integrations", "Approvals", "Settings"]) {
+    for (const label of [
+      "Applications",
+      "Tasks",
+      "Agents",
+      "Policies",
+      "Connections",
+      "Approvals",
+      "Settings",
+    ]) {
       await expect(drawer.getByRole("link", { name: new RegExp(`^${label}`) })).toBeVisible();
     }
   });

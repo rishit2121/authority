@@ -1,13 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const NAV_LINKS: Array<{ name: string; href: string; heading: string | RegExp }> = [
+  { name: "Applications", href: "/app/settings/applications", heading: "Developer applications" },
   { name: "Tasks", href: "/app/tasks", heading: "Tasks" },
   { name: "Agents", href: "/app/agents", heading: "Agents" },
-  // Visible label is "Tool calls" (clearer to a developer); the route and page heading are
-  // unchanged, so this also confirms the rename didn't disturb either.
-  { name: "Tool calls", href: "/app/runtime", heading: "Tool calls" },
+  // Visible label is "Activity" (clearer to a developer than the underlying
+  // route name "runtime"); the route itself is unchanged, and the page's own
+  // heading was renamed to match, so this also confirms both stayed in sync.
+  { name: "Activity", href: "/app/runtime", heading: "Activity" },
   { name: "Policies", href: "/app/policies", heading: "Policies" },
-  { name: "Integrations", href: "/app/integrations", heading: "Integrations" },
+  { name: "Connections", href: "/app/integrations", heading: "Connections" },
   { name: "Approvals", href: "/app/approvals", heading: "Approvals" },
   { name: "Settings", href: "/app/settings", heading: "Settings" },
 ];
@@ -26,11 +28,12 @@ test.describe("dashboard navigation", () => {
     }
     for (const label of [
       "Overview",
+      "Applications",
       "Tasks",
       "Agents",
-      "Tool calls",
+      "Activity",
       "Policies",
-      "Integrations",
+      "Connections",
       "Approvals",
       "Settings",
     ]) {
