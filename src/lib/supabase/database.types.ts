@@ -5402,6 +5402,10 @@ export type Database = {
         Args: { p_customer_id: string; p_repository_id: string };
         Returns: string;
       };
+      ensure_human_principal_for_current_user: {
+        Args: { p_tenant_id: string };
+        Returns: string;
+      };
       ensure_onboarded: {
         Args: never;
         Returns: {

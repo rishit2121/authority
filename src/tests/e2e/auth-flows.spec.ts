@@ -1,5 +1,8 @@
+import { randomBytes } from "node:crypto";
+
 import { expect, test } from "@playwright/test";
 
+import { managementQuery } from "../integration/support";
 import { ADMIN_A, OWNER_A, TEST_PASSWORD } from "./support/users";
 
 /**
@@ -297,5 +300,108 @@ test.describe("mobile authentication pages", () => {
     await page.goto("/login");
     await expect(page.getByLabel("Work email")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  });
+});
+
+test.describe("fresh signup reaches a working dashboard", () => {
+  // A real signup through /signup cannot reach an authenticated session here
+  // (see this file's own module comment: email confirmation is enabled, and
+  // there is no inbox to click through). This creates a pre-confirmed user
+  // the exact same way supabase/seed.sql creates every other fixture account
+  // -- not a shortcut specific to this test -- then drives the REAL /login
+  // form and the REAL /app/agents/new page, so this still proves the
+  // production onboarding path, not a mocked one. It never writes to
+  // tenants/tenant_memberships/principals directly -- those are created by
+  // the application itself (ensure_onboarded(), then
+  // ensure_human_principal_for_current_user()) the first time this brand-new
+  // user reaches /app and /app/agents/new, which is the actual thing this
+  // test exists to prove.
+  test("a brand-new tenant owner can register their first agent without demo data or manual SQL", async ({
+    page,
+  }) => {
+    const suffix = `${Date.now().toString(36)}${randomBytes(4).toString("hex")}`;
+    const email = `fresh-signup-${suffix}@authority.test`;
+    const password = "Fresh-Signup-Test-2026!";
+    const displayName = `Fresh Signup ${suffix}`;
+
+    const rows = (await managementQuery(`
+      insert into auth.users (
+        instance_id, id, aud, role, email, encrypted_password,
+        email_confirmed_at, created_at, updated_at,
+        raw_app_meta_data, raw_user_meta_data,
+        is_sso_user, is_anonymous,
+        confirmation_token, recovery_token, email_change,
+        email_change_token_new, email_change_token_current,
+        phone_change, phone_change_token, reauthentication_token
+      ) values (
+        '00000000-0000-0000-0000-000000000000',
+        gen_random_uuid(),
+        'authenticated', 'authenticated',
+        '${email}',
+        extensions.crypt('${password}', extensions.gen_salt('bf')),
+        now(), now(), now(),
+        '{"provider":"email","providers":["email"]}'::jsonb,
+        jsonb_build_object('display_name', '${displayName}'),
+        false, false,
+        '', '', '', '', '', '', '', ''
+      )
+      returning id;
+    `)) as Array<{ id: string }>;
+    const userId = rows[0]?.id;
+    expect(userId).toBeTruthy();
+
+    try {
+      await page.goto("/login");
+      await page.getByLabel("Work email").fill(email);
+      await page.getByLabel("Password", { exact: true }).fill(password);
+      await page.getByRole("button", { name: "Sign in" }).click();
+      // Zero memberships so far -- this first request is exactly what
+      // triggers ensure_onboarded(), creating this user's own fresh tenant.
+      await expect(page).toHaveURL(/\/app$/);
+
+      await page.goto("/app/agents/new");
+      const ownerSelect = page.getByLabel("Owner");
+
+      // The actual regression: this used to stay disabled, with "No
+      // principals exist yet in this workspace," for every brand-new tenant.
+      await expect(page.getByText("No principals exist yet in this workspace.")).toHaveCount(0);
+      await expect(ownerSelect).toBeEnabled();
+      await expect(ownerSelect).not.toHaveValue("");
+      await expect(ownerSelect.locator("option", { hasText: displayName })).toHaveCount(1);
+
+      await page.getByLabel("Name").fill(`fresh-signup-agent-${suffix}`);
+      await page.getByLabel("Model", { exact: true }).fill("gpt-4o");
+      await page.getByLabel("Model provider").fill("openai");
+      await page.getByLabel("Framework").fill("playwright-test");
+      await page.getByRole("button", { name: "Register agent" }).click();
+
+      // Redirects to the new agent's own page only on a genuine success.
+      await expect(page).toHaveURL(/\/app\/agents\/[0-9a-f-]+$/);
+    } finally {
+      // Deliberately does NOT delete the tenant, membership, profile or
+      // auth.users row this test created: authz.enforce_owner_survives()
+      // (20260922000005_membership_guards.sql) makes removing a tenant's
+      // last owner membership impossible by design, with no demo-purge
+      // escape hatch -- there is no supported way to delete a tenant at
+      // all, in this product, for anyone. That's a correct safety
+      // invariant, not a gap this test should work around by disabling a
+      // trigger on a table every other session shares. The tenant this
+      // leaves behind is as harmless as any other fixture tenant already
+      // in this database: every query elsewhere scopes by tenant_id, and
+      // nothing lists tenants system-wide. Only clean up what COULD leak
+      // into another test's assertions -- the agent itself.
+      await managementQuery(`
+        set local role postgres;
+        select set_config('authority.allow_demo_purge', 'on', true);
+        delete from public.agent_credentials where agent_id in (
+          select a.id from public.agents a
+          join public.principals p on p.id = a.owner_principal_id
+          where p.user_id = '${userId}'
+        );
+        delete from public.agents where owner_principal_id in (
+          select id from public.principals where user_id = '${userId}'
+        );
+      `);
+    }
   });
 });

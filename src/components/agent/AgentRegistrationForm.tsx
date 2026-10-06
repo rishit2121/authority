@@ -18,7 +18,14 @@ const errorClass = "text-[13px] text-deny";
  * (see createAgentAction) — this records who may later be attributed decisions
  * and capabilities. It does not run, call, or authorize anything by itself.
  */
-export function AgentRegistrationForm({ principals }: { principals: Principal[] }) {
+export function AgentRegistrationForm({
+  principals,
+  defaultOwnerPrincipalId,
+}: {
+  principals: Principal[];
+  /** The signed-in user's own principal id, when eligible -- preselected so a solo workspace owner never has to know what a "principal" is just to register their first agent. */
+  defaultOwnerPrincipalId?: string | null;
+}) {
   const [state, formAction, pending] = useActionState(createAgentAction, INITIAL_STATE);
   const router = useRouter();
 
@@ -121,6 +128,7 @@ export function AgentRegistrationForm({ principals }: { principals: Principal[] 
           name="ownerPrincipalId"
           required
           disabled={principals.length === 0}
+          defaultValue={defaultOwnerPrincipalId ?? ""}
           aria-describedby={state.fieldErrors?.ownerPrincipalId ? "owner-error" : undefined}
           className={fieldClass}
         >
