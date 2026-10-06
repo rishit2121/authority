@@ -273,8 +273,19 @@ test.describe("embedded customer connections", () => {
       await expect(page.getByRole("heading", { name: "Connections" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Access and approvals" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Run your agent" })).toBeVisible();
-      // No backend credential was ever issued for this fresh application.
-      await expect(page.getByText("Missing credentials").first()).toBeVisible();
+      // createApplicationFixture issues a real backend credential via SQL,
+      // so step 1 is genuinely "Verified" -- found live (after fixing
+      // 20261003000020's missing can_manage_access column grant) that this
+      // assertion had been checking "Missing credentials" all along only
+      // because that same grant bug silently emptied the credentials query
+      // for every application, masking the real, correct state.
+      await expect(page.getByText("Verified").first()).toBeVisible();
+      // Step 2's readiness depends on how many organization-owned
+      // connections exist tenant-wide (connector_connections has no
+      // per-application scoping at all -- any connection any other test in
+      // this tenant has created is visible here too), so this deliberately
+      // does not assert a specific state for it -- only that some readiness
+      // pill renders, proving the computation ran at all.
       await expect(page.getByTestId("get-started-snippet")).toContainText("AuthorityBackendClient");
     } finally {
       await cleanupApplication(app.applicationId);

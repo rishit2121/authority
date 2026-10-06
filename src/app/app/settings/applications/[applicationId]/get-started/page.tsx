@@ -2,6 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import {
+  AccessManagementPanel,
+  type AccessConnectionRow,
+  type AccessCredentialRow,
+} from "@/components/application/AccessManagementPanel";
+import type { ConnectionAccessScope } from "@/app/app/settings/applications/actions";
 import { CodeBlock } from "@/components/docs/CodeBlock";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -99,13 +105,25 @@ export default async function GetStartedPage({ params }: { params: Promise<{ app
 
   const activeCredentials = (credentialsResult.data ?? []).filter((c) => c.status === "active");
   const policyByConnection = new Map(
-    (accessPoliciesResult.data ?? []).map((p) => [p.connection_id, p.scope]),
+    (accessPoliciesResult.data ?? []).map((p) => [p.connection_id, p.scope as ConnectionAccessScope]),
   );
   const connections = connectionsResult.data ?? [];
   const configuredConnections = connections.filter(
     (c) => policyByConnection.get(c.id) && policyByConnection.get(c.id) !== "admin_only",
   );
   const automationCount = (automationPoliciesResult.data ?? []).length;
+
+  const accessConnections: AccessConnectionRow[] = connections.map((c) => ({
+    connectionId: c.id,
+    connectorId: c.connector_id,
+    verifiedAccountRef: c.verified_account_ref,
+    scope: policyByConnection.get(c.id) ?? "admin_only",
+  }));
+  const accessCredentials: AccessCredentialRow[] = activeCredentials.map((c) => ({
+    id: c.id,
+    keyPrefix: c.key_prefix,
+    canManageAccess: c.can_manage_access,
+  }));
 
   const step1State: Readiness = activeCredentials.length > 0 ? "verified" : "missing_credentials";
   const step2State: Readiness =
@@ -192,15 +210,32 @@ const result = await agent.tools.execute({ taskId: task.taskId, tool: manifest.t
 
       <Step number={3} title="Access and approvals" state={step3State}>
         <p className="text-[14px] text-ink-soft">
+          Two separate decisions, both made once here. <strong>Who may use a connection</strong>: pick{" "}
+          <strong>Backend-grantable</strong> to let your own backend grant/revoke individual customers from
+          code with no dashboard click per signup, or <strong>Application-shared</strong> when every customer
+          of this application should simply have access with no per-customer grant at all (e.g. a shared team
+          Slack or Stripe account) -- leave <strong>Admin only</strong> for anything you&apos;d rather keep
+          granting by hand. <strong>Which tools may auto-activate</strong>: allow-list a tool below only once
+          its contract&apos;s own freshly-recomputed approval requirement is independently empty -- a tool
+          that genuinely needs approval is never auto-activated merely because it&apos;s allow-listed.
+        </p>
+        <p className="mt-2 text-[14px] text-ink-soft">
           {automationCount > 0
             ? `${automationCount} tool${automationCount === 1 ? "" : "s"} allow-listed for automatic activation.`
             : "No tool is allow-listed yet -- every eligible task will wait for a human approval until you configure this."}
         </p>
+        <div className="mt-4">
+          <AccessManagementPanel
+            applicationId={applicationId}
+            connections={accessConnections}
+            credentials={accessCredentials}
+          />
+        </div>
         <Link
           href={`/app/settings/applications/${applicationId}#automation`}
           className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
         >
-          Configure access and approvals
+          Configure tool allow-listing
           <Icon name="arrow_forward" size={14} />
         </Link>
       </Step>

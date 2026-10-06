@@ -359,3 +359,85 @@ export async function revokeGithubRepositoryDelegationAction(
     return { ok: false, error: presentActionError(error) };
   }
 }
+
+export type ConnectionAccessScope =
+  "customer_owned" | "backend_grantable" | "application_shared" | "admin_only";
+
+/**
+ * Admin configuration for the backend self-service access-management work
+ * (20261003000020/000021): which scope governs this one (application,
+ * connection) pair. `backend_grantable` lets the application's own backend
+ * grant/revoke individual customers via the developer API
+ * (grantConnectionAccessForBackend); `application_shared` needs no
+ * per-customer grant at all -- every one of this application's customers
+ * becomes immediately usable. Neither widens what a backend credential can
+ * do beyond this one, explicitly admin-chosen connection -- the backend can
+ * never name a different connection and get the same treatment.
+ */
+export async function setApplicationConnectionAccessPolicyAction(
+  applicationId: string,
+  connectionId: string,
+  scope: ConnectionAccessScope,
+  maxGrantSeconds: number | null,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("set_application_connection_access_policy", {
+      p_application_id: applicationId,
+      p_connection_id: connectionId,
+      p_scope: scope,
+      // The generated Supabase type for this RPC arg is `number` (non-null),
+      // but the underlying Postgres parameter has no NOT NULL constraint and
+      // genuinely accepts null (no expiry) -- PostgREST serializes it
+      // correctly regardless of this overly strict generated type.
+      p_max_grant_seconds: maxGrantSeconds as number,
+    });
+    if (error) return { ok: false, error: error.message };
+    if (data !== "ok") {
+      const messages: Record<string, string> = {
+        forbidden: "Admin role required.",
+        application_not_found: "Application not found.",
+        connection_not_found: "Connection not found.",
+      };
+      return { ok: false, error: messages[data as string] ?? "Could not set the access policy." };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}/get-started`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+/**
+ * Admin configuration: whether this backend credential may call
+ * grant/revokeConnectionAccessForBackend at all. Defaults to false for
+ * every credential -- an admin must explicitly opt each one in. An agent
+ * runtime key or task session token has no equivalent column at all
+ * (different tables entirely), so this can never apply to either.
+ */
+export async function setBackendCredentialAccessManagementScopeAction(
+  applicationId: string,
+  credentialId: string,
+  canManageAccess: boolean,
+): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`${APPLICATIONS_PATH}/${applicationId}`);
+    const { data, error } = await context.supabase.rpc("set_backend_credential_access_management_scope", {
+      p_credential_id: credentialId,
+      p_can_manage_access: canManageAccess,
+    });
+    if (error) return { ok: false, error: error.message };
+    if (data !== "ok") {
+      return {
+        ok: false,
+        error: data === "forbidden" ? "Admin role required." : "Credential not found.",
+      };
+    }
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}`);
+    revalidatePath(`${APPLICATIONS_PATH}/${applicationId}/get-started`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}

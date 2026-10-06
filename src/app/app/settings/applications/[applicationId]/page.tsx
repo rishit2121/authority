@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import {
+  AccessManagementPanel,
+  type AccessConnectionRow,
+  type AccessCredentialRow,
+} from "@/components/application/AccessManagementPanel";
+import {
   AutomationPoliciesPanel,
   type AutomationPolicyRow,
 } from "@/components/application/AutomationPoliciesPanel";
@@ -25,6 +30,7 @@ import {
 } from "@/components/application/GithubRepositoryDelegationPanel";
 import { ReturnUrlsForm } from "@/components/application/ReturnUrlsForm";
 import { PageHeader } from "@/components/ui/PageHeader";
+import type { ConnectionAccessScope } from "@/app/app/settings/applications/actions";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 export const metadata: Metadata = { title: "Application" };
@@ -54,10 +60,13 @@ export default async function ApplicationDetailPage({
     brokersResult,
     automationPoliciesResult,
     githubRepositoriesResult,
+    accessPoliciesResult,
   ] = await Promise.all([
     context.supabase
       .from("developer_backend_credentials")
-      .select("id, key_prefix, status, created_at, last_used_at, revoked_at, revocation_reason")
+      .select(
+        "id, key_prefix, status, created_at, last_used_at, revoked_at, revocation_reason, can_manage_access",
+      )
       .eq("application_id", applicationId)
       .order("created_at", { ascending: false }),
     context.supabase
@@ -92,6 +101,10 @@ export default async function ApplicationDetailPage({
       .eq("allowed", true)
       .eq("present", true)
       .order("owner", { ascending: true }),
+    context.supabase
+      .from("application_connection_access_policies")
+      .select("connection_id, scope")
+      .eq("application_id", applicationId),
   ]);
 
   const customersById = new Map((customersResult.data ?? []).map((c) => [c.id, c]));
@@ -131,6 +144,23 @@ export default async function ApplicationDetailPage({
     revokedAt: row.revoked_at,
     revocationReason: row.revocation_reason,
   }));
+
+  const accessScopeByConnection = new Map(
+    (accessPoliciesResult.data ?? []).map((p) => [p.connection_id, p.scope as ConnectionAccessScope]),
+  );
+  const accessConnections: AccessConnectionRow[] = (orgConnectionsResult.data ?? []).map((conn) => ({
+    connectionId: conn.id,
+    connectorId: conn.connector_id,
+    verifiedAccountRef: conn.verified_account_ref,
+    scope: accessScopeByConnection.get(conn.id) ?? "admin_only",
+  }));
+  const accessCredentials: AccessCredentialRow[] = (credentialsResult.data ?? [])
+    .filter((row) => row.status === "active")
+    .map((row) => ({
+      id: row.id,
+      keyPrefix: row.key_prefix,
+      canManageAccess: row.can_manage_access,
+    }));
 
   const delegationsByConnection = new Map<string, string[]>();
   for (const d of delegationsResult.data ?? []) {
@@ -217,6 +247,11 @@ export default async function ApplicationDetailPage({
         applicationId={applicationId}
         connections={orgConnections}
         customerOptions={customerOptions}
+      />
+      <AccessManagementPanel
+        applicationId={applicationId}
+        connections={accessConnections}
+        credentials={accessCredentials}
       />
       <AutomationPoliciesPanel applicationId={applicationId} policies={automationPolicies} />
       <GithubRepositoryDelegationPanel
