@@ -40,7 +40,7 @@ function combineSignals(signals: readonly (AbortSignal | undefined)[]): {
 export async function request<T>(
   config: ClientConfig,
   path: string,
-  init: { method: "GET" | "POST"; body?: unknown },
+  init: { method: "GET" | "POST" | "DELETE"; body?: unknown },
   options: RequestOptions = {},
 ): Promise<T> {
   const timeoutMs = options.timeoutMs ?? config.defaultTimeoutMs ?? 15_000;

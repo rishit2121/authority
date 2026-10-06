@@ -310,6 +310,18 @@ export function developerApiFailureContract(status: string): FailureContract {
       };
     case "task_closed":
       return { http: 409, code: "TASK_CLOSED", message: "This task has already ended." };
+    case "forbidden":
+      return {
+        http: 403,
+        code: "FORBIDDEN",
+        message: "This backend credential is not authorized to manage access for this application.",
+      };
+    case "not_in_envelope":
+      return {
+        http: 403,
+        code: "NOT_IN_ENVELOPE",
+        message: "An administrator has not authorized backend-managed access for this connection.",
+      };
     case "already_bound_to_different_connection":
       return {
         http: 409,

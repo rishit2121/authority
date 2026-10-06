@@ -73,6 +73,34 @@ export class AuthorityBackendClient {
         { method: "POST", body: input },
         options,
       ),
+
+    /**
+     * Grants this customer use of an organization-owned connection,
+     * entirely from your backend -- no dashboard click. Only works when an
+     * admin has explicitly marked this exact connection `backend_grantable`
+     * for this application (Settings -> Applications -> Access policy) AND
+     * this backend credential has been given access-management scope;
+     * refused outright (`FORBIDDEN` / `NOT_IN_ENVELOPE`) otherwise. Never
+     * widens that admin-set envelope itself. Idempotent -- granting an
+     * already-granted pair is a no-op success. Visible afterward through
+     * `connections.list(customerId)`, the same as any other delegation.
+     */
+    grantAccess: (input: { customerId: string; connectionId: string }, options?: RequestOptions) =>
+      request<{ connectionId: string; customerId: string; status: "granted" }>(
+        this.config,
+        `/api/v1/customers/${input.customerId}/connections/${input.connectionId}/access`,
+        { method: "POST" },
+        options,
+      ),
+
+    /** Revokes a previously backend-granted (or admin-granted) delegation. Idempotent -- revoking an already-revoked or never-granted pair is a no-op success. */
+    revokeAccess: (input: { customerId: string; connectionId: string }, options?: RequestOptions) =>
+      request<{ connectionId: string; customerId: string; status: "revoked" }>(
+        this.config,
+        `/api/v1/customers/${input.customerId}/connections/${input.connectionId}/access`,
+        { method: "DELETE" },
+        options,
+      ),
   };
 
   /**
