@@ -157,7 +157,7 @@ export default async function IntegrationsPage() {
   return (
     <div className="flex flex-col gap-space-lg">
       <PageHeader
-        title="Integrations"
+        title="Connections"
         description="Connect the services agents may access through Authority."
         secondaryAction={{ label: "Connector docs", href: "/docs/connectors" }}
       />

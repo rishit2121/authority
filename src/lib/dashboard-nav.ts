@@ -19,20 +19,25 @@ export interface DashboardNavGroup {
 
 /**
  * Sidebar sections for the control plane, grouped by what they're for
- * (design/frontend-simplification). The visible label for `/app/runtime` is
- * "Tool calls" — it explains the page to a developer more directly than
- * "Runtime" does — but the route itself is unchanged, so bookmarks, the
- * existing Playwright coverage's URL assertions, and every internal link
- * still work.
+ * (design/frontend-simplification). Labels are chosen to explain the page
+ * to a developer more directly than the underlying route name does, but no
+ * route itself moves -- bookmarks, existing Playwright URL assertions, and
+ * every internal link still work: `/app/runtime` is labeled "Activity" (a
+ * live feed of every authorize/execute call and its receipt, across every
+ * task), `/app/integrations` is labeled "Connections" (provider
+ * connections, same word the developer API and docs already use), `/app/settings/applications`
+ * is additionally surfaced here as a top-level "Applications" destination
+ * (it still lives under Settings too -- this is additive, not a move).
  */
 export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   {
     label: "Workspace",
     items: [
       { label: "Overview", href: "/app", icon: "account_tree" },
+      { label: "Applications", href: "/app/settings/applications", icon: "key" },
       { label: "Tasks", href: "/app/tasks", icon: "data_object", badgeKey: "tasksActive" },
       { label: "Agents", href: "/app/agents", icon: "smart_toy" },
-      { label: "Tool calls", href: "/app/runtime", icon: "bolt" },
+      { label: "Activity", href: "/app/runtime", icon: "bolt" },
       { label: "Approvals", href: "/app/approvals", icon: "mark_chat_read", badgeKey: "approvalsPending" },
     ],
   },
@@ -41,7 +46,7 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
     items: [
       { label: "Policies", href: "/app/policies", icon: "policy" },
       {
-        label: "Integrations",
+        label: "Connections",
         href: "/app/integrations",
         icon: "token",
         badgeKey: "integrationWarnings",
@@ -57,7 +62,7 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
     label: "System",
     items: [
       { label: "Settings", href: "/app/settings", icon: "lock" },
-      { label: "Docs", href: "/docs", icon: "description" },
+      { label: "Documentation", href: "/docs", icon: "description" },
     ],
   },
 ];
