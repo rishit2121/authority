@@ -261,4 +261,23 @@ test.describe("embedded customer connections", () => {
       await cleanupApplication(app.applicationId);
     }
   });
+
+  test("the Get started page renders all four steps with honest readiness for a freshly created application", async ({
+    page,
+  }) => {
+    const app = await createApplicationFixture(`E2E Get Started ${suffix()}`, []);
+    try {
+      await page.goto(`/app/settings/applications/${app.applicationId}/get-started`);
+      await expect(page.getByRole("heading", { name: /Get started/ })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Application" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Connections" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Access and approvals" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Run your agent" })).toBeVisible();
+      // No backend credential was ever issued for this fresh application.
+      await expect(page.getByText("Missing credentials").first()).toBeVisible();
+      await expect(page.getByTestId("get-started-snippet")).toContainText("AuthorityBackendClient");
+    } finally {
+      await cleanupApplication(app.applicationId);
+    }
+  });
 });

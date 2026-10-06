@@ -53,7 +53,10 @@ export function AutomationPoliciesPanel({
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-[10px] border border-line bg-paper-raised p-5">
+    <div
+      id="automation"
+      className="flex flex-col gap-4 rounded-[10px] border border-line bg-paper-raised p-5"
+    >
       <h2 className="text-[15px] font-semibold text-ink">Automatic activation</h2>
       <p className="text-[13px] text-ink-soft">
         Tools listed here let this application&apos;s backend credential activate a proposed contract itself,

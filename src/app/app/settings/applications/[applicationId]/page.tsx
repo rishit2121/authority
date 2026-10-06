@@ -203,6 +203,10 @@ export default async function ApplicationDetailPage({
         eyebrow={application.environment}
         title={application.name}
         description={`Slug: ${application.slug}`}
+        secondaryAction={{
+          label: "Get started",
+          href: `/app/settings/applications/${applicationId}/get-started`,
+        }}
       />
 
       <BackendCredentialsPanel applicationId={applicationId} credentials={credentials} />
