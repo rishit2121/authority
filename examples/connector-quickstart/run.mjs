@@ -215,8 +215,18 @@ async function resolveConnection(backend) {
   return match.connectionId;
 }
 
+/**
+ * Returns both the id (for binding) and the real `owner/name` (for the
+ * `resource` argument every authorize/execute call needs) -- the GitHub
+ * executor independently checks `resource` against the actual bound
+ * repository's own identifier, regardless of what the contract's
+ * resourceBinding says, so a raw UUID there fails with
+ * REPOSITORY_NOT_BOUND even though binding itself succeeded.
+ */
 async function resolveRepository(backend) {
-  if (env.REPOSITORY_ID) return env.REPOSITORY_ID;
+  if (env.REPOSITORY_ID) {
+    return { repositoryId: env.REPOSITORY_ID, fullName: env.GITHUB_REPO_FULL_NAME || env.REPOSITORY_ID };
+  }
   const { repositories } = await backend.githubRepositories.list(CUSTOMER_ID);
   if (repositories.length === 0) {
     console.error(
@@ -225,7 +235,8 @@ async function resolveRepository(backend) {
     );
     process.exit(1);
   }
-  return repositories[0].repositoryId;
+  const repo = repositories[0];
+  return { repositoryId: repo.repositoryId, fullName: `${repo.owner}/${repo.name}` };
 }
 
 async function main() {
@@ -245,19 +256,28 @@ async function main() {
   console.log(`Task: ${task.taskId}`);
 
   if (connectorArg === "github") {
-    const repositoryId = await resolveRepository(backend);
-    const bound = await backend.tasks.bindGithubRepository(task.taskId, repositoryId);
-    console.log(`Bound GitHub repository: ${bound.repositoryId}`);
+    const { repositoryId, fullName } = await resolveRepository(backend);
+    // Resuming an existing RUN_ID re-creates the same task (idempotent) but
+    // re-attempts the bind unconditionally -- ALREADY_BOUND means this
+    // exact task was already bound to this exact repository on an earlier
+    // attempt, which is success, not a failure, on resume.
+    try {
+      const bound = await backend.tasks.bindGithubRepository(task.taskId, repositoryId);
+      console.log(`Bound GitHub repository: ${bound.repositoryId}`);
+    } catch (error) {
+      if (!(error instanceof AuthorityApiError) || error.code !== "ALREADY_BOUND") throw error;
+      console.log(`GitHub repository already bound for this task (resuming RUN_ID=${RUN_ID}).`);
+    }
     spec.safeOperation = {
       tool: "github.get_issue",
       operation: "get_issue",
-      resource: env.GITHUB_REPO_FULL_NAME || repositoryId,
+      resource: fullName,
       arguments: { issue_number: env.GITHUB_ISSUE_NUMBER || "1" },
     };
     spec.outOfScopeTool = {
       tool: "github.create_issue",
       operation: "create_issue",
-      resource: env.GITHUB_REPO_FULL_NAME || repositoryId,
+      resource: fullName,
       arguments: { title: "test", body: "test" },
     };
   }
@@ -273,6 +293,7 @@ async function main() {
             sequence: 0,
             tool: spec.safeOperation.tool,
             arguments: spec.safeOperation.arguments,
+            resourceBinding: spec.safeOperation.resource,
             expectedSideEffect: "read",
           },
         ],
