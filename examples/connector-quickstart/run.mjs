@@ -204,15 +204,23 @@ function connectorSpec() {
 async function resolveConnection(backend) {
   if (env.CONNECTION_ID) return env.CONNECTION_ID;
   const { connections } = await backend.connections.list(CUSTOMER_ID);
-  const match = connections.find((c) => c.connectorId === connectorSpec().connectorId);
-  if (!match) {
+  const matches = connections.filter((c) => c.connectorId === connectorSpec().connectorId);
+  if (matches.length === 0) {
     console.error(
       `No ${connectorSpec().connectorId} connection usable by customer ${CUSTOMER_ID}. Set up a connection ` +
         `(dashboard or developer API) and delegate it to this customer first, or set CONNECTION_ID directly.`,
     );
     process.exit(1);
   }
-  return match.connectionId;
+  if (matches.length > 1) {
+    console.error(
+      `${matches.length} ${connectorSpec().connectorId} connections are usable by customer ${CUSTOMER_ID} -- ` +
+        `ambiguous which one to use. Set CONNECTION_ID explicitly to one of:\n` +
+        matches.map((c) => `  ${c.connectionId}`).join("\n"),
+    );
+    process.exit(1);
+  }
+  return matches[0].connectionId;
 }
 
 /**
@@ -232,6 +240,14 @@ async function resolveRepository(backend) {
     console.error(
       `No GitHub repository delegated to customer ${CUSTOMER_ID}. Delegate one (Settings -> Applications) ` +
         `first, or set REPOSITORY_ID directly.`,
+    );
+    process.exit(1);
+  }
+  if (repositories.length > 1) {
+    console.error(
+      `${repositories.length} repositories are delegated to customer ${CUSTOMER_ID} -- ambiguous which one ` +
+        `to use. Set REPOSITORY_ID explicitly to one of:\n` +
+        repositories.map((r) => `  ${r.repositoryId} (${r.owner}/${r.name})`).join("\n"),
     );
     process.exit(1);
   }

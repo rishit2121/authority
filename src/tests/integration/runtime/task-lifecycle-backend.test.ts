@@ -291,7 +291,7 @@ describe("backend-credential task lifecycle (real database)", () => {
     // contract (see 20261003000019), but nothing stops a NEW logical run --
     // a new task, carrying its own idempotency key -- for the SAME customer
     // from reaching a genuinely fresh, active contract. This is exactly
-    // what examples/gmail-quickstart and examples/model-driven-agent now do
+    // what examples/connector-quickstart and examples/model-driven-agent now do
     // via their own RUN_ID (a fresh one by default, reusable to resume a
     // specific prior run).
     const suffix = randomBytes(4).toString("hex");

@@ -60,7 +60,7 @@ const OPTIONAL_STEPS: Step[] = [
   {
     key: "developerApiConfigured",
     title: "Connect your own agent from code",
-    hint: "Create an application and backend credential, then prepare and run a task with the TypeScript SDK (examples/gmail-quickstart) instead of the dashboard.",
+    hint: "Create an application and backend credential, then prepare and run a task with the TypeScript SDK (examples/connector-quickstart) instead of the dashboard.",
     href: "/app/settings/applications",
     cta: "Set up the developer API",
   },
