@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 
+import { CopyButton } from "@/components/ui/CopyButton";
+
 import {
   createSlackConnectionAction,
   disconnectSlackConnectionAction,
@@ -25,6 +27,33 @@ function useAction() {
       setResult(await fn());
     });
   return { result, pending, run };
+}
+
+/** A connection/agent id plus a one-click copy -- never used for anything secret (the bot token itself is never sent to this browser; see this page's own module comment). */
+function CopyIdRow({
+  label,
+  value,
+  hint,
+  testId,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  testId: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-space-sm font-body-sm text-body-sm">
+      <span className="text-outline">{label}</span>
+      <code
+        data-testid={`${testId}-value`}
+        className="rounded border border-outline-variant/30 bg-surface-container-low px-2 py-0.5 font-mono-code text-[12px] text-on-surface"
+      >
+        {value}
+      </code>
+      <CopyButton value={value} className={BTN} testId={`${testId}-copy`} />
+      <span className="text-[12px] text-outline">{hint}</span>
+    </div>
+  );
 }
 
 function Result({ result }: { result: SlackActionResult | null }) {
@@ -180,6 +209,15 @@ export function ConnectionCard({
         </div>
       </div>
       <Result result={result} />
+
+      <div className="mt-space-sm">
+        <CopyIdRow
+          label="Connection ID"
+          value={connection.id}
+          hint="Use this as SLACK_CONNECTION_ID in your application."
+          testId={`slack-connection-id-${connection.id}`}
+        />
+      </div>
 
       {canAdmin && connection.status !== "disconnected" ? (
         <div className="mt-space-md flex flex-col gap-space-sm">

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AgentCredentialsPanel, type AgentCredentialRow } from "@/components/agent/AgentCredentialsPanel";
 import { ConnectAgentPanel } from "@/components/agent/ConnectAgentPanel";
+import { CopyButton } from "@/components/ui/CopyButton";
 import { DecisionStatusBadge } from "@/components/ui/DecisionStatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -150,6 +151,19 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ ag
           Configuration
         </h2>
         <dl className="grid grid-cols-1 gap-x-6 gap-y-3 rounded-[10px] border border-line bg-paper-raised p-4 sm:grid-cols-2">
+          <div>
+            <dt className="text-[12px] text-ink-soft">Agent ID</dt>
+            <dd className="mt-0.5 flex flex-wrap items-center gap-2">
+              <code data-testid="agent-id-value" className="font-mono-code text-[12px] text-ink">
+                {agentId}
+              </code>
+              <CopyButton
+                value={agentId}
+                testId="agent-id-copy"
+                className="inline-flex h-7 items-center justify-center rounded-md border border-line-strong px-2.5 text-[12px] font-medium text-ink transition-colors hover:bg-black/[0.03]"
+              />
+            </dd>
+          </div>
           <div>
             <dt className="text-[12px] text-ink-soft">Model</dt>
             <dd className="mt-0.5 text-[14px] text-ink">{agent.model}</dd>
