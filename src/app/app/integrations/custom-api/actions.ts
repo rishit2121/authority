@@ -142,6 +142,8 @@ export interface CreateOperationInput {
   headerName?: string;
   /** 1-20 fields; see docs/connectors/CUSTOM_API.md for the supported shape. */
   fields: CustomOperationField[];
+  /** Fixed, non-secret headers sent on every call to this operation (e.g. Notion's required "Notion-Version") — never a place for a credential; gateway.validate_custom_operation independently refuses "authorization" and a handful of other reserved names here. */
+  staticHeaders?: Array<{ name: string; value: string }>;
 }
 
 export interface CustomApiValidationResult extends CustomApiActionResult {
@@ -161,7 +163,10 @@ export async function createCustomOperationAction(
   input: CreateOperationInput,
 ): Promise<CustomApiValidationResult> {
   const inputSchema = { schemaVersion: 1 as const, fields: input.fields };
-  const requestMapping = { schemaVersion: 1 as const };
+  const requestMapping = {
+    schemaVersion: 1 as const,
+    ...(input.staticHeaders?.length ? { staticHeaders: input.staticHeaders } : {}),
+  };
   const structural = validateOperationDefinition({
     pathTemplate: input.pathTemplate,
     inputSchema,
@@ -208,6 +213,7 @@ export interface PreviewRequestInput {
   authType: CustomOperationAuthType;
   headerName?: string;
   fields: CustomOperationField[];
+  staticHeaders?: Array<{ name: string; value: string }>;
   /** Raw text as typed in the preview form, keyed by field.key; coerced to each field's declared type before building the request. */
   sampleValues: Record<string, string>;
 }
@@ -249,7 +255,10 @@ export async function previewCustomOperationAction(
         method: input.method,
         pathTemplate: input.pathTemplate,
         inputSchema: { schemaVersion: 1, fields: input.fields },
-        requestMapping: { schemaVersion: 1 },
+        requestMapping: {
+          schemaVersion: 1,
+          ...(input.staticHeaders?.length ? { staticHeaders: input.staticHeaders } : {}),
+        },
       },
       args,
     );

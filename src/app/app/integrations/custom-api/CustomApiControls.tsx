@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 
+import { CUSTOM_API_TEMPLATES, type CustomApiTemplate } from "@/lib/connectors/custom-api/templates";
+
 import {
   createCustomApiConnectionAction,
   createCustomOperationAction,
@@ -293,6 +295,7 @@ function RequestPreview({
   authType,
   headerName,
   fields,
+  staticHeaders,
   sampleValues,
   onSampleValueChange,
 }: {
@@ -302,6 +305,7 @@ function RequestPreview({
   authType: (typeof AUTH_TYPES)[number];
   headerName: string;
   fields: DraftField[];
+  staticHeaders: Array<{ name: string; value: string }>;
   sampleValues: Record<string, string>;
   onSampleValueChange: (key: string, value: string) => void;
 }) {
@@ -341,6 +345,7 @@ function RequestPreview({
                 pathTemplate,
                 authType,
                 headerName,
+                staticHeaders,
                 fields: fields
                   .filter((f) => f.key)
                   .map((f) => ({
@@ -376,6 +381,58 @@ function RequestPreview({
   );
 }
 
+function TemplatePicker({ onApply }: { onApply: (template: CustomApiTemplate) => void }) {
+  const [selectedId, setSelectedId] = useState("");
+  const selected = CUSTOM_API_TEMPLATES.find((t) => t.id === selectedId) ?? null;
+  return (
+    <div className="flex flex-col gap-space-sm rounded border border-outline-variant/20 bg-surface-container-low p-space-sm">
+      <label className="flex flex-col gap-1">
+        <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">
+          Start from a template (optional)
+        </span>
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className={INPUT}
+          data-testid="custom-api-template-select"
+        >
+          <option value="">— pick a starting point —</option>
+          {CUSTOM_API_TEMPLATES.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.service}: {t.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {selected ? (
+        <div className="flex flex-col gap-1 font-body-sm text-body-sm text-on-surface-variant">
+          <p>{selected.description}</p>
+          <p>
+            <strong>Base URL:</strong> <code className="font-mono-code">{selected.recommendedBaseUrl}</code> —
+            set this on the connection above.
+          </p>
+          <p>
+            <strong>Credential:</strong> {selected.authNote}
+          </p>
+          <p className="text-outline">
+            <strong>Best-effort, not live-verified</strong> against this provider — built from its public API
+            docs, the same as filling the form in by hand. {selected.verify} Always run &quot;Preview
+            request&quot; and check the provider&apos;s current docs before publishing.
+          </p>
+          <button
+            type="button"
+            className={BTN}
+            data-testid="custom-api-template-apply"
+            onClick={() => onApply(selected)}
+          >
+            Fill in the form below
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; baseUrl: string | null }) {
   const { result, pending, run } = useAction();
   const [slug, setSlug] = useState("");
@@ -386,6 +443,7 @@ function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; bas
   const [authType, setAuthType] = useState<(typeof AUTH_TYPES)[number]>("none");
   const [headerName, setHeaderName] = useState("");
   const [fields, setFields] = useState<DraftField[]>([{ ...emptyField(true), key: "orderId" }]);
+  const [staticHeaders, setStaticHeaders] = useState<Array<{ name: string; value: string }>>([]);
   const [sampleValues, setSampleValues] = useState<Record<string, string>>({});
 
   const updateField = (index: number, next: DraftField) => {
@@ -396,6 +454,25 @@ function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; bas
   };
   const setSampleValue = (key: string, value: string) => {
     setSampleValues((prev) => ({ ...prev, [key]: value }));
+  };
+  const applyTemplate = (template: CustomApiTemplate) => {
+    setSlug(template.id.replace(/-/g, "_"));
+    setName(template.name);
+    setMethod(template.method);
+    setPathTemplate(template.pathTemplate);
+    setEffect(template.effect);
+    setAuthType(template.authType);
+    setHeaderName(template.headerName ?? "");
+    setFields(
+      template.fields.map((f) => ({
+        key: f.key,
+        in: f.in,
+        type: f.type,
+        required: f.required,
+        identifiesResource: f.identifiesResource,
+      })),
+    );
+    setStaticHeaders(template.staticHeaders);
   };
 
   return (
@@ -413,6 +490,7 @@ function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; bas
             effect,
             authType,
             headerName: authType === "api_key_header" ? headerName : undefined,
+            staticHeaders,
             fields: fields.map((f) => ({
               key: f.key,
               type: f.type,
@@ -425,6 +503,7 @@ function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; bas
       }}
     >
       <p className="font-headline-sm text-body-sm font-semibold text-on-surface">New operation (draft)</p>
+      <TemplatePicker onApply={applyTemplate} />
       <div className="flex flex-wrap gap-space-sm">
         <label className="flex flex-col gap-1">
           <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Slug</span>
@@ -538,6 +617,60 @@ function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; bas
         </button>
       </div>
 
+      <div className="flex flex-col gap-space-sm">
+        <p className="font-body-sm text-body-sm text-outline">
+          Fixed headers sent on every call to this operation — never a credential (that is set only via Auth
+          above, and &quot;Authorization&quot; cannot be set here).
+        </p>
+        {staticHeaders.map((h, index) => (
+          <div key={index} className="flex flex-wrap items-end gap-space-sm">
+            <label className="flex flex-col gap-1">
+              <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">
+                Header name
+              </span>
+              <input
+                value={h.name}
+                onChange={(e) =>
+                  setStaticHeaders((prev) =>
+                    prev.map((x, i) => (i === index ? { ...x, name: e.target.value } : x)),
+                  )
+                }
+                placeholder="Notion-Version"
+                className={INPUT}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="font-label-caps text-[10px] uppercase tracking-wider text-outline">Value</span>
+              <input
+                value={h.value}
+                onChange={(e) =>
+                  setStaticHeaders((prev) =>
+                    prev.map((x, i) => (i === index ? { ...x, value: e.target.value } : x)),
+                  )
+                }
+                className={INPUT}
+              />
+            </label>
+            <button
+              type="button"
+              className={BTN}
+              onClick={() => setStaticHeaders((prev) => prev.filter((_, i) => i !== index))}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+        <div>
+          <button
+            type="button"
+            className={BTN}
+            onClick={() => setStaticHeaders((prev) => [...prev, { name: "", value: "" }])}
+          >
+            Add static header
+          </button>
+        </div>
+      </div>
+
       <RequestPreview
         baseUrl={baseUrl}
         method={method}
@@ -545,6 +678,7 @@ function NewOperationForm({ connectionId, baseUrl }: { connectionId: string; bas
         authType={authType}
         headerName={headerName}
         fields={fields}
+        staticHeaders={staticHeaders}
         sampleValues={sampleValues}
         onSampleValueChange={setSampleValue}
       />

@@ -87,6 +87,25 @@ curl -s -X POST "$AUTHORITY_URL/api/v1/execute" -H "Authorization: Bearer $AUTHO
         />
       </DocsSection>
 
+      <DocsSection title="Starting from a template">
+        <p>
+          The operation-drafting form includes starting points for Notion, HubSpot, Zendesk, Discord,
+          Airtable, Intercom, Mailchimp, and Asana — each a real GET-by-id read, or (Discord, Intercom) a
+          write whose body is genuinely flat. Picking one fills in the method, path, auth type, and fields;
+          you still choose Validate and Publish yourself, and &quot;Preview request&quot; shows the exact
+          request before you do.
+        </p>
+        <p>
+          Every template is best-effort, not live-verified against the provider — built from each one&apos;s
+          public API reference, the same way filling the form in by hand would be, since this project holds no
+          credentials for any of them. Each one names the one thing most likely to need adjusting for your own
+          account (a datacenter prefix, a subdomain, an API version). Not every popular API fits: Custom
+          API&apos;s body is flat, scalar fields only (see <em>Input constraints</em> below) — a pure-GraphQL
+          API, or a REST endpoint whose real payload nests fields inside a wrapper object, can&apos;t be
+          represented faithfully, so no template exists for those.
+        </p>
+      </DocsSection>
+
       <DocsSection title="Execution guarantees and limitations">
         <p>
           Redirects are refused outright. Private, loopback, and link-local destinations (including cloud
