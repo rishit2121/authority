@@ -56,18 +56,18 @@ import { comparePermissionIds } from "@/lib/registry";
  * test registry (see solver-oracle.test.ts), not merely asserted.
  *
  * Limits and benchmark (see solver-benchmark.test.ts): `MAX_RELEVANT_PERMISSIONS`
- * is set to 22, based on measuring a deliberately adversarial "ring" registry
+ * is set to 25, based on measuring a deliberately adversarial "ring" registry
  * at that scale (every operation covered by exactly 2 permissions, so
  * forced-permission preprocessing never fires, and near-identical costs, so
- * bound pruning has minimal early signal): 20 permissions produced roughly
- * 9,400 branch-and-bound node visits and ~13ms wall-clock time, 25
- * permissions reached ~66,000 node visits (~80ms), against a hard cap of
- * `MAX_NODE_VISITS` = 200,000 — comfortable headroom at either end. Raised
- * from 20 to 22 (not higher) when the audited demo registry's own legitimate
- * "require every non-restricted operation at once" oracle case
- * (solver-oracle.test.ts) grew past 20 relevant permissions following the
- * addition of `gmail.labels_read`/`gmail.messages_read` — the minimum bump
- * that case needed, re-benchmarked rather than assumed safe. `search_space_exceeded`
+ * bound pruning has minimal early signal) — see solver-benchmark.test.ts's
+ * own logged node-visit/wall-time numbers at the shipped limit, against a
+ * hard cap of `MAX_NODE_VISITS` = 200,000. Raised from 22 to 25 when the
+ * audited demo registry's own legitimate "require every non-restricted
+ * operation at once" oracle case (solver-oracle.test.ts) grew past 22
+ * relevant permissions following the addition of the Linear and Notion
+ * connectors — the minimum bump that case needed, re-benchmarked rather than
+ * assumed safe, exactly as the previous bump from 20 to 22 was (for
+ * `gmail.labels_read`/`gmail.messages_read`). `search_space_exceeded`
  * is returned, with no partial answer, whenever the relevant-permission or
  * required-operation count exceeds its limit, or the node-visit cap is hit
  * mid-search — a distinct outcome from `no_valid_solution` (see the type
@@ -76,7 +76,7 @@ import { comparePermissionIds } from "@/lib/registry";
  * selection exists."
  */
 
-export const MAX_RELEVANT_PERMISSIONS = 22;
+export const MAX_RELEVANT_PERMISSIONS = 25;
 export const MAX_REQUIRED_OPERATIONS = 30;
 /** A hard, deterministic work limit — counted in branch-and-bound node visits, never wall-clock time. */
 export const MAX_NODE_VISITS = 200_000;

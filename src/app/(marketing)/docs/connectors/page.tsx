@@ -16,6 +16,8 @@ const CONNECTORS = [
   { slug: "slack", name: "Slack", blurb: "Post messages and list channels in a connected workspace." },
   { slug: "gmail", name: "Gmail", blurb: "Read, search, and send mail from a connected Google account." },
   { slug: "postgres", name: "PostgreSQL", blurb: "Named, parameterized queries against your own database." },
+  { slug: "linear", name: "Linear", blurb: "List and create issues on a team, and look up one by id." },
+  { slug: "notion", name: "Notion", blurb: "Read pages and databases, and create new pages." },
 ];
 
 export default function ConnectorsIndexPage() {

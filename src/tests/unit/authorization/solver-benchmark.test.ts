@@ -69,8 +69,10 @@ describe("solver benchmark — adversarial ring registry", () => {
     // Regression guard, not a correctness claim: this specific adversarial
     // shape must stay comfortably within budget and complete quickly. If a
     // future change to the pruning logic makes this regress substantially,
-    // this test catches it.
-    expect(outcome.nodesVisited).toBeLessThan(50_000);
+    // this test catches it. Threshold re-measured at the current
+    // MAX_RELEVANT_PERMISSIONS (actual: ~65,800 node visits, ~79ms at 25) —
+    // not the stale number from when the limit was 22.
+    expect(outcome.nodesVisited).toBeLessThan(100_000);
     expect(elapsedMs).toBeLessThan(1_000);
   });
 

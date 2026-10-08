@@ -90,10 +90,20 @@ import type { RegistryData } from "../types";
  * mailbox access (src/lib/connectors/gmail/oauth.ts) — the broader grant on
  * its own authorizes nothing; these three new, individually-audited read
  * operations are what actually make any of that access callable.
+ *
+ * `linear.list_issues`/`linear.get_issue`/`linear.create_issue` and
+ * `notion.retrieve_page`/`notion.query_database`/`notion.create_page` (two
+ * more real `AuthorityConnector`s, src/lib/connectors/linear/connector.ts
+ * and src/lib/connectors/notion/connector.ts) follow the same
+ * demo-operation-becomes-real-operation shape as Stripe and Slack above.
+ * `linear.create_issue` and `notion.create_page` are the only writes either
+ * connector performs; both are plain `write_create` with no
+ * `financialImpact`/`externalCommunication` flag, since creating an issue or
+ * a page neither moves money nor leaves the organization.
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
-  registryVersion: "github-demo-2026-10-03a",
+  registryVersion: "github-demo-2026-10-07a",
   operations: [
     {
       id: "github.get_issue",
@@ -417,6 +427,97 @@ export const githubDemoRegistry: RegistryData = {
       effects: ["Returns the channels visible to the connected workspace's bot user."],
       alternativeOperationIds: [],
     },
+    {
+      id: "linear.list_issues",
+      provider: "linear",
+      sideEffect: "read",
+      resourceType: "team",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "team_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: ["The team must be identifiable from the task's own intent or trusted inputs."],
+      effects: ["Returns up to 50 issues belonging to the named team."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "linear.get_issue",
+      provider: "linear",
+      sideEffect: "read",
+      resourceType: "issue",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "issue_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: [],
+      effects: ["Returns one issue's title, description, state, and assignee."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "linear.create_issue",
+      provider: "linear",
+      sideEffect: "write_create",
+      resourceType: "team",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [
+        { key: "team_id", type: "string", required: true, identifiesResource: true },
+        { key: "title", type: "string", required: true, identifiesResource: false },
+        { key: "description", type: "string", required: false, identifiesResource: false },
+      ],
+      preconditions: ["The team must already exist and be bound to the task."],
+      effects: ["Creates one new issue on the named team; makes no other change."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "notion.retrieve_page",
+      provider: "notion",
+      sideEffect: "read",
+      resourceType: "page",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "page_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: [],
+      effects: ["Returns one page's properties; makes no change to the page."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "notion.query_database",
+      provider: "notion",
+      sideEffect: "read",
+      resourceType: "database",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [{ key: "database_id", type: "string", required: true, identifiesResource: true }],
+      preconditions: [],
+      effects: ["Returns the pages in the named database; makes no change to it."],
+      alternativeOperationIds: [],
+    },
+    {
+      id: "notion.create_page",
+      provider: "notion",
+      sideEffect: "write_create",
+      resourceType: "database",
+      dataSensitivity: "internal",
+      externalCommunication: false,
+      requiresApproval: false,
+      financialImpact: false,
+      argumentFields: [
+        { key: "database_id", type: "string", required: true, identifiesResource: true },
+        { key: "title", type: "string", required: true, identifiesResource: false },
+      ],
+      preconditions: ["The database must already exist and be bound to the task."],
+      effects: ["Creates one new page in the named database; makes no other change."],
+      alternativeOperationIds: [],
+    },
   ],
   permissions: [
     {
@@ -633,6 +734,42 @@ export const githubDemoRegistry: RegistryData = {
       classification: "read",
       riskCost: 1,
       resourceBreadth: 2,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "linear.issues_read",
+      provider: "linear",
+      operations: ["linear.list_issues", "linear.get_issue"],
+      classification: "read",
+      riskCost: 1,
+      resourceBreadth: 2,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "linear.issues_write",
+      provider: "linear",
+      operations: ["linear.create_issue"],
+      classification: "write",
+      riskCost: 2,
+      resourceBreadth: 1,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "notion.pages_read",
+      provider: "notion",
+      operations: ["notion.retrieve_page", "notion.query_database"],
+      classification: "read",
+      riskCost: 1,
+      resourceBreadth: 2,
+      allowsExternalCommunication: false,
+    },
+    {
+      id: "notion.pages_write",
+      provider: "notion",
+      operations: ["notion.create_page"],
+      classification: "write",
+      riskCost: 2,
+      resourceBreadth: 1,
       allowsExternalCommunication: false,
     },
   ],

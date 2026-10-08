@@ -65,6 +65,20 @@ const CATALOG: CatalogEntry[] = [
     href: "/app/integrations/postgres",
     logo: { src: "/logos/postgresql.svg", alt: "" },
   },
+  {
+    id: "linear",
+    name: "Linear",
+    description: "List and create issues on a team, and look up one by id.",
+    href: "/app/integrations/linear",
+    logo: { src: "/logos/linear.svg", alt: "" },
+  },
+  {
+    id: "notion",
+    name: "Notion",
+    description: "Read pages and databases, and create new pages.",
+    href: "/app/integrations/notion",
+    logo: { src: "/logos/notion.svg", alt: "" },
+  },
 ];
 
 const CONNECTION_STATUS_LABEL: Record<string, string> = {
@@ -101,40 +115,60 @@ function toConnectionRows(rows: RawConnectionRow[] | null, label: string, href: 
 export default async function IntegrationsPage() {
   const { context } = await createRepositoriesForCurrentTenant("/app/integrations");
 
-  const [{ installation }, customApiResult, stripeResult, slackResult, gmailResult, postgresResult] =
-    await Promise.all([
-      loadGithubOverview(context.supabase),
-      context.supabase
-        .from("connector_connections")
-        .select("id, name, status")
-        .like("connector_id", "custom\\_%")
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("connector_connections")
-        .select("id, name, status")
-        .eq("connector_id", "stripe")
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("connector_connections")
-        .select("id, name, status")
-        .eq("connector_id", "slack")
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("connector_connections")
-        .select("id, name, status")
-        .eq("connector_id", "gmail")
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("connector_connections")
-        .select("id, name, status")
-        .like("connector_id", "postgres\\_%")
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { installation },
+    customApiResult,
+    stripeResult,
+    slackResult,
+    gmailResult,
+    postgresResult,
+    linearResult,
+    notionResult,
+  ] = await Promise.all([
+    loadGithubOverview(context.supabase),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status")
+      .like("connector_id", "custom\\_%")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status")
+      .eq("connector_id", "stripe")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status")
+      .eq("connector_id", "slack")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status")
+      .eq("connector_id", "gmail")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status")
+      .like("connector_id", "postgres\\_%")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status")
+      .eq("connector_id", "linear")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status")
+      .eq("connector_id", "notion")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+  ]);
 
   const connections: ConnectionRow[] = [
     ...(installation
@@ -152,6 +186,8 @@ export default async function IntegrationsPage() {
     ...toConnectionRows(slackResult.data, "Slack", "/app/integrations/slack"),
     ...toConnectionRows(gmailResult.data, "Gmail", "/app/integrations/gmail"),
     ...toConnectionRows(postgresResult.data, "PostgreSQL", "/app/integrations/postgres"),
+    ...toConnectionRows(linearResult.data, "Linear", "/app/integrations/linear"),
+    ...toConnectionRows(notionResult.data, "Notion", "/app/integrations/notion"),
   ];
 
   return (

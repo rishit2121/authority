@@ -2,6 +2,8 @@ import "server-only";
 
 import { customApiConnector } from "./custom-api/connector";
 import { gmailConnector } from "./gmail/connector";
+import { linearConnector } from "./linear/connector";
+import { notionConnector } from "./notion/connector";
 import { postgresConnector } from "./postgres/connector";
 import { registerConnector } from "./registry";
 import { slackConnector } from "./slack/connector";
@@ -53,5 +55,15 @@ export function ensureConnectorsRegistered(): void {
     registerConnector(postgresConnector);
   } catch {
     // Same race as above, for a test's own injected Postgres connector instance.
+  }
+  try {
+    registerConnector(linearConnector);
+  } catch {
+    // Same race as above, for a test's own injected Linear connector instance.
+  }
+  try {
+    registerConnector(notionConnector);
+  } catch {
+    // Same race as above, for a test's own injected Notion connector instance.
   }
 }

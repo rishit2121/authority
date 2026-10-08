@@ -1,4 +1,5 @@
 import { comparePermissionIds } from "@/lib/registry";
+import type { Permission } from "@/lib/registry";
 import type { SolverInput, SolverObjectiveScore, SolverOutcome } from "@/lib/authorization/solver";
 
 /**
@@ -9,9 +10,46 @@ import type { SolverInput, SolverObjectiveScore, SolverOutcome } from "@/lib/aut
  * being a *different* implementation path that the real solver's output
  * must agree with exactly (selected set and full score, not merely
  * coverage), for every generated small registry.
+ *
+ * Brute-forces per connected component, not the whole relevant set at once.
+ * Two permissions are connected when they share an operation (directly or
+ * transitively); a real connector's own permissions never cover another
+ * connector's operations, so e.g. github's ~13 relevant permissions and
+ * linear's 2 are independent components, not one combined 2^15 search. This
+ * is exact, not an approximation: every score field here (excess operation
+ * count, risk cost, resource breadth, permission count) is a plain sum over
+ * the selected permissions, and a required operation is only ever covered by
+ * permissions in its own component — so solving each component separately
+ * and summing the scores gives exactly the same answer as one combined
+ * search would, without the combinatorial blowup of treating unrelated
+ * connectors as one search space (which is what started failing here the
+ * moment a registry with multiple small, disjoint connector families grew
+ * past ORACLE_MAX_PERMISSIONS in total, even though no single family did).
  */
 
-const ORACLE_MAX_PERMISSIONS = 21; // 2^21 = 2,097,152 — fine for a one-off test-time brute force.
+const ORACLE_MAX_PERMISSIONS = 21; // 2^21 = 2,097,152 — fine for a one-off test-time brute force, per component.
+
+class UnionFind {
+  private readonly parent = new Map<string, string>();
+
+  find(x: string): string {
+    const existing = this.parent.get(x);
+    if (existing === undefined) {
+      this.parent.set(x, x);
+      return x;
+    }
+    if (existing === x) return x;
+    const root = this.find(existing);
+    this.parent.set(x, root);
+    return root;
+  }
+
+  union(a: string, b: string): void {
+    const ra = this.find(a);
+    const rb = this.find(b);
+    if (ra !== rb) this.parent.set(ra, rb);
+  }
+}
 
 function compareScore(a: SolverObjectiveScore, b: SolverObjectiveScore): number {
   return (
@@ -61,13 +99,74 @@ export function bruteForceMinimumAuthority(input: SolverInput): SolverOutcome {
   }
 
   const relevant = [...relevantIds].sort(comparePermissionIds).map((id) => registry.permissions.get(id)!);
-  if (relevant.length > ORACLE_MAX_PERMISSIONS) {
-    throw new Error(
-      `oracle: ${relevant.length} relevant permissions exceeds the brute-force test harness's own limit of ${ORACLE_MAX_PERMISSIONS}`,
-    );
+
+  const uf = new UnionFind();
+  for (const p of relevant) {
+    uf.union(`perm:${p.id}`, `perm:${p.id}`);
+    for (const op of p.operations) uf.union(`perm:${p.id}`, `op:${op}`);
   }
 
-  let best: { selectedIds: string[]; score: SolverObjectiveScore } | null = null;
+  const requiredOpsByComponent = new Map<string, Set<string>>();
+  for (const op of requiredSet) {
+    const root = uf.find(`op:${op}`);
+    if (!requiredOpsByComponent.has(root)) requiredOpsByComponent.set(root, new Set());
+    requiredOpsByComponent.get(root)!.add(op);
+  }
+
+  const permsByComponent = new Map<string, Permission[]>();
+  for (const p of relevant) {
+    const root = uf.find(`perm:${p.id}`);
+    if (!permsByComponent.has(root)) permsByComponent.set(root, []);
+    permsByComponent.get(root)!.push(p);
+  }
+
+  let totalExcessCount = 0;
+  let totalRiskCost = 0;
+  let totalResourceBreadth = 0;
+  let totalPermissionCount = 0;
+  const allSelectedIds: string[] = [];
+  const allExcessOps = new Set<string>();
+
+  for (const [root, requiredOpsInComponent] of requiredOpsByComponent) {
+    const componentPerms = permsByComponent.get(root) ?? [];
+    if (componentPerms.length > ORACLE_MAX_PERMISSIONS) {
+      throw new Error(
+        `oracle: a connected component of ${componentPerms.length} relevant permissions exceeds the brute-force test harness's own limit of ${ORACLE_MAX_PERMISSIONS}`,
+      );
+    }
+    const best = bruteForceComponent(componentPerms, requiredOpsInComponent);
+    if (!best) return { status: "no_valid_solution", nodesVisited: 0 };
+    totalExcessCount += best.score.excessOperationCount;
+    totalRiskCost += best.score.totalRiskCost;
+    totalResourceBreadth += best.score.totalResourceBreadth;
+    totalPermissionCount += best.score.permissionCount;
+    allSelectedIds.push(...best.selectedIds);
+    for (const op of best.excessOps) allExcessOps.add(op);
+  }
+
+  return {
+    status: "solved",
+    nodesVisited: 0,
+    solution: {
+      selectedPermissionIds: allSelectedIds.sort(comparePermissionIds),
+      coveredOperations: [...requiredSet].sort(),
+      excessOperations: [...allExcessOps].sort(),
+      score: {
+        excessOperationCount: totalExcessCount,
+        totalRiskCost,
+        totalResourceBreadth,
+        permissionCount: totalPermissionCount,
+      },
+    },
+  };
+}
+
+/** Exhaustive 2^N search restricted to one connected component's own relevant permissions and required operations. */
+function bruteForceComponent(
+  relevant: Permission[],
+  requiredSet: Set<string>,
+): { selectedIds: string[]; score: SolverObjectiveScore; excessOps: string[] } | null {
+  let best: { selectedIds: string[]; score: SolverObjectiveScore; excessOps: string[] } | null = null;
 
   const total = 2 ** relevant.length;
   for (let mask = 0; mask < total; mask++) {
@@ -92,29 +191,10 @@ export function bruteForceMinimumAuthority(input: SolverInput): SolverOutcome {
       compareScore(score, best.score) < 0 ||
       (compareScore(score, best.score) === 0 && compareIdLists(selectedIds, best.selectedIds) < 0)
     ) {
-      best = { selectedIds, score };
+      best = { selectedIds, score, excessOps: [...excess] };
     }
   }
-
-  if (!best) return { status: "no_valid_solution", nodesVisited: 0 };
-
-  return {
-    status: "solved",
-    nodesVisited: 0,
-    solution: {
-      selectedPermissionIds: best.selectedIds,
-      coveredOperations: [...requiredSet].sort(),
-      excessOperations: (() => {
-        const excess = new Set<string>();
-        for (const id of best!.selectedIds) {
-          const p = registry.permissions.get(id)!;
-          for (const op of p.operations) if (!requiredSet.has(op)) excess.add(op);
-        }
-        return [...excess].sort();
-      })(),
-      score: best.score,
-    },
-  };
+  return best;
 }
 
 /** Deterministic PRNG (mulberry32) so generated test registries are reproducible without an external dependency. */
