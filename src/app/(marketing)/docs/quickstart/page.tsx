@@ -3,182 +3,93 @@ import Link from "next/link";
 
 import { CodeBlock } from "@/components/docs/CodeBlock";
 import { DocsPage, DocsSection } from "@/components/docs/DocsPage";
+import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
+import { installCommand, quickstartSnippet, RUN_COMMAND } from "@/lib/setup/quick-setup";
 
 export const metadata: Metadata = { title: "Quickstart — Authority Docs" };
 
+// Rendered per request so the commands show this deployment's own URL, never a build-time guess.
+export const dynamic = "force-dynamic";
+
 export default function QuickstartPage() {
+  const baseUrl = publicBaseUrl() ?? "https://<your-authority-url>";
   return (
     <DocsPage
       title="Quickstart"
-      description="Connect your own agent to Authority in about ten minutes, using a throwaway GitHub repository. Do the whole thing as an admin or owner — a few steps below (connecting GitHub, allowing a repository, activating a contract) specifically require that role."
+      description="From a new account to an agent making its first least-privilege call, in about five minutes. Everything here also lives on the Setup page inside the app."
     >
-      <DocsSection title="Prefer code over curl?">
+      <DocsSection title="1. Create an account">
         <p>
-          Everything below is the raw HTTP API, one <code>curl</code> at a time, useful for seeing exactly
-          what each call does. The canonical, code-based equivalent — create a customer, prepare a contract,
-          run a tool call, using the typed <code>@authority/sdk</code> client — is{" "}
-          <code>examples/connector-quickstart</code> in the repository: one script, one shared flow, for every
-          connector (<code>--connector=gmail</code>, <code>github</code>, <code>stripe</code>,{" "}
-          <code>slack</code>, <code>postgres</code>, <code>custom-api</code>). A filtered-tool, model-driven
-          agent built on the same SDK is at <code>examples/model-driven-agent</code>.
+          <Link href="/signup">Sign up</Link>. You land on <strong>Setup</strong>, which walks you through the
+          same three steps below and checks each one off as you finish it.
         </p>
       </DocsSection>
 
-      <DocsSection title="1. Connect GitHub">
+      <DocsSection title="2. Connect a service">
         <p>
-          <code>/app/integrations/github</code> → <strong>Connect GitHub</strong>, install the App on a
-          throwaway repository you don&apos;t mind an agent touching. Back on that page, allow the repository
-          under <strong>Repositories</strong>.
+          Pick a service on the Setup page — Slack, Gmail, GitHub, Notion, Linear, Stripe, PostgreSQL, or any
+          HTTPS API. Each one asks only for what it needs (a bot token, an API key, or a Google sign-in) and
+          verifies it right away. Credentials are stored encrypted and never shown again.
         </p>
       </DocsSection>
 
-      <DocsSection title="2. Register an agent">
+      <DocsSection title="3. Create your agent">
         <p>
-          <code>/app/agents</code> → <strong>Register agent</strong>. Name, model, model provider, framework,
-          and an owner are all required — they&apos;re just identity for attribution, not configuration that
-          changes behavior.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="3. Create a task">
-        <p>
-          <code>/app/tasks</code> → <strong>New task</strong>. Pick the agent and a principal, and write a{" "}
-          <strong>Trusted objective</strong> (e.g. &quot;Read issue #1 in the throwaway repo&quot;). Creating
-          a task authorizes nothing by itself.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="4. Bind the repository">
-        <p>
-          On the new task&apos;s page, the <strong>Repository binding</strong> panel lets you pick one allowed
-          repository and <strong>Bind to this task</strong>. This is permanent for the task — there is no
-          rebinding.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="5. Propose and activate a read-only contract">
-        <p>
-          From the task page, <strong>Create authority contract</strong> opens the plan builder with a
-          pre-filled example plan. Use <strong>Load the GitHub #991 example</strong> (or edit the JSON
-          directly) so the first node is a plain read —{" "}
-          <code>
-            &#123; &quot;tool&quot;: &quot;github.get_issue&quot;, &quot;expectedSideEffect&quot;:
-            &quot;read&quot;, &quot;arguments&quot;: &#123; &quot;issue_number&quot;: &quot;1&quot; &#125;
-            &#125;
-          </code>{" "}
-          — then <strong>Validate</strong>, then <strong>Propose contract</strong>. Back on the task page,{" "}
-          <strong>Activate</strong> the proposed contract (admin/owner only). The contract badge should now
-          read <strong>Active</strong>.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="6. Issue the agent runtime key">
-        <p>
-          On the agent&apos;s own page (<code>/app/agents/&#123;agentId&#125;</code>), the{" "}
-          <strong>Credentials</strong> panel → <strong>Issue credential</strong>. Copy the secret immediately
-          — it is shown exactly once and Authority never stores or displays it again.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="7. Set local environment variables">
-        <CodeBlock
-          code={`AUTHORITY_URL=https://authority-d2zf.onrender.com
-AUTHORITY_RUNTIME_KEY=<your-runtime-key>
-AUTHORITY_TASK_ID=<your-task-id>
-AUTHORITY_REPOSITORY=<owner>/<repo>`}
-        />
-        <p>
-          The task id is in the task page&apos;s URL. Never commit a real runtime key — treat it like any
-          other server secret.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="8. Make one authorization request">
-        <CodeBlock
-          language="bash"
-          code={`curl -s -X POST "$AUTHORITY_URL/api/v1/authorize" \\
-  -H "Authorization: Bearer $AUTHORITY_RUNTIME_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "taskId": "'"$AUTHORITY_TASK_ID"'",
-    "tool": "github.get_issue",
-    "operation": "get_issue",
-    "resource": "'"$AUTHORITY_REPOSITORY"'",
-    "arguments": { "issue_number": "1" },
-    "idempotencyKey": "quickstart-1"
-  }'`}
-        />
-        <p>
-          Expect <code>&quot;status&quot;: &quot;allow&quot;</code>,{" "}
-          <code>&quot;guidance&quot;: &#123; &quot;nextStep&quot;: &quot;proceed&quot; &#125;</code>, and a{" "}
-          <code>capability.token</code>.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="9. Execute the allowed read">
-        <p>
-          <code>github.*</code> tools go through their own dedicated route, not the generic one — see{" "}
-          <Link href="/docs/authorize-and-execute">Authorize and execute</Link>.
+          Give your agent a name and click <strong>Create agent and keys</strong>. Authority creates the
+          agent, lets it use the services you picked, and shows a <code>.env</code> block with two keys —{" "}
+          <strong>copy it right away</strong>, it&apos;s shown once:
         </p>
         <CodeBlock
-          language="bash"
-          code={`curl -s -X POST "$AUTHORITY_URL/api/v1/github/execute" \\
-  -H "Authorization: Bearer $AUTHORITY_RUNTIME_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "capability": "<the capability.token from step 8>",
-    "tool": "github.get_issue",
-    "operation": "get_issue",
-    "resource": "'"$AUTHORITY_REPOSITORY"'",
-    "arguments": { "issue_number": "1" },
-    "idempotencyKey": "quickstart-1"
-  }'`}
+          code={`AUTHORITY_URL=${baseUrl}
+AUTHORITY_BACKEND_API_KEY=authority_dk_...
+AUTHORITY_AGENT_ID=...
+AUTHORITY_AGENT_RUNTIME_KEY=authority_rk_...`}
         />
-      </DocsSection>
-
-      <DocsSection title="10. Find the decision and receipt in the dashboard">
         <p>
-          <strong>Tool calls</strong> (<code>/app/runtime</code>) lists every authorization request with its
-          final decision and reason codes. The task page&apos;s own <strong>Decision evidence</strong> and{" "}
-          <strong>Executions and receipts</strong> panels show the same call with the real GitHub request id.
+          With <strong>Run read-only tools automatically</strong> on (the default), tasks that only read run
+          immediately. Anything that writes, sends email, or moves money still waits for you on the{" "}
+          <strong>Approvals</strong> page.
         </p>
       </DocsSection>
 
-      <DocsSection title="11. Try something outside the contract">
+      <DocsSection title="4. Run your first task">
+        <p>Install the SDK (Node 20 or newer):</p>
+        <CodeBlock code={installCommand(baseUrl)} />
+        <p>
+          Save this as <code>quickstart.mjs</code> next to your <code>.env</code>:
+        </p>
         <CodeBlock
-          language="bash"
-          code={`curl -s -X POST "$AUTHORITY_URL/api/v1/authorize" \\
-  -H "Authorization: Bearer $AUTHORITY_RUNTIME_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{
-    "taskId": "'"$AUTHORITY_TASK_ID"'",
-    "tool": "github.read_file",
-    "operation": "read_file",
-    "resource": "'"$AUTHORITY_REPOSITORY"'",
-    "arguments": { "path": ".env", "ref": "main" },
-    "idempotencyKey": "quickstart-2"
-  }'`}
+          code={quickstartSnippet("List the channels in our Slack workspace")}
+          language="javascript"
         />
+        <p>Run it:</p>
+        <CodeBlock code={RUN_COMMAND} />
         <p>
-          Expect a denial (<code>guidance.nextStep: &quot;stop&quot;</code>) — this tool was never in the plan
-          you activated, so no capability is issued and nothing reaches GitHub.
+          You describe the task in plain English. Authority drafts a plan, grants only the tools that plan
+          needs, and your agent can call those tools — and nothing else. A call to any other tool is refused
+          before it reaches the service. The Setup page turns green as soon as your first call arrives, and
+          every call shows up under <strong>Activity</strong>.
         </p>
       </DocsSection>
 
-      <DocsSection title="12. Revoke the test key">
-        <p>
-          Back on the agent&apos;s page, <strong>Revoke</strong> next to the credential, with a reason. Every
-          capability already minted from it stops working immediately.
-        </p>
-      </DocsSection>
-
-      <DocsSection title="Next">
-        <p>
-          Prefer not to re-send the runtime key on every call?{" "}
-          <Link href="/docs/task-sessions">Task sessions</Link> cover the optional, shorter-lived alternative.
-          Building a model-driven agent? See <code>examples/model-driven-agent</code> for a tool-call loop
-          using the contract-filtered manifest from <Link href="/docs/tool-filtering">Tool filtering</Link>.
-        </p>
+      <DocsSection title="Next steps">
+        <ul className="list-disc pl-5">
+          <li>
+            <Link href="/docs/authorize-and-execute">Authorize and execute</Link> — what happens on every tool
+            call.
+          </li>
+          <li>
+            <Link href="/docs/approvals-and-replanning">Approvals</Link> — how write actions wait for a human.
+          </li>
+          <li>
+            <Link href="/docs/customer-connections">Customer connections</Link> — let each of your own users
+            connect their own accounts.
+          </li>
+          <li>
+            <Link href="/docs/http-walkthrough">HTTP walkthrough</Link> — the same flow as raw HTTP calls,
+            step by step.
+          </li>
+        </ul>
       </DocsSection>
     </DocsPage>
   );

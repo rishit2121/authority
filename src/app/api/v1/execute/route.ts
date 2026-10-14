@@ -15,6 +15,7 @@ import {
   readJsonBody,
 } from "@/lib/gateway/http";
 import { executeConnectorOperation } from "@/lib/connectors";
+import { deriveResource } from "@/lib/connectors/derive-resource";
 
 /**
  * `POST /api/v1/execute` — the generic connector counterpart to
@@ -36,7 +37,8 @@ const requestSchema = z
     capability: z.string().min(1).max(200),
     tool: toolNameSchema,
     operation: z.string().trim().min(1).max(100),
-    resource: z.string().trim().min(1).max(200),
+    /** Optional: when omitted, derived from `arguments` by the tool's own connector. */
+    resource: z.string().trim().min(1).max(200).optional(),
     arguments: toolArgumentsSchema.default({}),
     idempotencyKey: z.string().trim().min(1).max(200),
   })
@@ -60,12 +62,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const input = parsed.data;
 
   try {
+    const resource = input.resource ?? (await deriveResource(input.tool, input.arguments));
+    if (!resource) {
+      return jsonError(
+        {
+          http: 400,
+          code: "INVALID_REQUEST",
+          message: "Could not determine the resource from these arguments; pass `resource` explicitly.",
+        },
+        requestId,
+      );
+    }
     const result = await executeConnectorOperation({
       credentialSecret,
       tokenHash: hashCapabilityToken(input.capability),
       tool: input.tool,
       operation: input.operation,
-      resource: sanitizeResource(input.resource),
+      resource: sanitizeResource(resource),
       args: input.arguments,
       idempotencyKey: input.idempotencyKey,
     });

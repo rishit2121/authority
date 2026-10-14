@@ -5,11 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 import { switchWorkspaceAction } from "@/lib/auth/actions";
-import {
-  TENANT_ENVIRONMENT_LABELS,
-  TENANT_ROLE_LABELS,
-  type TenantMembership,
-} from "@/lib/auth/tenant-context";
+import { TENANT_ROLE_LABELS, type TenantMembership } from "@/lib/auth/tenant-context";
 
 /**
  * Workspace switcher over the user's real tenant memberships.
@@ -23,10 +19,13 @@ export function WorkspaceSelector({
   memberships,
   currentTenantId,
   collapsed = false,
+  demoDataEnabled = false,
 }: {
   memberships: TenantMembership[];
   currentTenantId: string;
   collapsed?: boolean;
+  /** Label development workspaces as holding sample data -- only on deployments that offer sample data at all. */
+  demoDataEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,8 +102,8 @@ export function WorkspaceSelector({
             {active.name}
           </span>
           <span className="flex min-w-0 items-center gap-1.5 truncate font-body-sm text-[11px] text-on-surface-variant">
-            {TENANT_ENVIRONMENT_LABELS[active.environment]} · {TENANT_ROLE_LABELS[active.role]}
-            {active.environment === "development" ? (
+            {TENANT_ROLE_LABELS[active.role]}
+            {demoDataEnabled && active.environment === "development" ? (
               <span className="rounded border border-line-strong px-1 py-px text-[10px] font-medium text-ink-soft">
                 Demo data
               </span>

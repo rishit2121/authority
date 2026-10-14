@@ -18,7 +18,7 @@ test.describe("empty workspace and demo installation", () => {
   test("a new authenticated tenant sees the honest empty state, not mock fixtures", async ({ page }) => {
     await signIn(page, OWNER_B);
 
-    await expect(page.getByRole("heading", { name: "Protect your first agent" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Set up Authority in 3 steps" })).toBeVisible();
     await expect(page.getByText(/does not contact github, stripe, gmail, slack/i)).toBeVisible();
     await expect(page.getByText(/stores no external credentials/i)).toBeVisible();
     await expect(page.getByRole("button", { name: "Install demo workspace" })).toBeVisible();
@@ -35,6 +35,7 @@ test.describe("empty workspace and demo installation", () => {
     // mockRepositories and a hardcoded mock tenant id, which always reports
     // a nonzero count regardless of which real tenant is signed in.
     const nav = page.getByRole("navigation", { name: "Control plane" });
+    await nav.getByRole("button", { name: "Advanced" }).click();
     await expect(nav.getByRole("link", { name: "Tasks" })).toHaveText("Tasks");
     await expect(nav.getByRole("link", { name: "Approvals" })).toHaveText("Approvals");
   });
@@ -45,7 +46,6 @@ test.describe("empty workspace and demo installation", () => {
 
     await page.getByRole("button", { name: "Install demo workspace" }).click();
     await expect(page.getByText("Active agents")).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText(/demo data/i).first()).toBeVisible();
 
     // A second install is idempotent — no duplicate row, dashboard unchanged.
     await page.goto("/app/tasks");

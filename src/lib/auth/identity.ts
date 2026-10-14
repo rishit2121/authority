@@ -66,7 +66,11 @@ export async function getVerifiedUser(supabase: SupabaseServerClient) {
   return data.user;
 }
 
-async function loadMemberships(supabase: SupabaseServerClient, userId: string): Promise<TenantMembership[]> {
+async function loadMemberships(
+  supabase: SupabaseServerClient,
+  userId: string,
+  options: { fresh?: boolean } = {},
+): Promise<TenantMembership[]> {
   // The user filter is load-bearing, not redundant with RLS.
   //
   // The memberships SELECT policy grants access to every row of any tenant the
@@ -74,7 +78,7 @@ async function loadMemberships(supabase: SupabaseServerClient, userId: string): 
   // co-members. So RLS alone returns one row per *member*, not per workspace.
   // Without `.eq("user_id", …)` a four-person tenant appears as four
   // workspaces, and the role rendered in the sidebar can be another member's.
-  const { data, error } = await supabase
+  let query = supabase
     .from("tenant_memberships")
     .select("tenant_id, role, tenants!inner(id, name, slug, environment, created_at)")
     .eq("user_id", userId)
@@ -83,6 +87,8 @@ async function loadMemberships(supabase: SupabaseServerClient, userId: string): 
     // order between requests.
     .order("created_at", { referencedTable: "tenants", ascending: true })
     .order("tenant_id", { ascending: true });
+  if (options.fresh) query = query.abortSignal(new AbortController().signal);
+  const { data, error } = await query;
 
   if (error) {
     throw new OnboardingError(`Could not load workspace memberships (${error.code ?? "unknown"}).`);
@@ -120,7 +126,11 @@ async function ensureOnboardedMemberships(
     );
   }
 
-  const created = await loadMemberships(supabase, userId);
+  // Must not be served from Next's per-render fetch memoization: this is the
+  // byte-identical GET issued above, before the workspace existed, and a
+  // memoized replay of that empty answer made every brand-new user's first
+  // page load fail. An AbortSignal is Next's documented opt-out.
+  const created = await loadMemberships(supabase, userId, { fresh: true });
 
   if (created.length === 0) {
     throw new OnboardingError("Workspace setup completed without creating a workspace.");

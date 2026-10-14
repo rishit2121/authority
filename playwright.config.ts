@@ -83,7 +83,7 @@ export default defineConfig({
      */
     {
       name: "public",
-      testMatch: /(marketing|auth-flows|protected-routes)\.spec\.ts/,
+      testMatch: /(marketing|auth-flows|protected-routes|setup-flow)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], storageState: undefined },
     },
 
@@ -94,7 +94,7 @@ export default defineConfig({
     {
       name: "authenticated",
       testMatch:
-        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway|customer-connections|embedded-connect-browser|access-management|copy-buttons)\.spec\.ts/,
+        /(dashboard-navigation|kill-switch|accessibility-layout|tenancy|product-data|contract-lifecycle|contract-activation|runtime-authorization|semantic-shadow|gateway|customer-connections|embedded-connect-browser|access-management|copy-buttons|platform-metrics)\.spec\.ts/,
       dependencies: ["setup"],
       use: { ...devices["Desktop Chrome"], storageState: AUTH_STATE },
     },
@@ -182,6 +182,10 @@ export default defineConfig({
       // "not configured" by getOpenAiEnv()/getOpenRouterEnv(), so this reliably forces the mock path here.
       OPENAI_API_KEY: "",
       OPENROUTER_API_KEY: "",
+      // Sample-data installer and "Reset demo data" (off on real deployments); product-data.spec.ts uses them.
+      AUTHORITY_ENABLE_DEMO_DATA: "1",
+      // The operator-only Metrics page (platform-metrics.spec.ts): owner A is an operator, owner B is not.
+      PLATFORM_ADMIN_EMAILS: "owner.a@authority.test",
     },
   },
 });

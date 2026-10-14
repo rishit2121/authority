@@ -12,6 +12,11 @@ function randomSuffix(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
+/** "slack.list_channels" -> "list_channels": the operation is the tool name's action part unless given. */
+function operationOf(tool: string, operation?: string): string {
+  return operation ?? tool.slice(tool.indexOf(".") + 1);
+}
+
 /**
  * The agent-runtime side of the Authority developer API: list the tools a
  * task's active contract permits, call one through the mandatory authorize
@@ -85,22 +90,26 @@ export class AuthorityAgentClient {
       input: {
         taskId: string;
         tool: string;
-        operation: string;
-        resource: string;
-        arguments: Record<string, unknown>;
+        /** Defaults to the action part of `tool` (e.g. "list_channels"). */
+        operation?: string;
+        /** Optional: when omitted, Authority derives it from `arguments` using the tool's own connector. */
+        resource?: string;
+        arguments?: Record<string, unknown>;
         idempotencyKey?: string;
         maxUses?: number;
       },
       options?: RequestOptions,
     ): Promise<ToolCallResult> => {
       const key = input.idempotencyKey ?? `${input.taskId}-${input.tool}-${randomSuffix()}`;
+      const operation = operationOf(input.tool, input.operation);
+      const args = input.arguments ?? {};
       const decision = await this.authorize(
         {
           taskId: input.taskId,
           tool: input.tool,
-          operation: input.operation,
+          operation,
           resource: input.resource,
-          arguments: input.arguments,
+          arguments: args,
           idempotencyKey: `${key}:authorize`,
           maxUses: input.maxUses,
         },
@@ -132,9 +141,9 @@ export class AuthorityAgentClient {
         {
           capability: decision.capability.token,
           tool: input.tool,
-          operation: input.operation,
+          operation,
           resource: input.resource,
-          arguments: input.arguments,
+          arguments: args,
           idempotencyKey: `${key}:execute`,
         },
         options,
@@ -191,7 +200,8 @@ export class AuthorityAgentClient {
       capability: string;
       tool: string;
       operation: string;
-      resource: string;
+      /** Optional: when omitted, Authority derives it from `arguments` using the tool's own connector. */
+      resource?: string;
       arguments: Record<string, unknown>;
       idempotencyKey: string;
     },

@@ -15,6 +15,8 @@ export interface UserMenuIdentity {
   /** Used only to decide whether "Reset demo data" appears — the server action itself
    *  re-verifies the tenant and role regardless of what this menu renders. */
   environment: TenantEnvironment;
+  /** Whether this deployment offers sample data at all (AUTHORITY_ENABLE_DEMO_DATA). */
+  demoDataEnabled: boolean;
 }
 
 /**
@@ -127,7 +129,8 @@ export function UserMenu({
 function MenuItems({ identity, roleLabel }: { identity: UserMenuIdentity; roleLabel: string }) {
   // Demo-seeded tenants are development-environment ones in this codebase's own demo installer.
   // The server action re-verifies the tenant and role independently of this check.
-  const canResetDemoData = identity.environment === "development" && identity.role !== "viewer";
+  const canResetDemoData =
+    identity.demoDataEnabled && identity.environment === "development" && identity.role !== "viewer";
 
   return (
     <>

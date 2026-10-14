@@ -6,6 +6,7 @@ export interface DocsNavItem {
 
 export const DOCS_NAV: DocsNavItem[] = [
   { label: "Quickstart", href: "/docs/quickstart" },
+  { label: "HTTP walkthrough", href: "/docs/http-walkthrough" },
   { label: "Authentication", href: "/docs/authentication" },
   { label: "Task sessions", href: "/docs/task-sessions" },
   { label: "Tool filtering", href: "/docs/tool-filtering" },
@@ -23,6 +24,8 @@ export const DOCS_NAV: DocsNavItem[] = [
       { label: "Slack", href: "/docs/connectors/slack" },
       { label: "Gmail", href: "/docs/connectors/gmail" },
       { label: "PostgreSQL", href: "/docs/connectors/postgres" },
+      { label: "Linear", href: "/docs/connectors/linear" },
+      { label: "Notion", href: "/docs/connectors/notion" },
     ],
   },
   { label: "API reference", href: "/docs/api-reference" },

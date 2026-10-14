@@ -2,12 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
-import { DASHBOARD_NAV_GROUPS, type DashboardNavItem, type NavBadgeCounts } from "@/lib/dashboard-nav";
+import {
+  activeNavHref,
+  DASHBOARD_NAV_GROUPS,
+  type DashboardNavItem,
+  type NavBadgeCounts,
+} from "@/lib/dashboard-nav";
 
 interface SidebarNavProps {
   badges: NavBadgeCounts;
+  isPlatformAdmin?: boolean;
   /** Icons-only rail; each row gets a hover/focus tooltip instead of a label. */
   collapsed?: boolean;
   onNavigate?: () => void;
@@ -80,37 +87,72 @@ function NavRow({
   );
 }
 
+const ADVANCED_OPEN_KEY = "authority.nav.advancedOpen";
+
 /** Grouped control-plane navigation, shared by the desktop rail and the mobile drawer. */
-export function SidebarNav({ badges, collapsed = false, onNavigate }: SidebarNavProps) {
+export function SidebarNav({
+  badges,
+  isPlatformAdmin = false,
+  collapsed = false,
+  onNavigate,
+}: SidebarNavProps) {
   const pathname = usePathname();
+  const activeHref = activeNavHref(pathname);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  useEffect(() => {
+    setAdvancedOpen(window.localStorage.getItem(ADVANCED_OPEN_KEY) === "1");
+  }, []);
+
+  function toggleAdvanced() {
+    const next = !advancedOpen;
+    setAdvancedOpen(next);
+    window.localStorage.setItem(ADVANCED_OPEN_KEY, next ? "1" : "0");
+  }
 
   return (
     <nav aria-label="Control plane" className="flex flex-col gap-space-lg">
-      {DASHBOARD_NAV_GROUPS.map((group) => (
-        <div key={group.label}>
-          {!collapsed ? (
-            <div className="mb-1.5 px-space-md font-label-caps text-[10px] uppercase tracking-widest text-outline">
-              {group.label}
-            </div>
-          ) : null}
-          <div className="flex flex-col gap-0.5">
-            {group.items.map((item) => {
-              // `/app` would otherwise match every child route.
-              const active = item.href === "/app" ? pathname === "/app" : pathname.startsWith(item.href);
-              return (
-                <NavRow
-                  key={item.href}
-                  item={item}
-                  active={active}
-                  collapsed={collapsed}
-                  badgeCount={item.badgeKey ? badges[item.badgeKey] : 0}
-                  onNavigate={onNavigate}
-                />
-              );
-            })}
+      {DASHBOARD_NAV_GROUPS.map((group) => {
+        const containsActive = group.items.some((item) => item.href === activeHref);
+        const open = !group.collapsible || advancedOpen || containsActive || collapsed;
+        return (
+          <div key={group.label ?? "main"}>
+            {group.label && !collapsed ? (
+              group.collapsible ? (
+                <button
+                  type="button"
+                  onClick={toggleAdvanced}
+                  aria-expanded={open}
+                  className="mb-1.5 flex w-full items-center justify-between px-space-md font-label-caps text-[10px] uppercase tracking-widest text-outline hover:text-on-surface"
+                >
+                  {group.label}
+                  <Icon name={open ? "expand_more" : "chevron_right"} size={14} />
+                </button>
+              ) : (
+                <div className="mb-1.5 px-space-md font-label-caps text-[10px] uppercase tracking-widest text-outline">
+                  {group.label}
+                </div>
+              )
+            ) : null}
+            {open ? (
+              <div className="flex flex-col gap-0.5">
+                {group.items
+                  .filter((item) => !item.platformAdminOnly || isPlatformAdmin)
+                  .map((item) => (
+                    <NavRow
+                      key={item.href}
+                      item={item}
+                      active={item.href === activeHref}
+                      collapsed={collapsed}
+                      badgeCount={item.badgeKey ? badges[item.badgeKey] : 0}
+                      onNavigate={onNavigate}
+                    />
+                  ))}
+              </div>
+            ) : null}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </nav>
   );
 }

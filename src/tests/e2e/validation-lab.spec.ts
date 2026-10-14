@@ -26,7 +26,9 @@ test.describe.serial("validation lab", () => {
 
   test("is reachable from the navigation and labels results as synthetic", async ({ page }) => {
     await page.goto("/app");
-    await page.getByRole("link", { name: "Validation Lab" }).first().click();
+    const nav = page.getByRole("navigation", { name: "Control plane" });
+    await nav.getByRole("button", { name: "Advanced" }).click();
+    await nav.getByRole("link", { name: "Validation Lab" }).click();
     await expect(page).toHaveURL(/\/app\/validation$/);
     await expect(page.getByRole("heading", { level: 1, name: "Validation Lab" })).toBeVisible();
     await expect(page.getByText("synthetic", { exact: true }).first()).toBeVisible();

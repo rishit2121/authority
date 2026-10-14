@@ -358,6 +358,11 @@ test.describe("fresh signup reaches a working dashboard", () => {
       // Zero memberships so far -- this first request is exactly what
       // triggers ensure_onboarded(), creating this user's own fresh tenant.
       await expect(page).toHaveURL(/\/app$/);
+      // That first render must actually succeed: a memoized pre-onboarding
+      // membership read once turned it into "Application error" for every
+      // brand-new account, while the URL above still matched.
+      await expect(page.getByRole("heading", { level: 1, name: "Overview" })).toBeVisible();
+      await expect(page.getByText(/Application error/)).toHaveCount(0);
 
       await page.goto("/app/agents/new");
       const ownerSelect = page.getByLabel("Owner");

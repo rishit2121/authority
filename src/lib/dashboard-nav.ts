@@ -10,41 +10,31 @@ export interface DashboardNavItem {
   badgeKey?: NavBadgeKey;
   /** Amber "needs attention" styling instead of a neutral count. */
   badgeTone?: "neutral" | "warning";
+  /** Shown only to operators of this deployment (PLATFORM_ADMIN_EMAILS); the page re-checks server-side. */
+  platformAdminOnly?: boolean;
 }
 
 export interface DashboardNavGroup {
-  label: string;
+  /** null = no visible heading (the main, always-shown group). */
+  label: string | null;
   items: DashboardNavItem[];
+  /** Hidden behind a toggle until opened, or until the current page is one of its items. */
+  collapsible?: boolean;
 }
 
 /**
- * Sidebar sections for the control plane, grouped by what they're for
- * (design/frontend-simplification). Labels are chosen to explain the page
- * to a developer more directly than the underlying route name does, but no
- * route itself moves -- bookmarks, existing Playwright URL assertions, and
- * every internal link still work: `/app/runtime` is labeled "Activity" (a
- * live feed of every authorize/execute call and its receipt, across every
- * task), `/app/integrations` is labeled "Connections" (provider
- * connections, same word the developer API and docs already use), `/app/settings/applications`
- * is additionally surfaced here as a top-level "Applications" destination
- * (it still lives under Settings too -- this is additive, not a move).
+ * Sidebar sections. The first group is everything a typical developer
+ * needs day to day; power-user and internal tooling lives under "Advanced",
+ * collapsed by default. No route moves -- `/app/runtime` is labeled
+ * "Activity" and `/app/integrations` "Connections", as before.
  */
 export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
   {
-    label: "Workspace",
+    label: null,
     items: [
+      { label: "Setup", href: "/app/setup", icon: "play_arrow" },
       { label: "Overview", href: "/app", icon: "account_tree" },
-      { label: "Applications", href: "/app/settings/applications", icon: "key" },
-      { label: "Tasks", href: "/app/tasks", icon: "data_object", badgeKey: "tasksActive" },
       { label: "Agents", href: "/app/agents", icon: "smart_toy" },
-      { label: "Activity", href: "/app/runtime", icon: "bolt" },
-      { label: "Approvals", href: "/app/approvals", icon: "mark_chat_read", badgeKey: "approvalsPending" },
-    ],
-  },
-  {
-    label: "Control",
-    items: [
-      { label: "Policies", href: "/app/policies", icon: "policy" },
       {
         label: "Connections",
         href: "/app/integrations",
@@ -52,22 +42,41 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
         badgeKey: "integrationWarnings",
         badgeTone: "warning",
       },
+      { label: "Activity", href: "/app/runtime", icon: "bolt" },
+      { label: "Approvals", href: "/app/approvals", icon: "mark_chat_read", badgeKey: "approvalsPending" },
+      { label: "Settings", href: "/app/settings", icon: "lock" },
+      { label: "Docs", href: "/docs", icon: "description" },
+      { label: "Metrics", href: "/app/admin", icon: "person", platformAdminOnly: true },
     ],
   },
   {
-    label: "Test",
-    items: [{ label: "Validation Lab", href: "/app/validation", icon: "science" }],
-  },
-  {
-    label: "System",
+    label: "Advanced",
+    collapsible: true,
     items: [
-      { label: "Settings", href: "/app/settings", icon: "lock" },
-      { label: "Documentation", href: "/docs", icon: "description" },
+      { label: "Applications", href: "/app/settings/applications", icon: "key" },
+      { label: "Tasks", href: "/app/tasks", icon: "data_object", badgeKey: "tasksActive" },
+      { label: "Policies", href: "/app/policies", icon: "policy" },
+      { label: "Validation Lab", href: "/app/validation", icon: "science" },
     ],
   },
 ];
 
 /** Flat list, for lookups that don't care about grouping. */
 export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = DASHBOARD_NAV_GROUPS.flatMap((group) => group.items);
+
+function matches(href: string, pathname: string): boolean {
+  // `/app` would otherwise match every child route.
+  if (href === "/app") return pathname === "/app";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** The single nav item for this path: the longest matching href, so /app/settings/applications isn't also "Settings". */
+export function activeNavHref(pathname: string): string | null {
+  let best: string | null = null;
+  for (const item of DASHBOARD_NAV_ITEMS) {
+    if (matches(item.href, pathname) && (!best || item.href.length > best.length)) best = item.href;
+  }
+  return best;
+}
 
 export type NavBadgeCounts = Record<NavBadgeKey, number>;

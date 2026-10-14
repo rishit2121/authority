@@ -3,6 +3,8 @@ import { headers } from "next/headers";
 
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { initialsFor } from "@/lib/auth/identity";
+import { isPlatformAdmin } from "@/lib/auth/platform-admin";
+import { demoDataEnabled } from "@/lib/demo-data";
 import { loadNavBadges } from "@/lib/data/nav";
 import { getJevSettings } from "@/lib/jev/persistence";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
@@ -58,9 +60,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         initials: initialsFor(identity.displayName, identity.email),
         role: identity.role,
         environment: identity.tenant.environment,
+        demoDataEnabled: demoDataEnabled(),
       }}
       memberships={identity.memberships}
       currentTenantId={identity.tenant.tenantId}
+      isPlatformAdmin={isPlatformAdmin(identity.email)}
     >
       {children}
     </DashboardShell>

@@ -1,44 +1,78 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const NAV_LINKS: Array<{ name: string; href: string; heading: string | RegExp }> = [
-  { name: "Applications", href: "/app/settings/applications", heading: "Developer applications" },
-  { name: "Tasks", href: "/app/tasks", heading: "Tasks" },
+const NAV_LINKS: Array<{ name: string; href: string; heading: string | RegExp; advanced?: boolean }> = [
+  { name: "Setup", href: "/app/setup", heading: "Set up Authority" },
   { name: "Agents", href: "/app/agents", heading: "Agents" },
   // Visible label is "Activity" (clearer to a developer than the underlying
   // route name "runtime"); the route itself is unchanged, and the page's own
   // heading was renamed to match, so this also confirms both stayed in sync.
   { name: "Activity", href: "/app/runtime", heading: "Activity" },
-  { name: "Policies", href: "/app/policies", heading: "Policies" },
   { name: "Connections", href: "/app/integrations", heading: "Connections" },
   { name: "Approvals", href: "/app/approvals", heading: "Approvals" },
   { name: "Settings", href: "/app/settings", heading: "Settings" },
+  {
+    name: "Applications",
+    href: "/app/settings/applications",
+    heading: "Developer applications",
+    advanced: true,
+  },
+  { name: "Tasks", href: "/app/tasks", heading: "Tasks", advanced: true },
+  { name: "Policies", href: "/app/policies", heading: "Policies", advanced: true },
 ];
+
+const MAIN_LABELS = [
+  "Setup",
+  "Overview",
+  "Agents",
+  "Connections",
+  "Activity",
+  "Approvals",
+  "Settings",
+  "Docs",
+];
+const ADVANCED_LABELS = ["Applications", "Tasks", "Policies", "Validation Lab"];
 
 function desktopSidebar(page: Page) {
   return page.getByRole("navigation", { name: "Control plane" });
 }
 
 test.describe("dashboard navigation", () => {
-  test("loads the overview with every nav group and link present", async ({ page }) => {
+  test("shows the everyday links, with advanced tools tucked behind one toggle", async ({ page }) => {
     await page.goto("/app");
     const sidebar = desktopSidebar(page);
 
-    for (const group of ["Workspace", "Control", "Test", "System"]) {
-      await expect(sidebar.getByText(group, { exact: true })).toBeVisible();
+    for (const label of MAIN_LABELS) {
+      await expect(sidebar.getByRole("link", { name: new RegExp(`^${label}`) })).toBeVisible();
     }
-    for (const label of [
-      "Overview",
-      "Applications",
-      "Tasks",
-      "Agents",
-      "Activity",
-      "Policies",
-      "Connections",
-      "Approvals",
-      "Settings",
-    ]) {
-      await expect(sidebar.getByRole("link", { name: new RegExp(label) })).toBeVisible();
+    for (const label of ADVANCED_LABELS) {
+      await expect(sidebar.getByRole("link", { name: new RegExp(`^${label}`) })).toHaveCount(0);
     }
+
+    const toggle = sidebar.getByRole("button", { name: "Advanced" });
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    for (const label of ADVANCED_LABELS) {
+      await expect(sidebar.getByRole("link", { name: new RegExp(`^${label}`) })).toBeVisible();
+    }
+
+    // The choice sticks across page loads.
+    await page.reload();
+    await expect(sidebar.getByRole("link", { name: /^Policies/ })).toBeVisible();
+  });
+
+  test("an advanced page opens the Advanced group on its own", async ({ page }) => {
+    await page.goto("/app/policies");
+    await expect(desktopSidebar(page).getByRole("link", { name: /^Policies/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    // Applications lives under /app/settings, but only it -- not Settings -- is marked current.
+    await page.goto("/app/settings/applications");
+    await expect(desktopSidebar(page).getByRole("link", { name: /^Settings/ })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
   test("Overview is marked as the current page on load", async ({ page }) => {
@@ -49,9 +83,10 @@ test.describe("dashboard navigation", () => {
     );
   });
 
-  for (const { name, href, heading } of NAV_LINKS) {
+  for (const { name, href, heading, advanced } of NAV_LINKS) {
     test(`navigates to ${name} and marks it current`, async ({ page }) => {
       await page.goto("/app");
+      if (advanced) await desktopSidebar(page).getByRole("button", { name: "Advanced" }).click();
       await desktopSidebar(page)
         .getByRole("link", { name: new RegExp(`^${name}`) })
         .click();
@@ -119,9 +154,9 @@ test.describe("dashboard navigation", () => {
 
     await page.getByRole("button", { name: "Menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Control plane navigation" });
-    await drawer.getByRole("link", { name: /^Tasks/ }).click();
+    await drawer.getByRole("link", { name: /^Agents/ }).click();
 
-    await expect(page).toHaveURL(/\/app\/tasks$/);
+    await expect(page).toHaveURL(/\/app\/agents$/);
     await expect(drawer).toBeHidden();
   });
 

@@ -142,15 +142,15 @@ test.describe("mobile drawer at 390px", () => {
     await page.getByRole("button", { name: "Menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Control plane navigation" });
 
-    for (const label of [
-      "Applications",
-      "Tasks",
-      "Agents",
-      "Policies",
-      "Connections",
-      "Approvals",
-      "Settings",
-    ]) {
+    for (const label of ["Setup", "Overview", "Agents", "Connections", "Activity", "Approvals", "Settings"]) {
+      await expect(drawer.getByRole("link", { name: new RegExp(`^${label}`) })).toBeVisible();
+    }
+
+    // Advanced tools are one keyboard-operable toggle away.
+    const advanced = drawer.getByRole("button", { name: "Advanced" });
+    await advanced.focus();
+    await page.keyboard.press("Enter");
+    for (const label of ["Applications", "Tasks", "Policies", "Validation Lab"]) {
       await expect(drawer.getByRole("link", { name: new RegExp(`^${label}`) })).toBeVisible();
     }
   });

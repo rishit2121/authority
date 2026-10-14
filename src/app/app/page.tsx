@@ -1,17 +1,13 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  OnboardingCompact,
-  OnboardingPrimary,
-  type OnboardingProgress,
-} from "@/components/dashboard/OnboardingChecklist";
 import { EmptyWorkspace } from "@/components/dashboard/EmptyWorkspace";
 import { DecisionStatusBadge } from "@/components/ui/DecisionStatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusRow } from "@/components/ui/StatusRow";
+import { demoDataEnabled } from "@/lib/demo-data";
 import type { DecisionStatus } from "@/lib/domain";
 import {
   loadDashboardOverview,
@@ -24,26 +20,52 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
 
-async function loadOnboardingProgress(db: Db): Promise<OnboardingProgress> {
+interface SetupProgress {
+  connection: boolean;
+  agent: boolean;
+  firstCall: boolean;
+}
+
+async function loadSetupProgress(db: Db): Promise<SetupProgress> {
   const head = { count: "exact", head: true } as const;
-  const [agents, tasks, decisions, github, validation, contracts, backendCredentials] = await Promise.all([
-    db.from("agents").select("id", head),
-    db.from("tasks").select("id", head),
-    db.from("authorization_decisions").select("id", head),
+  const [connections, github, agents, decisions] = await Promise.all([
+    db.from("connector_connections").select("id", head).neq("status", "disconnected"),
     db.from("github_installations").select("id", head).neq("status", "disconnected"),
-    db.from("validation_campaigns").select("id", head),
-    db.from("task_authority_contracts").select("id", head).eq("contract_status", "active"),
-    db.from("developer_backend_credentials").select("id", head).eq("status", "active"),
+    db.from("agents").select("id", head),
+    db.from("authorization_decisions").select("id", head),
   ]);
   return {
+    connection: (connections.count ?? 0) + (github.count ?? 0) > 0,
     agent: (agents.count ?? 0) > 0,
-    task: (tasks.count ?? 0) > 0,
-    activeContract: (contracts.count ?? 0) > 0,
-    runtimeCall: (decisions.count ?? 0) > 0,
-    githubConnected: (github.count ?? 0) > 0,
-    validationRun: (validation.count ?? 0) > 0,
-    developerApiConfigured: (backendCredentials.count ?? 0) > 0,
+    firstCall: (decisions.count ?? 0) > 0,
   };
+}
+
+function SetupCard({ progress }: { progress: SetupProgress }) {
+  const done = [progress.connection, progress.agent, progress.firstCall].filter(Boolean).length;
+  const fresh = done === 0;
+  return (
+    <section
+      className="flex flex-col gap-4 rounded-[14px] border border-line-strong bg-paper-raised p-6 sm:flex-row sm:items-center sm:justify-between"
+      data-testid="setup-card"
+    >
+      <div className="flex flex-col gap-1">
+        <h2 className="text-[17px] font-semibold text-ink">
+          {fresh ? "Set up Authority in 3 steps" : `Finish setup — ${done} of 3 done`}
+        </h2>
+        <p className="text-[14px] text-ink-soft">
+          Connect a service, create your agent, and make your first protected call.
+        </p>
+      </div>
+      <Link
+        href="/app/setup"
+        className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-5 text-[14px] font-medium text-on-primary transition-colors hover:bg-primary-fixed"
+      >
+        {fresh ? "Start setup" : "Continue setup"}
+        <Icon name="arrow_forward" size={16} />
+      </Link>
+    </section>
+  );
 }
 
 const ATTENTION_REASON_LABEL: Record<TaskNeedingAttention["reason"], string> = {
@@ -56,8 +78,8 @@ export default async function OverviewPage() {
   const { identity, repositories, context } = await createRepositoriesForCurrentTenant("/app");
   const db = context.supabase;
 
-  const [onboarding, overview] = await Promise.all([
-    loadOnboardingProgress(db),
+  const [setup, overview] = await Promise.all([
+    loadSetupProgress(db),
     loadDashboardOverview(repositories, identity.tenant.tenantId),
   ]);
   const { metrics, traces, hasAnyProductData } = overview;
@@ -68,24 +90,24 @@ export default async function OverviewPage() {
   ]);
 
   const metricById = (id: string) => metrics.find((m) => m.id === id)?.value ?? 0;
+  const setupComplete = setup.connection && setup.agent && setup.firstCall;
 
   return (
     <div className="flex flex-col gap-space-xl">
       <PageHeader
         eyebrow={identity.tenant.name}
         title="Overview"
-        description="Is Authority working, what needs attention, and what happened recently."
+        description="What your agents did recently, and anything that needs you."
       />
 
+      {setupComplete ? null : <SetupCard progress={setup} />}
+
       {!hasAnyProductData ? (
-        <>
-          <OnboardingPrimary progress={onboarding} />
+        demoDataEnabled() ? (
           <EmptyWorkspace />
-        </>
+        ) : null
       ) : (
         <>
-          <OnboardingCompact progress={onboarding} />
-
           <StatusRow
             items={[
               { label: "Active agents", value: metricById("active-agents") },

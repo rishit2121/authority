@@ -23,6 +23,7 @@ import {
 } from "@/lib/gateway/http";
 import { failureContract, toAgentResponse } from "@/lib/gateway/response";
 import { buildTenantRegistry } from "@/lib/registry";
+import { deriveResource } from "@/lib/connectors/derive-resource";
 
 /**
  * `POST /api/v1/authorize` — the ONLY supported runtime authorization path.
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         taskId: input.taskId,
         tool: input.tool,
         operation: input.operation,
-        resource: input.resource,
+        resource: input.resource ?? (await deriveResource(input.tool, input.arguments)) ?? undefined,
         arguments: input.arguments,
         planNodeId: input.planNodeId,
         idempotencyKey: input.idempotencyKey,

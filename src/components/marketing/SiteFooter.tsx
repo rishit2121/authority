@@ -1,8 +1,10 @@
 import { FOOTER_COLUMNS, LEGAL_LINKS } from "@/lib/navigation";
+import { supportEmail } from "@/lib/support";
 
 import { Logo } from "./Logo";
 
 export function SiteFooter() {
+  const contact = supportEmail();
   const year = new Date().getFullYear();
 
   return (
@@ -45,6 +47,11 @@ export function SiteFooter() {
                 {link.label}
               </a>
             ))}
+            {contact ? (
+              <a href={`mailto:${contact}`} className="text-[13px] text-mkt-gray hover:text-mkt-text">
+                Contact
+              </a>
+            ) : null}
           </div>
         </div>
       </div>

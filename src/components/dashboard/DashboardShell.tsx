@@ -95,7 +95,6 @@ function SidebarFooter({
           <StatusDot className="bg-allow" ping={false} />
           Gateway online
         </span>
-        <span className="pl-[18px] text-ink-soft">Deterministic enforcement</span>
         {jevAdvisory ? <span className="pl-[18px] text-ink-soft">Jev · advisory</span> : null}
       </div>
       <UserMenu identity={identity} />
@@ -112,6 +111,7 @@ interface DashboardShellProps {
   identity: UserMenuIdentity;
   memberships: TenantMembership[];
   currentTenantId: string;
+  isPlatformAdmin: boolean;
 }
 
 /**
@@ -126,6 +126,7 @@ export function DashboardShell({
   identity,
   memberships,
   currentTenantId,
+  isPlatformAdmin,
 }: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useSidebarCollapsed();
@@ -186,10 +187,14 @@ export function DashboardShell({
                 <Icon name="chevron_right" size={16} />
               </button>
             ) : (
-              <WorkspaceSelector memberships={memberships} currentTenantId={currentTenantId} />
+              <WorkspaceSelector
+                memberships={memberships}
+                currentTenantId={currentTenantId}
+                demoDataEnabled={identity.demoDataEnabled}
+              />
             )}
 
-            <SidebarNav badges={badges} collapsed={collapsed} />
+            <SidebarNav badges={badges} isPlatformAdmin={isPlatformAdmin} collapsed={collapsed} />
           </div>
 
           <SidebarFooter collapsed={collapsed} identity={identity} jevAdvisory={jevAdvisory} />
@@ -260,8 +265,16 @@ export function DashboardShell({
               </button>
             </div>
 
-            <WorkspaceSelector memberships={memberships} currentTenantId={currentTenantId} />
-            <SidebarNav badges={badges} onNavigate={() => setMenuOpen(false)} />
+            <WorkspaceSelector
+              memberships={memberships}
+              currentTenantId={currentTenantId}
+              demoDataEnabled={identity.demoDataEnabled}
+            />
+            <SidebarNav
+              badges={badges}
+              isPlatformAdmin={isPlatformAdmin}
+              onNavigate={() => setMenuOpen(false)}
+            />
 
             <div className="mt-auto">
               <SidebarFooter collapsed={false} identity={identity} jevAdvisory={jevAdvisory} />

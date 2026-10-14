@@ -110,6 +110,9 @@ export async function signInAction(_previous: AuthFormState, formData: FormData)
   redirect(safeReturnPath(field(formData, "next"), DEFAULT_AUTHENTICATED_PATH));
 }
 
+/** A brand-new account lands on the guided setup, not an empty overview. */
+const NEW_ACCOUNT_PATH = "/app/setup";
+
 export async function signUpAction(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const email = field(formData, "email");
   const parsed = signUpSchema.safeParse({
@@ -132,7 +135,7 @@ export async function signUpAction(_previous: AuthFormState, formData: FormData)
     options: {
       // Read by ensure_onboarded() to name the profile and default workspace.
       data: { display_name: parsed.data.displayName },
-      emailRedirectTo: `${origin}/auth/callback`,
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(NEW_ACCOUNT_PATH)}`,
     },
   });
 
@@ -142,7 +145,7 @@ export async function signUpAction(_previous: AuthFormState, formData: FormData)
 
   const outcome = resolveSignUpOutcome(error, Boolean(data?.session));
   if (outcome.kind === "authenticated") {
-    redirect(DEFAULT_AUTHENTICATED_PATH);
+    redirect(NEW_ACCOUNT_PATH);
   }
   return { success: outcome.success, error: outcome.error, email };
 }

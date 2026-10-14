@@ -4,82 +4,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill, type StatusTone } from "@/components/ui/StatusPill";
+import { CONNECTOR_CATALOG } from "@/lib/connectors/catalog";
 import { loadGithubOverview } from "@/lib/github/read-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
-
-interface CatalogEntry {
-  id: string;
-  name: string;
-  description: string;
-  /** null = not yet built in this deployment; renders "Coming soon" with no link. */
-  href: string | null;
-  logo: { src: string; alt: string };
-}
-
-/**
- * The full connector catalog, including entries with no implementation yet
- * in this deployment. `href: null` is the only thing that distinguishes a
- * "Coming soon" card from a real one — there is no separate "available"
- * flag to keep in sync with it.
- */
-const CATALOG: CatalogEntry[] = [
-  {
-    id: "github",
-    name: "GitHub",
-    description: "Install the GitHub App, allow repositories, and bind tasks to them.",
-    href: "/app/integrations/github",
-    logo: { src: "/logos/github.svg", alt: "" },
-  },
-  {
-    id: "custom-api",
-    name: "Custom API",
-    description: "Connect any HTTPS API your tenant controls and publish schema-constrained operations.",
-    href: "/app/integrations/custom-api",
-    logo: { src: "/logos/custom-api.svg", alt: "" },
-  },
-  {
-    id: "stripe",
-    name: "Stripe",
-    description: "Retrieve payments and customers, list charges, and issue refunds.",
-    href: "/app/integrations/stripe",
-    logo: { src: "/logos/stripe.svg", alt: "" },
-  },
-  {
-    id: "slack",
-    name: "Slack",
-    description: "Post messages and list channels in a connected workspace.",
-    href: "/app/integrations/slack",
-    logo: { src: "/logos/slack.svg", alt: "" },
-  },
-  {
-    id: "gmail",
-    name: "Gmail",
-    description: "Send email from a connected Google account.",
-    href: "/app/integrations/gmail",
-    logo: { src: "/logos/gmail.svg", alt: "" },
-  },
-  {
-    id: "postgresql",
-    name: "PostgreSQL",
-    description: "Run named, parameterized queries against your own database.",
-    href: "/app/integrations/postgres",
-    logo: { src: "/logos/postgresql.svg", alt: "" },
-  },
-  {
-    id: "linear",
-    name: "Linear",
-    description: "List and create issues on a team, and look up one by id.",
-    href: "/app/integrations/linear",
-    logo: { src: "/logos/linear.svg", alt: "" },
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    description: "Read pages and databases, and create new pages.",
-    href: "/app/integrations/notion",
-    logo: { src: "/logos/notion.svg", alt: "" },
-  },
-];
 
 const CONNECTION_STATUS_LABEL: Record<string, string> = {
   active: "Active",
@@ -203,7 +130,7 @@ export default async function IntegrationsPage() {
           Connectors
         </h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {CATALOG.map((entry) => {
+          {CONNECTOR_CATALOG.map((entry) => {
             const card = (
               <>
                 <div className="flex items-center justify-between gap-2">

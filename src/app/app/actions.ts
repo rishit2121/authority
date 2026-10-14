@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { demoDataEnabled } from "@/lib/demo-data";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 import { throwDatabaseError, RepositoryError } from "@/lib/persistence/errors";
 import { resolveApprovalToUpdateRow } from "@/lib/persistence/mappers/approval";
@@ -184,6 +185,7 @@ export async function createPolicyAction(
 }
 
 export async function installDemoWorkspaceAction(): Promise<ActionResult> {
+  if (!demoDataEnabled()) return { ok: false, error: "Sample data is not available on this deployment." };
   try {
     const { context } = await createRepositoriesForCurrentTenant("/app");
     await callInstallDemoWorkspace(context);
@@ -200,6 +202,7 @@ export async function installDemoWorkspaceAction(): Promise<ActionResult> {
 }
 
 export async function resetDemoWorkspaceAction(): Promise<ActionResult> {
+  if (!demoDataEnabled()) return { ok: false, error: "Sample data is not available on this deployment." };
   try {
     const { context } = await createRepositoriesForCurrentTenant("/app");
     await callResetDemoWorkspace(context);
