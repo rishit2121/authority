@@ -15,7 +15,7 @@ import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
 import { compileContract } from "@/lib/authorization/contract-compiler";
 import { verifyCompiledContract } from "@/lib/authorization/contract-verifier";
-import { validateCandidatePlan } from "@/lib/authorization/plan-validator";
+import { PlanStructureError, validateCandidatePlan } from "@/lib/authorization/plan-validator";
 import { solveMinimumAuthority } from "@/lib/authorization/solver";
 import { candidatePlanSchema, type CandidatePlan } from "@/lib/domain";
 import type { Json } from "@/lib/supabase/database.types";
@@ -94,6 +94,27 @@ function nodesFor(plan: CandidatePlan, validation: ReturnType<typeof validateCan
   });
 }
 
+/**
+ * Models often emit `resourceBinding: ""` for a step with no resource; the
+ * schema (rightly) rejects an empty binding, but it means exactly the same as
+ * omitting one. Applied only to AI-drafted plans -- a developer's own plan is
+ * validated exactly as submitted.
+ */
+export function withoutEmptyResourceBindings(plan: unknown): unknown {
+  if (!plan || typeof plan !== "object" || !Array.isArray((plan as { nodes?: unknown }).nodes)) return plan;
+  const typed = plan as { nodes: unknown[] };
+  return {
+    ...typed,
+    nodes: typed.nodes.map((node) => {
+      if (!node || typeof node !== "object" || (node as { resourceBinding?: unknown }).resourceBinding !== "")
+        return node;
+      const rest = { ...(node as Record<string, unknown>) };
+      delete rest.resourceBinding;
+      return rest;
+    }),
+  };
+}
+
 export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskResult> {
   const task = await getTaskForBackend(input.credentialSecret, input.taskId);
   if (task.status !== "ok" || !task.tenantId || task.intent === null) {
@@ -125,7 +146,7 @@ export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskR
     });
     try {
       const generated = await provider.proposePlan(trustedInput);
-      rawPlan = generated.plan;
+      rawPlan = withoutEmptyResourceBindings(generated.plan);
     } catch (error) {
       if (
         error instanceof PlanProposalTimeoutError ||
@@ -162,7 +183,22 @@ export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskR
     };
   }
 
-  const validation = validateCandidatePlan(plan, { registry, activePolicies });
+  let validation: ReturnType<typeof validateCandidatePlan>;
+  try {
+    validation = validateCandidatePlan(plan, { registry, activePolicies });
+  } catch (error) {
+    // A structurally broken plan (a step depending on itself or on a later
+    // step, duplicate ids, ...) is the plan author's mistake -- an AI planner's
+    // or a developer's -- not a server failure: answer it like any other plan
+    // that can't be compiled, never with a 500.
+    if (error instanceof PlanStructureError) {
+      return {
+        ok: true,
+        outcome: { status: "clarification", reason: `The candidate plan is malformed: ${error.message}` },
+      };
+    }
+    throw error;
+  }
   if (validation.includedNodeIds.length === 0) {
     return {
       ok: true,
@@ -276,7 +312,7 @@ export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskR
         status: "ready",
         contractId: contractResult.contractId,
         version: contractResult.version,
-        tools: compiled.allowedActions.map((a) => a.tool),
+        tools: [...new Set(compiled.allowedActions.map((a) => a.tool))],
       },
     };
   }

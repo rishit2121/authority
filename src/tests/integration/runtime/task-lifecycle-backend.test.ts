@@ -489,6 +489,52 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(result.outcome.status).toBe("clarification");
   });
 
+  it("answers a plan whose step depends on itself with clarification, not a 500", async () => {
+    // A real AI planner produced exactly this (found by the playground's
+    // evaluation console): it passes the schema but fails structural checks.
+    const suffix = randomBytes(4).toString("hex");
+    const app = await createApplicationFixture(suffix);
+    apps.push(app);
+    const agent = await mkAgent("lifecycle-self-ref");
+    const customer = await createOrResolveCustomer({
+      credentialSecret: app.backendSecret,
+      externalId: "alex",
+    });
+    const created = await createCustomerTask({
+      credentialSecret: app.backendSecret,
+      customerId: customer.customerId!,
+      agentId: agent.agentId,
+      intent: "List my Gmail labels",
+      connectorBindings: [],
+    });
+    const taskId = created.taskId!;
+    taskIds.push(taskId);
+
+    const result = await prepareTask({
+      credentialSecret: app.backendSecret,
+      taskId,
+      plan: {
+        schemaVersion: 1,
+        taskId,
+        nodes: [
+          {
+            id: "node1",
+            sequence: 1,
+            tool: "gmail.list_labels",
+            arguments: {},
+            declaredOutputs: ["labels"],
+            dataFlowRefs: [{ argumentKey: "label", fromNodeId: "node1", output: "labels" }],
+            expectedSideEffect: "read",
+          },
+        ],
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.outcome.status).toBe("clarification");
+    if (result.outcome.status === "clarification") expect(result.outcome.reason).toMatch(/malformed/);
+  });
+
   it("reports ai_unavailable rather than silently using a mock when no model credentials are configured", async () => {
     const suffix = randomBytes(4).toString("hex");
     const app = await createApplicationFixture(suffix);

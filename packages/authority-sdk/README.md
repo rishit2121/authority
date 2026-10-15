@@ -33,13 +33,15 @@ const { taskId } = await backend.tasks.create({
 });
 await backend.tasks.prepare(taskId, { generate: true }); // "ready" or "awaiting_approval"
 
+await agent.sessions.create({ taskId }); // the agent can now reach this task only -- never another user's
 const { tools } = await agent.tools.list(taskId); // only what this task was granted
 const result = await agent.tools.execute({ taskId, tool: tools[0].tool, arguments: {} });
 ```
 
 - `AuthorityBackendClient` runs on your server: customers, connections, tasks. Never ship its key to a browser.
 - `AuthorityAgentClient` is what your agent uses: list its granted tools and call them. Every call is
-  authorized against the task's contract; anything outside it is refused.
+  authorized against the task's contract; anything outside it is refused. Always create a session per task
+  (`sessions.create`): the runtime key alone can act on any task of that agent, a session only on its own.
 - Expected outcomes (`denied`, `requires_approval`, ...) are returned, not thrown. Only failed requests throw
   `AuthorityApiError` (with `status`, `code`, `requestId`) or `AuthorityTimeoutError`.
 

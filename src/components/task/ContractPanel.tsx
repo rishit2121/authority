@@ -128,9 +128,9 @@ export function ContractPanel({ contract }: { contract: TaskAuthorityContract })
             Allowed actions
           </h3>
           <ul className="space-y-space-sm">
-            {contract.allowedActions.map((action) => (
+            {contract.allowedActions.map((action, index) => (
               <li
-                key={action.tool}
+                key={`${action.tool}-${index}`}
                 className="rounded border border-allow/25 bg-allow/5 px-space-md py-space-sm font-mono-code text-[12px]"
               >
                 <span className="text-on-surface">{action.tool}</span>

@@ -21,6 +21,9 @@ export interface AuthorityBackendClientOptions {
  * ready to run -- everything a server does on its own, never in a browser
  * (this credential must never reach client-side code).
  */
+/** `tasks.prepare` may wait on a model drafting the plan; everything else keeps the client's default timeout. */
+const PREPARE_TIMEOUT_MS = 60_000;
+
 export class AuthorityBackendClient {
   private readonly config: ClientConfig;
 
@@ -185,11 +188,16 @@ export class AuthorityBackendClient {
     ) => {
       const body =
         "plan" in input ? { plan: { ...input.plan, taskId }, idempotencyKey } : { ...input, idempotencyKey };
+      // Drafting a plan with a model (`generate: true`) routinely takes longer than the client's default
+      // timeout; preparing is also safe to retry with the same idempotency key. Callers can still override.
       return request<PrepareTaskOutcome & { taskId: string }>(
         this.config,
         `/api/v1/tasks/${taskId}/prepare`,
         { method: "POST", body },
-        options,
+        {
+          ...options,
+          timeoutMs: options?.timeoutMs ?? Math.max(PREPARE_TIMEOUT_MS, this.config.defaultTimeoutMs ?? 0),
+        },
       );
     },
 

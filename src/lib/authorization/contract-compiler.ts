@@ -82,12 +82,25 @@ function includedNodes(plan: CandidatePlan, validation: PlanValidationResult): C
   return plan.nodes.filter((n) => includedIds.has(n.id)).sort((a, b) => a.sequence - b.sequence);
 }
 
+/**
+ * One allowed action per distinct (tool, pinned arguments) pair. Two plan
+ * steps that call the same tool with the same pinned values merge into one
+ * action whose budget is their sum; steps with different values -- "email
+ * Alice" and "email Bob" -- stay separate actions, each with its own budget.
+ * (Merging them by tool alone once let the later step's values overwrite the
+ * earlier step's while the budgets added up: Alice's email was refused and a
+ * second email to Bob was allowed.) For a plan that uses each tool once, the
+ * output is identical to the per-tool form, so existing contracts' hashes are
+ * unchanged.
+ */
 function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction[] {
-  const byTool = new Map<string, { maxInvocations: number; constraintKeys: Map<string, string> }>();
+  const byAction = new Map<
+    string,
+    { tool: string; maxInvocations: number; constraints: Array<[string, string]> }
+  >();
 
   for (const node of nodes) {
-    const entry = byTool.get(node.tool) ?? { maxInvocations: 0, constraintKeys: new Map<string, string>() };
-    entry.maxInvocations += node.maxInvocations;
+    const constraintKeys = new Map<string, string>();
     for (const [key, value] of Object.entries(node.arguments)) {
       // Only concrete, single string values become an `equals` constraint —
       // never widened beyond exactly what this node declared. A data-flow
@@ -97,20 +110,23 @@ function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction
       // Numbers and booleans are pinned too, as their canonical text (the runtime compares argument text). Before
       // this, a plan step that fixed `amount_cents: 4900` left the amount unconstrained at runtime, so a refund could
       // be escalated to any amount (found by the Part 8 refund-escalation scenario).
-      if (typeof value === "string") entry.constraintKeys.set(key, value);
+      if (typeof value === "string") constraintKeys.set(key, value);
       else if (typeof value === "number" || typeof value === "boolean")
-        entry.constraintKeys.set(key, String(value));
+        constraintKeys.set(key, String(value));
     }
-    byTool.set(node.tool, entry);
+    const constraints = [...constraintKeys.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const actionKey = JSON.stringify([node.tool, constraints]);
+    const entry = byAction.get(actionKey) ?? { tool: node.tool, maxInvocations: 0, constraints };
+    entry.maxInvocations += node.maxInvocations;
+    byAction.set(actionKey, entry);
   }
 
-  return [...byTool.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([tool, entry]) => ({
-      tool,
-      constraints: [...entry.constraintKeys.entries()]
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, value]) => ({ key, equals: value })),
+  const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return [...byAction.values()]
+    .sort((a, b) => cmp(a.tool, b.tool) || cmp(JSON.stringify(a.constraints), JSON.stringify(b.constraints)))
+    .map((entry) => ({
+      tool: entry.tool,
+      constraints: entry.constraints.map(([key, value]) => ({ key, equals: value })),
       maxInvocations: entry.maxInvocations,
     }));
 }

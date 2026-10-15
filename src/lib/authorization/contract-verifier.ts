@@ -138,6 +138,18 @@ export function verifyCompiledContract(input: VerifyContractInput): Verification
         "re-running the solver must select the exact same permission set",
       );
 
+      // A contract may hold several actions for one tool (e.g. "email Alice" and
+      // "email Bob"), so each check below pairs an action with the specific
+      // recompiled action it corresponds to -- never just "some action for the
+      // same tool", which could pass a contract whose per-action constraints
+      // or budgets were swapped between two entries.
+      const coveredBy = (
+        a: (typeof compiled.allowedActions)[number],
+        r: (typeof compiled.allowedActions)[number],
+      ) =>
+        a.tool === r.tool &&
+        r.constraints.every((rc) => a.constraints.some((ac) => ac.key === rc.key && ac.equals === rc.equals));
+
       add(
         "no_unplanned_operation",
         compiled.allowedActions.every((a) => rebuilt!.allowedActions.some((r) => r.tool === a.tool)),
@@ -146,32 +158,30 @@ export function verifyCompiledContract(input: VerifyContractInput): Verification
 
       add(
         "every_accepted_operation_covered",
-        rebuilt.allowedActions.every((r) => compiled.allowedActions.some((a) => a.tool === r.tool)),
+        rebuilt.allowedActions.every((r) => compiled.allowedActions.some((a) => coveredBy(a, r))),
         "every accepted plan operation must be covered by the contract",
       );
 
       add(
         "constraints_do_not_broaden",
-        compiled.allowedActions.every((a) => {
-          const r = rebuilt!.allowedActions.find((x) => x.tool === a.tool);
-          if (!r) return false;
-          // The contract's constraint set must be a superset-or-equal of the
-          // independently recomputed one — never fewer/looser constraints
-          // than what the accepted plan actually declared.
-          return r.constraints.every((rc) =>
-            a.constraints.some((ac) => ac.key === rc.key && ac.equals === rc.equals),
-          );
-        }),
+        // The contract's constraint set must be a superset-or-equal of the
+        // independently recomputed one for that same action -- never
+        // fewer/looser constraints than what the accepted plan declared.
+        compiled.allowedActions.every((a) => rebuilt!.allowedActions.some((r) => coveredBy(a, r))),
         "no contract action's constraints may be looser than what the accepted plan declared",
       );
 
       add(
         "invocation_budgets_do_not_exceed",
-        compiled.allowedActions.every((a) => {
-          const r = rebuilt!.allowedActions.find((x) => x.tool === a.tool);
-          if (!r || a.maxInvocations === undefined || r.maxInvocations === undefined) return false;
-          return a.maxInvocations <= r.maxInvocations;
-        }) && compiled.ephemeralLimits.maxToolInvocations <= rebuilt.ephemeralLimits.maxToolInvocations,
+        compiled.allowedActions.every((a) =>
+          rebuilt!.allowedActions.some(
+            (r) =>
+              coveredBy(a, r) &&
+              a.maxInvocations !== undefined &&
+              r.maxInvocations !== undefined &&
+              a.maxInvocations <= r.maxInvocations,
+          ),
+        ) && compiled.ephemeralLimits.maxToolInvocations <= rebuilt.ephemeralLimits.maxToolInvocations,
         "no invocation budget may exceed what the accepted plan's nodes declared",
       );
 

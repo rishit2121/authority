@@ -65,9 +65,9 @@ export default function ToolFilteringPage() {
             ["inputSchema", "Standard JSON Schema for the operation's arguments — required fields, types."],
             [
               "resourceConstraints",
-              "This contract's own constraints on the operation, e.g. pinned to one resource.",
+              "This contract's own constraints on the operation, e.g. pinned to one resource. A tool the plan uses with different arguments (two recipients, two channels) appears once per argument set.",
             ],
-            ["maxInvocations", "The remaining-uses budget this contract set for the tool, if any."],
+            ["maxInvocations", "The uses this contract allows for this entry, if limited."],
             [
               "requiresApproval",
               "Whether this operation needs human approval regardless of arguments — see Approvals.",

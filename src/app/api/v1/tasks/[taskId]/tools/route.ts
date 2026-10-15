@@ -96,21 +96,26 @@ export async function GET(
   }
 
   const contract = await activeContractForTask(taskId);
-  const actionByTool = new Map(contract?.allowedActions.map((a) => [a.tool, a]) ?? []);
   const registry = await buildTenantRegistry(resolved.tenantId!);
 
+  // One entry per allowed action: a tool the plan uses with two different sets
+  // of pinned arguments (e.g. two recipients) appears twice, each entry with its
+  // own constraints and budget, so an agent can see every call it may make.
+  const actionsByTool = new Map<string, NonNullable<typeof contract>["allowedActions"]>();
+  for (const action of contract?.allowedActions ?? []) {
+    actionsByTool.set(action.tool, [...(actionsByTool.get(action.tool) ?? []), action]);
+  }
   const tools = catalog.tools
-    .map((t) => {
-      const action = actionByTool.get(t.operation.id);
-      return {
+    .flatMap((t) =>
+      (actionsByTool.get(t.operation.id) ?? [undefined]).map((action) => ({
         tool: t.operation.id,
         description: t.description,
         inputSchema: jsonSchemaFor(t.operation.argumentFields),
         resourceConstraints: action?.constraints ?? [],
         maxInvocations: action?.maxInvocations ?? null,
         requiresApproval: t.operation.requiresApproval,
-      };
-    })
+      })),
+    )
     .sort((a, b) => a.tool.localeCompare(b.tool));
 
   const manifestHash = createHash("sha256")

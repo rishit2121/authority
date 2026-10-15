@@ -97,9 +97,14 @@ const { taskId } = await backend.tasks.create({
   connections: connections.map(({ connectorId, connectionId }) => ({ connectorId, connectionId })),
 });
 const prepared = await backend.tasks.prepare(taskId, { generate: true });
-console.log(prepared.status); // "ready", or "awaiting_approval" -> approve it in the dashboard
+if (prepared.status !== "ready") {
+  console.log(prepared.status, "-- approve it on the Approvals page, then run this again.");
+  process.exit(0);
+}
 
-// 3. Your agent sees -- and can call -- only the tools it was granted.
+// 3. Hand your agent a session for this one task: it can't reach any other task,
+//    including other users' -- and sees, and can call, only the tools it was granted.
+await agent.sessions.create({ taskId });
 const { tools } = await agent.tools.list(taskId);
 console.log("granted:", tools.map((t) => t.tool));
 

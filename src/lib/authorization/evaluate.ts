@@ -135,8 +135,17 @@ export async function evaluateToolRequest(options: EvaluateOptions): Promise<Eva
     return finalize("deny");
   }
 
-  // 2. Contract membership.
-  const action = contract.allowedActions.find((candidate) => candidate.tool === request.tool);
+  // 2. Contract membership. A tool may have several allowed actions (one per
+  // distinct set of pinned arguments); the request is judged against the one
+  // it satisfies, or -- when it satisfies none -- the closest one.
+  const candidates = contract.allowedActions.filter((candidate) => candidate.tool === request.tool);
+  const action =
+    candidates.find((candidate) => unsatisfiedConstraints(candidate, request).length === 0) ??
+    candidates.find((candidate) => {
+      const u = unsatisfiedConstraints(candidate, request);
+      return u.every((c) => argumentValue(request.arguments, c.key) === undefined);
+    }) ??
+    candidates[0];
   if (!action) {
     reasons.push({
       code: "TOOL_NOT_IN_CONTRACT",
