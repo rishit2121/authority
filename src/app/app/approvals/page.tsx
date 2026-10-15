@@ -66,9 +66,10 @@ export default async function ApprovalsPage() {
     }));
   const toolIds = [...registry.operations.keys()].sort();
   // Contracts a rule is holding: proposed, with a non-empty approval requirement.
-  const waiting = (waitingResult.data ?? []).filter((c) => {
-    const items = (c.required_approvals_spec as { items?: unknown[] } | null)?.items;
-    return Array.isArray(items) && items.length > 0;
+  const waiting = (waitingResult.data ?? []).flatMap((c) => {
+    const items = (c.required_approvals_spec as { items?: { reasons?: string[] }[] } | null)?.items;
+    if (!Array.isArray(items) || items.length === 0) return [];
+    return [{ id: c.id, taskId: c.task_id, reasons: items.flatMap((i) => i.reasons ?? []) }];
   });
 
   // Decision-bound only: a runtime tool-call exception, resolved with
@@ -97,29 +98,6 @@ export default async function ApprovalsPage() {
 
       <ApprovalRulesPanel rules={rules} tools={toolIds} canEdit={canDecide} />
 
-      <section aria-labelledby="tasks-waiting" className="flex flex-col gap-3">
-        <h2 id="tasks-waiting" className="text-[15px] font-semibold text-ink">
-          Tasks waiting for approval
-        </h2>
-        {waiting.length === 0 ? (
-          <p className="text-[13px] text-ink-soft">None — no task is waiting on a rule.</p>
-        ) : (
-          <ul className="flex flex-col gap-2" data-testid="tasks-waiting-list">
-            {waiting.map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/app/tasks/${c.task_id}`}
-                  className="flex items-center justify-between gap-3 rounded-[10px] border border-line bg-paper-raised px-4 py-3 text-[14px] text-ink hover:border-line-strong"
-                >
-                  <span className="min-w-0 truncate">{taskIntent(c.task_id)}</span>
-                  <span className="shrink-0 text-[13px] text-signal">Review →</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
       <RuntimeApprovalsPanel approvals={runtimeApprovals} canDecide={canDecide} />
       <ApprovalPolicyForm initial={policyRow?.runtime_approval_classes ?? []} canEdit={canDecide} />
 
@@ -128,14 +106,35 @@ export default async function ApprovalsPage() {
           Tool-call approvals
         </h2>
 
-        {approvals.length === 0 ? (
+        {approvals.length === 0 && waiting.length === 0 ? (
           <EmptyState
             icon="verified_user"
             heading="No requests waiting"
             description="All current requests have been resolved or did not require human review. This is a healthy state, not an error."
           />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3" data-testid="approvals-list">
+            {waiting.map((c) => (
+              <article key={c.id} className="rounded-[10px] border border-line bg-paper-raised p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[14px] text-ink">{taskIntent(c.taskId)}</p>
+                    <p className="mt-0.5 max-w-xl text-[13px] text-ink-soft">
+                      {c.reasons.join("; ") || "An approval rule matched this task."}
+                    </p>
+                  </div>
+                  <StatusPill tone="attention">Pending</StatusPill>
+                </div>
+                <div className="mt-4 border-t border-line pt-4">
+                  <Link
+                    href={`/app/tasks/${c.taskId}`}
+                    className="text-[13px] font-medium text-signal hover:underline"
+                  >
+                    Review and approve →
+                  </Link>
+                </div>
+              </article>
+            ))}
             {approvals.map((approval) => {
               const request = approval.decisionId ? requestContext.get(approval.decisionId) : undefined;
               return (

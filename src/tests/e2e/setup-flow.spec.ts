@@ -195,7 +195,7 @@ test("a brand-new account goes from signup to a working, least-privilege agent o
     expect(held.status).toBe("awaiting_approval");
     expect((await prepare("slack.list_channels", "workspace", "read")).status).toBe("ready");
     await page.reload();
-    await expect(page.getByTestId("tasks-waiting-list")).toContainText("setup-flow slack.post_message");
+    await expect(page.getByTestId("approvals-list")).toContainText("setup-flow slack.post_message");
 
     // Removing the rule puts it back: writes start right away again.
     await rules.getByRole("button", { name: "Remove" }).click();
