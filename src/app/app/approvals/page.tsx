@@ -1,6 +1,9 @@
 import { ApprovalPolicyForm, RuntimeApprovalsPanel } from "@/components/github/RuntimeApprovalsPanel";
 import { loadRuntimeApprovals } from "@/lib/github/read-model";
+import Link from "next/link";
+
 import { ApprovalDecisionForm } from "@/components/dashboard/ApprovalDecisionForm";
+import { ApprovalRulesPanel, type ApprovalRuleView } from "@/components/dashboard/ApprovalRulesPanel";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -8,6 +11,7 @@ import { StatusPill, type StatusTone } from "@/components/ui/StatusPill";
 import { loadApprovalRequestContext } from "@/lib/data/approvals";
 import type { ApprovalStatus } from "@/lib/domain";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { buildTenantRegistry } from "@/lib/registry";
 
 const STATUS_LABEL: Record<ApprovalStatus, string> = {
   pending: "Pending",
@@ -38,10 +42,34 @@ export default async function ApprovalsPage() {
     .from("semantic_settings")
     .select("runtime_approval_classes")
     .maybeSingle();
-  const [allApprovals, tasks] = await Promise.all([
+  const [allApprovals, tasks, policies, registry, waitingResult] = await Promise.all([
     repositories.approvals.listByTenant(identity.tenant.tenantId),
     repositories.tasks.listByTenant(identity.tenant.tenantId),
+    repositories.policies.listByTenant(identity.tenant.tenantId),
+    buildTenantRegistry(identity.tenant.tenantId),
+    context.supabase
+      .from("task_authority_contracts")
+      .select("id, task_id, required_approvals_spec, created_at")
+      .in("contract_status", ["proposed", "awaiting_approval"])
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
+
+  const rules: ApprovalRuleView[] = policies
+    .filter((p) => p.effect === "require_approval" && p.status === "active" && p.conditions.length > 0)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      key: p.conditions[0].key,
+      matches: p.conditions[0].matches,
+      role: p.requiredApprovalRole ?? "admin",
+    }));
+  const toolIds = [...registry.operations.keys()].sort();
+  // Contracts a rule is holding: proposed, with a non-empty approval requirement.
+  const waiting = (waitingResult.data ?? []).filter((c) => {
+    const items = (c.required_approvals_spec as { items?: unknown[] } | null)?.items;
+    return Array.isArray(items) && items.length > 0;
+  });
 
   // Decision-bound only: a runtime tool-call exception, resolved with
   // ApprovalDecisionForm's plain approve/reject via resolveApprovalAction.
@@ -65,10 +93,32 @@ export default async function ApprovalsPage() {
 
   return (
     <div className="flex flex-col gap-space-lg">
-      <PageHeader
-        title="Approvals"
-        description="Requests that need a person before authority can be issued."
-      />
+      <PageHeader title="Approvals" description="Decide what needs a person, and act on anything waiting." />
+
+      <ApprovalRulesPanel rules={rules} tools={toolIds} canEdit={canDecide} />
+
+      <section aria-labelledby="tasks-waiting" className="flex flex-col gap-3">
+        <h2 id="tasks-waiting" className="text-[15px] font-semibold text-ink">
+          Tasks waiting for approval
+        </h2>
+        {waiting.length === 0 ? (
+          <p className="text-[13px] text-ink-soft">None — no task is waiting on a rule.</p>
+        ) : (
+          <ul className="flex flex-col gap-2" data-testid="tasks-waiting-list">
+            {waiting.map((c) => (
+              <li key={c.id}>
+                <Link
+                  href={`/app/tasks/${c.task_id}`}
+                  className="flex items-center justify-between gap-3 rounded-[10px] border border-line bg-paper-raised px-4 py-3 text-[14px] text-ink hover:border-line-strong"
+                >
+                  <span className="min-w-0 truncate">{taskIntent(c.task_id)}</span>
+                  <span className="shrink-0 text-[13px] text-signal">Review →</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <RuntimeApprovalsPanel approvals={runtimeApprovals} canDecide={canDecide} />
       <ApprovalPolicyForm initial={policyRow?.runtime_approval_classes ?? []} canEdit={canDecide} />

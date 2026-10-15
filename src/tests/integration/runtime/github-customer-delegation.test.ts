@@ -70,7 +70,6 @@ async function createApplicationFixture(suffix: string): Promise<AppFixture> {
       await managementQuery(`
         set local role postgres;
         select set_config('authority.allow_demo_purge', 'on', true);
-        delete from public.automation_policies where application_id = '${applicationId}';
         delete from public.developer_backend_credentials where application_id = '${applicationId}';
         delete from public.customers where application_id = '${applicationId}';
         delete from public.applications where id = '${applicationId}';
@@ -92,13 +91,6 @@ async function delegateRepository(repositoryId: string, customerId: string): Pro
   await managementQuery(`
     insert into public.github_repository_customer_delegations (tenant_id, repository_id, customer_id)
     values ('${TENANT_A_ID}', '${repositoryId}', '${customerId}');
-  `);
-}
-
-async function allowAutomation(applicationId: string, tool: string): Promise<void> {
-  await managementQuery(`
-    insert into public.automation_policies (tenant_id, application_id, tool)
-    values ('${TENANT_A_ID}', '${applicationId}', '${tool}');
   `);
 }
 
@@ -279,7 +271,6 @@ describe("GitHub repository customer delegation (real database)", () => {
     const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
     const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
     await delegateRepository(repoId, alex.customerId!);
-    await allowAutomation(app.applicationId, "github.get_issue");
 
     const agent = await mkAgent("github-ab-delegation");
 
@@ -449,8 +440,6 @@ describe("GitHub repository customer delegation (real database)", () => {
     });
     expect(bindResult).toBe("ok");
 
-    await allowAutomation(app.applicationId, "github.get_issue");
-
     const outcome = await prepareTask({
       credentialSecret: app.backendSecret,
       taskId: task.taskId!,
@@ -568,7 +557,6 @@ describe("GitHub repository customer delegation (real database)", () => {
 
       const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
       await delegateRepository(repoId, alex.customerId!);
-      await allowAutomation(app.applicationId, "github.get_issue");
 
       const agent = await mkAgent("github-alongside-custom-api-postgres");
       const task = await createCustomerTask({

@@ -1,41 +1,9 @@
-import type { ToolOperation } from "@/lib/registry/types";
-
 /**
  * Pure helpers behind the dashboard's one-page Setup flow
  * (src/app/app/setup). Kept free of database and server-only imports so the
  * client component can render the same snippet the server computed, and so
  * every rule here is unit-testable on its own.
  */
-
-/** Connector id -> the tool-name provider prefix it owns (identical today, kept explicit). */
-function providerOf(tool: string): string {
-  return tool.slice(0, tool.indexOf("."));
-}
-
-/**
- * Which tools quick setup may allow-list for automatic activation: only
- * plain reads, under exactly the connectors the admin selected. Anything
- * that writes, sends data outside the organization, moves money, or touches
- * secret-classified data is never auto-run -- it still waits for a human
- * approval in the dashboard. Allow-listing is never a grant on its own:
- * `gateway.activate_task_contract_for_backend` still refuses to activate a
- * contract whose own freshly-derived approval requirement is non-empty.
- */
-export function autoRunnableReadTools(
-  operations: Iterable<ToolOperation>,
-  connectorIds: readonly string[],
-): string[] {
-  const wanted = new Set(connectorIds);
-  const tools: string[] = [];
-  for (const op of operations) {
-    if (!wanted.has(providerOf(op.id))) continue;
-    if (op.sideEffect !== "read") continue;
-    if (op.externalCommunication || op.financialImpact || op.requiresApproval) continue;
-    if (op.dataSensitivity === "secret") continue;
-    tools.push(op.id);
-  }
-  return tools.sort();
-}
 
 export interface SetupEnv {
   AUTHORITY_URL: string;

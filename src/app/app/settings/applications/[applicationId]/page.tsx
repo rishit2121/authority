@@ -7,10 +7,6 @@ import {
   type AccessCredentialRow,
 } from "@/components/application/AccessManagementPanel";
 import {
-  AutomationPoliciesPanel,
-  type AutomationPolicyRow,
-} from "@/components/application/AutomationPoliciesPanel";
-import {
   BackendCredentialsPanel,
   type BackendCredentialRow,
 } from "@/components/application/BackendCredentialsPanel";
@@ -58,7 +54,6 @@ export default async function ApplicationDetailPage({
     orgConnectionsResult,
     delegationsResult,
     brokersResult,
-    automationPoliciesResult,
     githubRepositoriesResult,
     accessPoliciesResult,
   ] = await Promise.all([
@@ -89,12 +84,6 @@ export default async function ApplicationDetailPage({
       .select("id, url, status, created_at")
       .eq("application_id", applicationId)
       .order("created_at", { ascending: false }),
-    context.supabase
-      .from("automation_policies")
-      .select("id, tool, created_at")
-      .eq("application_id", applicationId)
-      .is("revoked_at", null)
-      .order("tool", { ascending: true }),
     context.supabase
       .from("github_repositories")
       .select("id, owner, name")
@@ -197,12 +186,6 @@ export default async function ApplicationDetailPage({
     createdAt: b.created_at,
   }));
 
-  const automationPolicies: AutomationPolicyRow[] = (automationPoliciesResult.data ?? []).map((p) => ({
-    id: p.id,
-    tool: p.tool,
-    createdAt: p.created_at,
-  }));
-
   const githubRepoIds = (githubRepositoriesResult.data ?? []).map((r) => r.id);
   const { data: githubRepoDelegations } =
     githubRepoIds.length > 0
@@ -253,7 +236,6 @@ export default async function ApplicationDetailPage({
         connections={accessConnections}
         credentials={accessCredentials}
       />
-      <AutomationPoliciesPanel applicationId={applicationId} policies={automationPolicies} />
       <GithubRepositoryDelegationPanel
         applicationId={applicationId}
         repositories={githubRepositories}

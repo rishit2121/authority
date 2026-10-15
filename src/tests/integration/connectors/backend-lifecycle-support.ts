@@ -52,20 +52,12 @@ export async function createApplicationFixture(
       await managementQuery(`
         set local role postgres;
         select set_config('authority.allow_demo_purge', 'on', true);
-        delete from public.automation_policies where application_id = '${applicationId}';
         delete from public.developer_backend_credentials where application_id = '${applicationId}';
         delete from public.customers where application_id = '${applicationId}';
         delete from public.applications where id = '${applicationId}';
       `);
     },
   };
-}
-
-export async function allowAutomation(applicationId: string, tool: string): Promise<void> {
-  await managementQuery(`
-    insert into public.automation_policies (tenant_id, application_id, tool)
-    values ('${TENANT_A_ID}', '${applicationId}', '${tool}');
-  `);
 }
 
 export interface AgentWithRuntimeKey {
@@ -151,39 +143,6 @@ function planNode(
 }
 
 export const planFor = planNode;
-
-/**
- * Activates a `proposed`/`awaiting_approval` contract directly via SQL, for
- * the cases in these tests where the compiler's own `required_approvals_spec`
- * is genuinely non-empty (see each lifecycle test file's own comment on
- * exactly which approval-rules.ts rule fires and why) -- so
- * `gateway.activate_task_contract_for_backend` correctly, and permanently,
- * refuses automatic activation no matter what this application's
- * `automation_policies` allow-list says. This bypasses that eligibility
- * check the same way `task_authority_contracts` rows are inserted directly
- * `active` elsewhere in this suite (see gateway-support.ts's own comment) --
- * legitimate ONLY as test setup, never as something any production code
- * path can do.
- */
-export async function activateContractDirectly(
-  contractId: string,
-  tenantId: string,
-  applicationId: string,
-): Promise<void> {
-  const rows = (await managementQuery(
-    `select gateway.ensure_application_service_principal('${tenantId}'::uuid, '${applicationId}'::uuid) as principal_id;`,
-  )) as Array<{ principal_id: string }>;
-  const principalId = rows[0].principal_id;
-  await managementQuery(`
-    update public.task_authority_contracts
-    set contract_status = 'active', activated_at = now(), activated_by_principal_id = '${principalId}',
-        expires_at = now() + interval '1 hour'
-    where id = '${contractId}';
-
-    update public.tasks set status = 'contract_issued', updated_at = now()
-    where id = (select task_id from public.task_authority_contracts where id = '${contractId}') and status = 'pending';
-  `);
-}
 
 /** Every row a prepared, activated, authorized-and-executed task can have left behind, in FK-safe order. */
 export async function cleanupTask(taskId: string): Promise<void> {

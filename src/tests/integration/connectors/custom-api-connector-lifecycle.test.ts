@@ -21,8 +21,6 @@ import { managementQuery } from "../support";
 import {
   ADMIN_A_USER_ID,
   TENANT_A_ID,
-  activateContractDirectly,
-  allowAutomation,
   createAgentWithRuntimeKey,
   createApplicationFixture,
   cleanupTask,
@@ -48,17 +46,9 @@ import {
  *
  * Like Postgres (see postgres-connector-lifecycle.test.ts's own comment),
  * Custom API operations are per-tenant PUBLISHED operations:
- * `buildTenantRegistry` synthesizes one dedicated, non-bundled permission
- * per published operation (`operations: [item.toolName]`, `resourceBreadth:
- * 1`) -- genuinely 1:1, so the solver selects it here with zero excess
- * operations too. This contract still can never auto-activate, for the
- * identical registry-generation reason: `toolOperationFor` in
- * registry/tenant.ts unconditionally marks every tenant-published operation
- * `dataSensitivity: "confidential"` (Rule 3) and `externalCommunication:
- * true` (Rule 5, via plan-validator's mandatory requires_review finding),
- * regardless of read/write effect. Either flag alone forces
- * `required_approvals_spec` non-empty, so `automation_policies` allow-
- * listing has no effect on this outcome -- confirmed here, not assumed.
+ * `buildTenantRegistry` synthesizes one permission per published operation.
+ * No approval rule matches, so each contract here activates as soon as it
+ * is compiled.
  */
 
 describe("Custom API connector -- full backend lifecycle (prepareTask -> session -> tools -> authorize -> execute)", () => {
@@ -130,29 +120,19 @@ describe("Custom API connector -- full backend lifecycle (prepareTask -> session
       expect(created.status).toBe("ok");
       taskId = created.taskId!;
 
-      await allowAutomation(app.applicationId, TOOL);
-
       const plan = planFor(taskId, TOOL, { orderId: "4821" }, { resourceBinding: "4821" });
       const prepared = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
 
-      // See this file's top-of-module comment: dataSensitivity "confidential"
-      // (Rule 3) and externalCommunication true (Rule 5) both fire
-      // unconditionally for every tenant-published operation -- NOT excess
-      // operations (the permission is already dedicated/1:1). Allow-listing
-      // above has no effect on this outcome.
-      expect(prepared.outcome.status).toBe("awaiting_approval");
-      if (prepared.outcome.status !== "awaiting_approval") return;
+      // No approval rule matches, so the contract activates as soon as it is compiled.
+      expect(prepared.outcome.status).toBe("ready");
+      if (prepared.outcome.status !== "ready") return;
       const contractId = prepared.outcome.contractId;
 
-      const beforeActivation = await getContractForBackend(app.backendSecret, contractId);
-      expect(beforeActivation.requiredApprovalsCount).toBeGreaterThan(0);
-      expect(beforeActivation.tools).toEqual([TOOL]);
-
-      await activateContractDirectly(contractId, TENANT_A_ID, app.applicationId);
-
       const activeContract = await getContractForBackend(app.backendSecret, contractId);
+      expect(activeContract.requiredApprovalsCount).toBe(0);
+      expect(activeContract.tools).toEqual([TOOL]);
       expect(activeContract.contractStatus).toBe("active");
 
       // Session minted from the agent's OWN runtime key -- never the backend secret used for prepareTask().
@@ -248,7 +228,6 @@ describe("Custom API connector -- full backend lifecycle (prepareTask -> session
       const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
       const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
       await delegateConnection(connection.connectionId, alex.customerId!);
-      await allowAutomation(app.applicationId, TOOL);
 
       // Bob: same app, same (org-owned) connection, never delegated to him.
       const bobTask = await createCustomerTask({
@@ -280,9 +259,8 @@ describe("Custom API connector -- full backend lifecycle (prepareTask -> session
       });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
-      expect(prepared.outcome.status).toBe("awaiting_approval");
-      if (prepared.outcome.status !== "awaiting_approval") return;
-      await activateContractDirectly(prepared.outcome.contractId, TENANT_A_ID, app.applicationId);
+      expect(prepared.outcome.status).toBe("ready");
+      if (prepared.outcome.status !== "ready") return;
 
       const { plaintext: sessionToken, hash: tokenHash } = generateTaskSessionToken();
       const session = await createTaskSession({

@@ -37,14 +37,11 @@ import {
  * ready to run." Runs the identical validate -> solve -> compile -> derive
  * approvals -> verify pipeline, then persists through the backend-scoped
  * RPCs added in `20261003000014_developer_task_lifecycle_api.sql`, then
- * attempts automatic activation -- which only ever succeeds when the
- * contract's own freshly-recompiled `requiredApprovalsSpec` is empty AND
- * every allowed tool is on this application's automation allowlist (see
- * `gateway.activate_task_contract_for_backend`'s own comment). Anything
- * else leaves the contract `proposed`, exactly where a human would find it
- * on the dashboard today -- this never weakens or bypasses that check, it
- * only skips asking a human to click "activate" on a decision the compiler
- * itself, independently, already made.
+ * attempts automatic activation -- which succeeds unless one of the
+ * organization's approval rules matched (a non-empty `requiredApprovalsSpec`,
+ * see approval-rules.ts and `gateway.activate_task_contract_for_backend`).
+ * A matched contract stays `proposed`, listed on the dashboard's Approvals
+ * page until a person approves it.
  *
  * Deliberately NOT run here (unlike the dashboard path): the optional Jev
  * necessity pipeline and plan-completeness advisory. Both are tenant-opt-in,

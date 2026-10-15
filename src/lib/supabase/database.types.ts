@@ -5329,6 +5329,19 @@ export type Database = {
           app_status: string;
         }[];
       };
+      archive_approval_rule: { Args: { p_policy_id: string }; Returns: string };
+      create_approval_rule: {
+        Args: {
+          p_conditions: Json;
+          p_name: string;
+          p_role: Database["public"]["Enums"]["tenant_role"];
+          p_tenant_id: string;
+        };
+        Returns: {
+          car_id: string;
+          car_status: string;
+        }[];
+      };
       create_automation_policy: {
         Args: { p_application_id: string; p_tool: string };
         Returns: {

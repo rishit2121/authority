@@ -13,13 +13,9 @@ import { managementQuery, TENANT_A_ID } from "../support";
  * Proves the backend-credential task lifecycle added in
  * 20261003000014_developer_task_lifecycle_api.sql end to end, against the
  * real database: an application backend can submit a structured candidate
- * plan and get a running contract back without a dashboard click -- but
- * only ever for a tool that is BOTH independently approval-free (the
- * compiler's own, freshly recomputed decision) AND explicitly allow-listed
- * for that application via `automation_policies`. A tool that genuinely
- * requires approval is never auto-activated, even once allow-listed --
- * proving the allowlist can only narrow which zero-approval contracts
- * activate automatically, never grant approval-bypass authority by itself.
+ * plan and get a running contract back without a dashboard click, unless one
+ * of the organization's approval rules (20261015000002) matches something
+ * the plan includes -- then the contract waits for a person.
  */
 
 const BACKEND_SECRET_PREFIX = "authority_dk_";
@@ -55,7 +51,6 @@ async function createApplicationFixture(suffix: string): Promise<AppFixture> {
       await managementQuery(`
         set local role postgres;
         select set_config('authority.allow_demo_purge', 'on', true);
-        delete from public.automation_policies where application_id = '${applicationId}';
         delete from public.developer_backend_credentials where application_id = '${applicationId}';
         delete from public.customers where application_id = '${applicationId}';
         delete from public.applications where id = '${applicationId}';
@@ -64,10 +59,22 @@ async function createApplicationFixture(suffix: string): Promise<AppFixture> {
   };
 }
 
-async function allowAutomation(applicationId: string, tool: string): Promise<void> {
+/** An approval rule for the shared test tenant; integration files run one at a time, and the caller removes it. */
+async function addApprovalRule(name: string, key: string, matches: string): Promise<string> {
+  const rows = (await managementQuery(`
+    insert into public.policies (tenant_id, name, status, effect, conditions, required_approval_role, activated_at)
+    values ('${TENANT_A_ID}', '${name}', 'active', 'require_approval',
+            '{"schemaVersion":1,"rules":[{"key":"${key}","matches":"${matches}"}]}', 'admin', now())
+    returning id;
+  `)) as { id: string }[];
+  return rows[0].id;
+}
+
+async function removeApprovalRule(id: string): Promise<void> {
   await managementQuery(`
-    insert into public.automation_policies (tenant_id, application_id, tool)
-    values ('${TENANT_A_ID}', '${applicationId}', '${tool}');
+    set local role postgres;
+    select set_config('authority.allow_demo_purge', 'on', true);
+    delete from public.policies where id = '${id}';
   `);
 }
 
@@ -132,7 +139,7 @@ describe("backend-credential task lifecycle (real database)", () => {
     return fx;
   };
 
-  it("activates automatically only once the compiler requires no approval AND the tool is allow-listed -- and is idempotent on repeat", async () => {
+  it("activates automatically when no approval rule matches -- and is idempotent on repeat", async () => {
     const suffix = randomBytes(4).toString("hex");
     const app = await createApplicationFixture(suffix);
     apps.push(app);
@@ -155,41 +162,28 @@ describe("backend-credential task lifecycle (real database)", () => {
     taskIds.push(taskId);
 
     const idempotencyKey = `prep-${suffix}`;
-    // github.get_issue has a dedicated single-operation permission
-    // (github.issues_read) in the test registry, so the solver can satisfy
-    // it with zero excess operations -- genuinely eligible for automatic
-    // activation once allow-listed, unlike a tool whose only available
-    // permission bundles in siblings the plan never asked for.
     const plan = planFor(taskId, "github.get_issue", { issue_number: "1" }, { resourceBinding: "1" });
 
-    // No automation policy yet: the compiler requires zero approvals for
-    // this minimally-scoped read, but nothing has allow-listed it for this
-    // application, so activation must wait for a human.
     const first = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan, idempotencyKey });
     expect(first.ok).toBe(true);
     if (!first.ok) return;
-    expect(first.outcome.status).toBe("awaiting_approval");
-    const contractId = first.outcome.status === "awaiting_approval" ? first.outcome.contractId : null;
-    expect(contractId).toBeTruthy();
+    expect(first.outcome.status).toBe("ready");
+    if (first.outcome.status !== "ready") return;
+    const contractId = first.outcome.contractId;
+    expect(first.outcome.tools).toEqual(["github.get_issue"]);
 
-    const beforeAllow = await getContractForBackend(app.backendSecret, contractId!);
-    expect(beforeAllow.contractStatus).toBe("proposed");
-    expect(beforeAllow.requiredApprovalsCount).toBe(0);
+    const contract = await getContractForBackend(app.backendSecret, contractId);
+    expect(contract.contractStatus).toBe("active");
+    expect(contract.requiredApprovalsCount).toBe(0);
 
-    await allowAutomation(app.applicationId, "github.get_issue");
-
-    // Same idempotency key, same plan content: reuses the exact same plan
-    // and contract row (never a second version) and this time activates it.
+    // Same idempotency key, same plan content: the exact same plan and
+    // contract row (never a second version), still ready.
     const second = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan, idempotencyKey });
     expect(second.ok).toBe(true);
     if (!second.ok) return;
     expect(second.outcome.status).toBe("ready");
     if (second.outcome.status !== "ready") return;
     expect(second.outcome.contractId).toBe(contractId);
-    expect(second.outcome.tools).toEqual(["github.get_issue"]);
-
-    const afterAllow = await getContractForBackend(app.backendSecret, contractId!);
-    expect(afterAllow.contractStatus).toBe("active");
 
     // Regression: a THIRD prepare() call, after the contract is already
     // active, must still report "ready" -- not regress to
@@ -244,8 +238,6 @@ describe("backend-credential task lifecycle (real database)", () => {
     });
     const taskId = created.taskId!;
     taskIds.push(taskId);
-
-    await allowAutomation(app.applicationId, "gmail.list_labels");
 
     const idempotencyKey = `prep-expiry-${suffix}`;
     const plan = planFor(taskId, "gmail.list_labels", {});
@@ -302,8 +294,6 @@ describe("backend-credential task lifecycle (real database)", () => {
       credentialSecret: app.backendSecret,
       externalId: "alex",
     });
-    await allowAutomation(app.applicationId, "gmail.list_labels");
-
     async function runOnce(runId: string) {
       const created = await createCustomerTask({
         credentialSecret: app.backendSecret,
@@ -364,7 +354,7 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(run2Contract.contractStatus).toBe("active");
   });
 
-  it("a gmail.list_labels-only plan solves with zero excess operations and reaches ready once allow-listed", async () => {
+  it("a gmail.list_labels-only plan solves with zero excess operations and reaches ready", async () => {
     // Regression for the exact scenario a live quickstart run surfaced:
     // gmail.list_labels used to be coverable only by the bundled
     // gmail.read_scope permission (list_messages + get_message +
@@ -400,8 +390,6 @@ describe("backend-credential task lifecycle (real database)", () => {
     const taskId = created.taskId!;
     taskIds.push(taskId);
 
-    await allowAutomation(app.applicationId, "gmail.list_labels");
-
     const plan = planFor(taskId, "gmail.list_labels", {});
     const result = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
     expect(result.ok).toBe(true);
@@ -415,7 +403,7 @@ describe("backend-credential task lifecycle (real database)", () => {
     expect(contract.tools).toEqual(["gmail.list_labels"]);
   });
 
-  it("never auto-activates a tool that genuinely requires approval, even once allow-listed", async () => {
+  it("waits for a person only while an approval rule matches the plan", async () => {
     const suffix = randomBytes(4).toString("hex");
     const app = await createApplicationFixture(suffix);
     apps.push(app);
@@ -425,37 +413,59 @@ describe("backend-credential task lifecycle (real database)", () => {
       externalId: "alex",
     });
 
-    const created = await createCustomerTask({
-      credentialSecret: app.backendSecret,
-      customerId: customer.customerId!,
-      agentId: agent.agentId,
-      intent: "Refund a Stripe payment",
-      connectorBindings: [],
-    });
-    expect(created.status).toBe("ok");
-    const taskId = created.taskId!;
-    taskIds.push(taskId);
+    const refundTask = async (run: string) => {
+      const created = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: customer.customerId!,
+        agentId: agent.agentId,
+        intent: `Refund a Stripe payment (${run})`,
+        connectorBindings: [],
+      });
+      expect(created.status).toBe("ok");
+      const taskId = created.taskId!;
+      taskIds.push(taskId);
+      const plan = planFor(
+        taskId,
+        "stripe.issue_refund",
+        { payment_id: "pi_test123", amount_cents: 500 },
+        { resourceBinding: "pi_test123", expectedSideEffect: "write_create" },
+      );
+      const result = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error("prepare failed");
+      return result.outcome;
+    };
 
-    // An admin mistakenly (or maliciously) allow-lists a tool whose own
-    // plan always needs a human: it has a financial impact (Rule 4) and a
-    // non-read side effect (Rule 1), both unconditional -- allow-listing it
-    // must not matter.
-    await allowAutomation(app.applicationId, "stripe.issue_refund");
+    // No rule: a refund -- a write that moves money -- starts right away.
+    expect((await refundTask("no rule")).status).toBe("ready");
 
-    const plan = planFor(
-      taskId,
-      "stripe.issue_refund",
-      { payment_id: "pi_test123", amount_cents: 500 },
-      { resourceBinding: "pi_test123", expectedSideEffect: "write_create" },
-    );
-    const result = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.outcome.status).toBe("awaiting_approval");
+    // A rule for money movement: the same kind of task now waits for a person.
+    const ruleId = await addApprovalRule(`Money movement ${suffix}`, "action", "money");
+    try {
+      const held = await refundTask("with rule");
+      expect(held.status).toBe("awaiting_approval");
+      if (held.status !== "awaiting_approval") return;
+      const contract = await getContractForBackend(app.backendSecret, held.contractId);
+      expect(contract.contractStatus).toBe("proposed");
+      expect(contract.requiredApprovalsCount).toBe(1);
 
-    if (result.outcome.status === "awaiting_approval") {
-      const contract = await getContractForBackend(app.backendSecret, result.outcome.contractId);
-      expect(contract.requiredApprovalsCount).toBeGreaterThan(0);
+      // A read is untouched by a money rule.
+      const created = await createCustomerTask({
+        credentialSecret: app.backendSecret,
+        customerId: customer.customerId!,
+        agentId: agent.agentId,
+        intent: "List my Gmail labels (with a money rule)",
+        connectorBindings: [],
+      });
+      taskIds.push(created.taskId!);
+      const read = await prepareTask({
+        credentialSecret: app.backendSecret,
+        taskId: created.taskId!,
+        plan: planFor(created.taskId!, "gmail.list_labels", {}),
+      });
+      expect(read.ok && read.outcome.status).toBe("ready");
+    } finally {
+      await removeApprovalRule(ruleId);
     }
   });
 

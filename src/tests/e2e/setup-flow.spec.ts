@@ -100,7 +100,6 @@ test("a brand-new account goes from signup to a working, least-privilege agent o
     await page.reload();
     await expect(page.getByTestId("setup-step-1")).toHaveAttribute("data-done", "true");
     await expect(page.getByTestId(`setup-connection-${connectionId}`)).toBeChecked();
-    await expect(page.getByTestId("setup-auto-run")).toBeChecked();
 
     await page.getByTestId("setup-agent-name").fill(`Setup agent ${suffix}`);
     await page.getByTestId("setup-submit").click();
@@ -156,12 +155,11 @@ test("a brand-new account goes from signup to a working, least-privilege agent o
       return { taskId, status: prepared.json.status as string };
     }
 
-    // A read-only tool runs without anyone clicking anything...
+    // With no approval rules, nothing waits for a person -- a read or a write.
     const read = await prepare("slack.list_channels", "workspace", "read");
     expect(read.status).toBe("ready");
-    // ...while a write still waits for a human.
     const write = await prepare("slack.post_message", "C123", "write_create");
-    expect(write.status).toBe("awaiting_approval");
+    expect(write.status).toBe("ready");
 
     // The agent sees exactly the one granted tool.
     const manifest = await api(request, "GET", `/api/v1/tasks/${read.taskId}/tools`, runtimeKey);
@@ -184,6 +182,25 @@ test("a brand-new account goes from signup to a working, least-privilege agent o
     // The page notices the first call on its own.
     await expect(page.getByTestId("setup-first-call")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId("setup-step-3")).toHaveAttribute("data-done", "true");
+
+    // An admin adds an approval rule; the same kind of task now waits on the Approvals page.
+    await page.goto("/app/approvals");
+    const rules = page.getByTestId("approval-rules-list");
+    await expect(rules).toContainText("No rules");
+    await page.getByTestId("rule-key").selectOption("tool");
+    await page.getByTestId("rule-matches").selectOption("slack.post_message");
+    await page.getByTestId("rule-add").click();
+    await expect(rules).toContainText("slack.post_message");
+    const held = await prepare("slack.post_message", "C123", "write_create");
+    expect(held.status).toBe("awaiting_approval");
+    expect((await prepare("slack.list_channels", "workspace", "read")).status).toBe("ready");
+    await page.reload();
+    await expect(page.getByTestId("tasks-waiting-list")).toContainText("setup-flow slack.post_message");
+
+    // Removing the rule puts it back: writes start right away again.
+    await rules.getByRole("button", { name: "Remove" }).click();
+    await expect(rules).toContainText("No rules");
+    expect((await prepare("slack.post_message", "C123", "write_create")).status).toBe("ready");
   } finally {
     // Same rationale as auth-flows.spec.ts's fresh-signup test: the tenant
     // itself can never be deleted (authz.enforce_owner_survives), so only

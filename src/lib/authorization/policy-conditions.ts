@@ -24,6 +24,38 @@ import { wildcardMatch } from "./wildcard-match";
 export const SUPPORTED_POLICY_KEYS = ["tool", "resource", "provider"] as const;
 export type SupportedPolicyKey = (typeof SUPPORTED_POLICY_KEYS)[number];
 
+/**
+ * Approval rules (`require_approval` policies) additionally understand
+ * `action`: the kinds of effect an operation has, from trusted registry
+ * metadata only, never from the plan or request. Deny policies do not --
+ * an `action` key on a deny policy is still unsupported and fails closed.
+ */
+export const APPROVAL_RULE_KEYS = [...SUPPORTED_POLICY_KEYS, "action"] as const;
+export type ApprovalRuleKey = (typeof APPROVAL_RULE_KEYS)[number];
+
+export const ACTION_KINDS = ["read", "write", "delete", "money", "sensitive", "external"] as const;
+export type ActionKind = (typeof ACTION_KINDS)[number];
+
+export function isApprovalRuleKey(key: string): key is ApprovalRuleKey {
+  return (APPROVAL_RULE_KEYS as readonly string[]).includes(key);
+}
+
+/** Every action kind an operation has; one operation can have several (a refund is write + money + sensitive). */
+export function actionKindsOf(operation: {
+  sideEffect: string;
+  financialImpact: boolean;
+  dataSensitivity: string;
+  externalCommunication: boolean;
+}): ActionKind[] {
+  const kinds: ActionKind[] = [operation.sideEffect === "read" ? "read" : "write"];
+  if (operation.sideEffect === "write_delete" || operation.sideEffect === "admin") kinds.push("delete");
+  if (operation.financialImpact) kinds.push("money");
+  if (operation.dataSensitivity === "confidential" || operation.dataSensitivity === "secret")
+    kinds.push("sensitive");
+  if (operation.externalCommunication) kinds.push("external");
+  return kinds;
+}
+
 export const MAX_POLICY_PATTERN_LENGTH = 200;
 export const MAX_POLICY_CANDIDATE_LENGTH = 200;
 

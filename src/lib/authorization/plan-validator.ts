@@ -220,7 +220,8 @@ function evaluateNode(node: CandidatePlanNode, options: PlanValidatorOptions): P
   return pickMostSevere(node.id, outcomes);
 }
 
-function evaluateActivePolicies(
+/** Exported for approval-rules.ts, which turns an unevaluable deny policy into an approval requirement. */
+export function evaluateActivePolicies(
   node: CandidatePlanNode,
   resourceType: string,
   policies: readonly Policy[],

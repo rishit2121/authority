@@ -43,7 +43,7 @@ export default function TaskLifecyclePage() {
             ["ready", "Activated automatically. Response includes contractId, version, tools."],
             [
               "awaiting_approval",
-              "Proposed, waiting on a human (or nothing has allow-listed this task's tools -- see below). Response includes approvalPath.",
+              "One of your approval rules matched, so a person must approve it first -- see below. Response includes approvalPath.",
             ],
             [
               "clarification",
@@ -73,26 +73,18 @@ export default function TaskLifecyclePage() {
         </p>
       </DocsSection>
 
-      <DocsSection title="Bounded automatic activation">
+      <DocsSection title="When a task needs approval">
         <p>
-          The dashboard remains available for human approvals, and stays the default -- activation requires
-          one, unless an admin explicitly allow-lists a tool for this application (Settings → Applications →
-          Automation). Even then, a contract activates automatically only when <strong>both</strong> hold,
-          checked from the contract row itself, never from anything the caller asserts:
+          By default, none does: a contract activates as soon as it is compiled, and every call your agent
+          makes is still checked against it. Approval is your organization&apos;s call -- add a rule on the
+          dashboard&apos;s <strong>Approvals</strong> page (for example &quot;money movement&quot;, a service
+          such as Stripe, or one specific tool) and any task whose plan includes a matching operation waits
+          there for a person instead.
         </p>
-        <ol className="list-inside list-decimal">
-          <li>
-            The contract&apos;s own freshly-recomputed required-approvals list is independently empty -- the
-            compiler&apos;s own decision, never a caller-supplied risk label.
-          </li>
-          <li>Every tool the contract allows is on this application&apos;s automation allowlist.</li>
-        </ol>
         <p>
-          Allow-listing a tool never grants it anything beyond what the deterministic pipeline already
-          decided: it only skips a human clicking “activate” on a contract that was already going to be
-          approved. A tool whose own registry permission is shared with siblings a plan doesn&apos;t request
-          (an excess- operations case), or whose data is marked sensitive, keeps requiring a human regardless
-          of the allowlist -- allow-listing it is a no-op, not a bypass.
+          Rules are matched against trusted registry metadata for each operation the contract includes, never
+          against anything the caller asserts. A rule only decides <em>whether a person signs off</em>; it
+          never changes what a contract allows.
         </p>
       </DocsSection>
 
@@ -148,8 +140,8 @@ const outcome = await backend.tasks.prepare(task.taskId, {
               "Yes -- pass the same idempotencyKey and it resolves to the exact same plan and contract, never a duplicate.",
             ],
             [
-              "Does allow-listing a tool ever widen what it's permitted to do?",
-              "No -- the compiled contract's allowed actions are always scoped to exactly the submitted plan's tools, regardless of automatic activation.",
+              "Does skipping approval widen what a task may do?",
+              "No -- the compiled contract's allowed actions are always scoped to exactly the submitted plan's tools, whether or not a person approved it.",
             ],
           ]}
         />

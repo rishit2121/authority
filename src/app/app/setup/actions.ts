@@ -7,19 +7,17 @@ import { z } from "zod";
 
 import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
-import { buildTenantRegistry } from "@/lib/registry";
-import { autoRunnableReadTools, type SetupEnv } from "@/lib/setup/quick-setup";
+import { type SetupEnv } from "@/lib/setup/quick-setup";
 
 export interface QuickSetupResult {
   ok: boolean;
   error?: string;
-  data?: { agentId: string; applicationId: string; env: SetupEnv; autoRunTools: string[] };
+  data?: { agentId: string; applicationId: string; env: SetupEnv };
 }
 
 const inputSchema = z.object({
   agentName: z.string().trim().min(1, "Give your agent a name.").max(200),
   connectionIds: z.array(z.string().uuid()).max(50),
-  autoRunReads: z.boolean(),
 });
 
 const SETUP_PATH = "/app/setup";
@@ -39,11 +37,10 @@ const SETUP_PATH = "/app/setup";
 export async function runQuickSetupAction(input: {
   agentName: string;
   connectionIds: string[];
-  autoRunReads: boolean;
 }): Promise<QuickSetupResult> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input." };
-  const { agentName, connectionIds, autoRunReads } = parsed.data;
+  const { agentName, connectionIds } = parsed.data;
 
   const { identity, context } = await createRepositoriesForCurrentTenant(SETUP_PATH);
   const tenantId = identity.tenant.tenantId;
@@ -124,30 +121,6 @@ export async function runQuickSetupAction(input: {
     if (error || data !== "ok") return { ok: false, error: "Could not share a connection with your app." };
   }
 
-  let autoRunTools: string[] = [];
-  if (autoRunReads && connections.length > 0) {
-    const registry = await buildTenantRegistry(tenantId);
-    autoRunTools = autoRunnableReadTools(
-      registry.operations.values(),
-      connections.map((c) => c.connector_id),
-    );
-    const { data: existing } = await db
-      .from("automation_policies")
-      .select("tool")
-      .eq("application_id", applicationId)
-      .is("revoked_at", null);
-    const already = new Set((existing ?? []).map((p) => p.tool));
-    for (const tool of autoRunTools.filter((t) => !already.has(t))) {
-      const { data, error } = await db.rpc("create_automation_policy", {
-        p_application_id: applicationId,
-        p_tool: tool,
-      });
-      if (error || data?.[0]?.cap_status !== "ok") {
-        return { ok: false, error: "Could not turn on automatic read-only tools." };
-      }
-    }
-  }
-
   const { data: backendKey, error: backendKeyError } = await db.rpc("create_backend_credential", {
     p_application_id: applicationId,
     p_name: `Setup: ${agentName}`.slice(0, 100),
@@ -170,7 +143,6 @@ export async function runQuickSetupAction(input: {
     data: {
       agentId: agent.id,
       applicationId,
-      autoRunTools,
       env: {
         AUTHORITY_URL: baseUrl,
         AUTHORITY_BACKEND_API_KEY: backendRow.plaintext_secret,

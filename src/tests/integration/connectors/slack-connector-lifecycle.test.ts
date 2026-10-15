@@ -18,7 +18,6 @@ import { managementQuery } from "../support";
 import {
   ADMIN_A_USER_ID,
   TENANT_A_ID,
-  allowAutomation,
   createAgentWithRuntimeKey,
   createApplicationFixture,
   cleanupTask,
@@ -38,15 +37,8 @@ import {
  * added this session -- prepareTask() -> session -> tool manifest ->
  * authorize -> execute -- as opposed to slack-connector.test.ts, which
  * drives the lower-level pipeline against a contract inserted directly as
- * already-`active`. Unlike the Stripe/Postgres/Custom API lifecycle tests,
- * slack.list_channels is a genuine zero-rule case: read side effect,
- * `internal` (not confidential) data sensitivity, no external-
- * communication flag, no financial impact, and a dedicated, non-bundled
- * permission (slack.channels_read) covering only this one operation -- so
- * it is the one tool among these four connectors that actually reaches
- * "ready" through `automation_policies` allow-listing alone, with zero
- * human approval, exactly like `github.get_issue` and `gmail.list_labels`
- * in task-lifecycle-backend.test.ts.
+ * already-`active`. No approval rule matches slack.list_channels, so the
+ * contract activates as soon as it is compiled, with zero human approval.
  */
 
 describe("Slack connector -- full backend lifecycle (prepareTask -> session -> tools -> authorize -> execute)", () => {
@@ -103,14 +95,7 @@ describe("Slack connector -- full backend lifecycle (prepareTask -> session -> t
       expect(created.status).toBe("ok");
       taskId = created.taskId!;
 
-      // Allow-listed BEFORE prepareTask(): slack.list_channels is read,
-      // `internal` sensitivity, no external communication, no financial
-      // impact, and slack.channels_read is already a dedicated permission
-      // (zero excess operations) -- so with the allowlist already in place,
-      // the compiler's own freshly-recomputed `required_approvals_spec` is
-      // empty and activation succeeds on this very first prepareTask() call.
-      await allowAutomation(app.applicationId, TOOL);
-
+      // No approval rule matches, so the contract activates as soon as it is compiled.
       const plan = planFor(taskId, TOOL, {});
       const prepared = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
       expect(prepared.ok).toBe(true);
@@ -211,7 +196,6 @@ describe("Slack connector -- full backend lifecycle (prepareTask -> session -> t
       const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
       const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
       await delegateConnection(connection.connectionId, alex.customerId!);
-      await allowAutomation(app.applicationId, TOOL);
 
       // Bob: same app, same (org-owned) connection, never delegated to him.
       const bobTask = await createCustomerTask({

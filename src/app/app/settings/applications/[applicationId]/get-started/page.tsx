@@ -78,30 +78,24 @@ export default async function GetStartedPage({ params }: { params: Promise<{ app
     .maybeSingle();
   if (!application || !identity.tenant.tenantId) notFound();
 
-  const [credentialsResult, connectionsResult, accessPoliciesResult, automationPoliciesResult] =
-    await Promise.all([
-      context.supabase
-        .from("developer_backend_credentials")
-        .select("id, key_prefix, status, can_manage_access")
-        .eq("application_id", applicationId)
-        .is("revoked_at", null)
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("connector_connections")
-        .select("id, connector_id, status, verified_account_ref")
-        .eq("owner_kind", "organization")
-        .neq("status", "disconnected")
-        .order("created_at", { ascending: false }),
-      context.supabase
-        .from("application_connection_access_policies")
-        .select("connection_id, scope")
-        .eq("application_id", applicationId),
-      context.supabase
-        .from("automation_policies")
-        .select("tool")
-        .eq("application_id", applicationId)
-        .is("revoked_at", null),
-    ]);
+  const [credentialsResult, connectionsResult, accessPoliciesResult] = await Promise.all([
+    context.supabase
+      .from("developer_backend_credentials")
+      .select("id, key_prefix, status, can_manage_access")
+      .eq("application_id", applicationId)
+      .is("revoked_at", null)
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, connector_id, status, verified_account_ref")
+      .eq("owner_kind", "organization")
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
+    context.supabase
+      .from("application_connection_access_policies")
+      .select("connection_id, scope")
+      .eq("application_id", applicationId),
+  ]);
 
   const activeCredentials = (credentialsResult.data ?? []).filter((c) => c.status === "active");
   const policyByConnection = new Map(
@@ -111,7 +105,6 @@ export default async function GetStartedPage({ params }: { params: Promise<{ app
   const configuredConnections = connections.filter(
     (c) => policyByConnection.get(c.id) && policyByConnection.get(c.id) !== "admin_only",
   );
-  const automationCount = (automationPoliciesResult.data ?? []).length;
 
   const accessConnections: AccessConnectionRow[] = connections.map((c) => ({
     connectionId: c.id,
@@ -132,8 +125,7 @@ export default async function GetStartedPage({ params }: { params: Promise<{ app
       : configuredConnections.length > 0
         ? "configured"
         : "requires_consent";
-  const step3State: Readiness =
-    automationCount > 0 || configuredConnections.length > 0 ? "configured" : "requires_consent";
+  const step3State: Readiness = configuredConnections.length > 0 ? "configured" : "requires_consent";
   const overallReady = step1State === "verified" && step2State !== "missing_credentials";
   const step4State: Readiness = overallReady ? "ready_to_run" : "requires_consent";
 
@@ -215,14 +207,8 @@ const result = await agent.tools.execute({ taskId: task.taskId, tool: manifest.t
           code with no dashboard click per signup, or <strong>Application-shared</strong> when every customer
           of this application should simply have access with no per-customer grant at all (e.g. a shared team
           Slack or Stripe account) -- leave <strong>Admin only</strong> for anything you&apos;d rather keep
-          granting by hand. <strong>Which tools may auto-activate</strong>: allow-list a tool below only once
-          its contract&apos;s own freshly-recomputed approval requirement is independently empty -- a tool
-          that genuinely needs approval is never auto-activated merely because it&apos;s allow-listed.
-        </p>
-        <p className="mt-2 text-[14px] text-ink-soft">
-          {automationCount > 0
-            ? `${automationCount} tool${automationCount === 1 ? "" : "s"} allow-listed for automatic activation.`
-            : "No tool is allow-listed yet -- every eligible task will wait for a human approval until you configure this."}
+          granting by hand. <strong>What needs approval</strong>: nothing, unless you add a rule on the
+          Approvals page -- tasks start as soon as their contract is ready.
         </p>
         <div className="mt-4">
           <AccessManagementPanel
@@ -232,10 +218,10 @@ const result = await agent.tools.execute({ taskId: task.taskId, tool: manifest.t
           />
         </div>
         <Link
-          href={`/app/settings/applications/${applicationId}#automation`}
+          href="/app/approvals"
           className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-primary hover:underline"
         >
-          Configure tool allow-listing
+          Approval rules
           <Icon name="arrow_forward" size={14} />
         </Link>
       </Step>

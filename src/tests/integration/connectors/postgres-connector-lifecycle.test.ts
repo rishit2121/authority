@@ -18,8 +18,6 @@ import { managementQuery } from "../support";
 import {
   ADMIN_A_USER_ID,
   TENANT_A_ID,
-  activateContractDirectly,
-  allowAutomation,
   createAgentWithRuntimeKey,
   createApplicationFixture,
   cleanupTask,
@@ -45,22 +43,8 @@ import {
  *
  * Postgres queries are per-tenant PUBLISHED operations, not static registry
  * entries: `buildTenantRegistry` (src/lib/registry/tenant.ts) synthesizes
- * one permission per published query, covering ONLY that query
- * (`operations: [item.toolName]`, `resourceBreadth: 1`) -- genuinely 1:1,
- * never bundled with sibling operations the way Gmail's old
- * `gmail.read_scope` permission was. The solver therefore selects it with
- * zero excess operations even for this single-operation plan. Despite that,
- * this contract can never auto-activate: `toolOperationFor` in tenant.ts
- * unconditionally sets BOTH `dataSensitivity: "confidential"` (triggering
- * approval-rules.ts's Rule 3) AND `externalCommunication: true` (which
- * plan-validator.ts turns into a mandatory "requires_review" finding,
- * triggering Rule 5) for every tenant-published operation, read or write.
- * Either flag alone is sufficient to force `required_approvals_spec`
- * non-empty, so `gateway.activate_task_contract_for_backend` correctly
- * refuses automatic activation no matter what `automation_policies` says --
- * this is a broader, registry-generation-level restriction than Gmail's
- * now-fixed excess-operations false positive, affecting every Postgres (and
- * Custom API) tool uniformly, not a parallel instance of the same bug.
+ * one permission per published query. No approval rule matches, so each
+ * contract here activates as soon as it is compiled.
  */
 
 describe("Postgres connector -- full backend lifecycle (prepareTask -> session -> tools -> authorize -> execute)", () => {
@@ -132,29 +116,19 @@ describe("Postgres connector -- full backend lifecycle (prepareTask -> session -
       expect(created.status).toBe("ok");
       taskId = created.taskId!;
 
-      await allowAutomation(app.applicationId, TOOL);
-
       const plan = planFor(taskId, TOOL, { customerId: "cust_1" }, { resourceBinding: "cust_1" });
       const prepared = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
 
-      // See this file's top-of-module comment: dataSensitivity "confidential"
-      // (Rule 3) and externalCommunication true (Rule 5, via plan-validator's
-      // requires_review) both fire unconditionally for every tenant-published
-      // operation -- NOT excess operations (the permission is already
-      // dedicated/1:1). Allow-listing above has no effect on this outcome.
-      expect(prepared.outcome.status).toBe("awaiting_approval");
-      if (prepared.outcome.status !== "awaiting_approval") return;
+      // No approval rule matches, so the contract activates as soon as it is compiled.
+      expect(prepared.outcome.status).toBe("ready");
+      if (prepared.outcome.status !== "ready") return;
       const contractId = prepared.outcome.contractId;
 
-      const beforeActivation = await getContractForBackend(app.backendSecret, contractId);
-      expect(beforeActivation.requiredApprovalsCount).toBeGreaterThan(0);
-      expect(beforeActivation.tools).toEqual([TOOL]);
-
-      await activateContractDirectly(contractId, TENANT_A_ID, app.applicationId);
-
       const activeContract = await getContractForBackend(app.backendSecret, contractId);
+      expect(activeContract.requiredApprovalsCount).toBe(0);
+      expect(activeContract.tools).toEqual([TOOL]);
       expect(activeContract.contractStatus).toBe("active");
 
       // Session minted from the agent's OWN runtime key -- never the backend secret used for prepareTask().
@@ -255,7 +229,6 @@ describe("Postgres connector -- full backend lifecycle (prepareTask -> session -
       const alex = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "alex" });
       const bob = await createOrResolveCustomer({ credentialSecret: app.backendSecret, externalId: "bob" });
       await delegateConnection(connection.connectionId, alex.customerId!);
-      await allowAutomation(app.applicationId, TOOL);
 
       // Bob: same app, same (org-owned) connection, never delegated to him.
       const bobTask = await createCustomerTask({
@@ -287,9 +260,8 @@ describe("Postgres connector -- full backend lifecycle (prepareTask -> session -
       });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
-      expect(prepared.outcome.status).toBe("awaiting_approval");
-      if (prepared.outcome.status !== "awaiting_approval") return;
-      await activateContractDirectly(prepared.outcome.contractId, TENANT_A_ID, app.applicationId);
+      expect(prepared.outcome.status).toBe("ready");
+      if (prepared.outcome.status !== "ready") return;
 
       const { plaintext: sessionToken, hash: tokenHash } = generateTaskSessionToken();
       const session = await createTaskSession({

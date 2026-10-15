@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -25,7 +26,6 @@ export function SetupAgentForm({
 }) {
   const [name, setName] = useState("My agent");
   const [selected, setSelected] = useState<Set<string>>(() => new Set(connections.map((c) => c.id)));
-  const [autoRunReads, setAutoRunReads] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [env, setEnv] = useState<SetupEnv | null>(null);
   const [showForm, setShowForm] = useState(!hasAgent);
@@ -70,7 +70,6 @@ export function SetupAgentForm({
           const result = await runQuickSetupAction({
             agentName: name,
             connectionIds: [...selected],
-            autoRunReads,
           });
           if (result.ok && result.data) {
             setEnv(result.data.env);
@@ -112,21 +111,13 @@ export function SetupAgentForm({
         </fieldset>
       ) : null}
 
-      <label className="flex items-start gap-2 text-[14px] text-ink">
-        <input
-          type="checkbox"
-          checked={autoRunReads}
-          onChange={(e) => setAutoRunReads(e.target.checked)}
-          className="mt-1"
-          data-testid="setup-auto-run"
-        />
-        <span>
-          Run read-only tools automatically
-          <span className="block text-[13px] text-ink-soft">
-            Anything that writes, sends, or spends money still waits for your approval.
-          </span>
-        </span>
-      </label>
+      <p className="text-[13px] text-ink-soft">
+        Tasks start right away. To make some wait for a person — refunds, say — add a rule under{" "}
+        <Link href="/app/approvals" className="font-medium text-primary hover:underline">
+          Approvals
+        </Link>
+        .
+      </p>
 
       {error ? (
         <p role="alert" className="text-[13px] text-deny">

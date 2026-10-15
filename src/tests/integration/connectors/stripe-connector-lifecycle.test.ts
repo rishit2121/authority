@@ -18,8 +18,6 @@ import { managementQuery } from "../support";
 import {
   ADMIN_A_USER_ID,
   TENANT_A_ID,
-  activateContractDirectly,
-  allowAutomation,
   createAgentWithRuntimeKey,
   createApplicationFixture,
   cleanupTask,
@@ -101,35 +99,19 @@ describe("Stripe connector -- full backend lifecycle (prepareTask -> session -> 
       expect(created.status).toBe("ok");
       taskId = created.taskId!;
 
-      await allowAutomation(app.applicationId, TOOL);
-
       const plan = planFor(taskId, TOOL, { payment_id: "pi_1demo" }, { resourceBinding: "pi_1demo" });
       const prepared = await prepareTask({ credentialSecret: app.backendSecret, taskId, plan });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
 
-      // Every Stripe operation in this fixture (not just writes) is marked
-      // `dataSensitivity: "confidential"` (see github-demo.ts), which
-      // unconditionally triggers approval-rules.ts's Rule 3 regardless of
-      // which permission the solver selects. stripe.payments_read is
-      // ALREADY a dedicated, non-bundled permission covering only
-      // stripe.retrieve_payment (zero excess operations) -- this is not the
-      // "excess operations" false positive Gmail's registry fix addressed;
-      // allow-listing the tool first (above) still leaves this contract
-      // "awaiting_approval", confirmed here rather than assumed. No Stripe
-      // tool in this fixture can ever auto-activate through
-      // automation_policies alone.
-      expect(prepared.outcome.status).toBe("awaiting_approval");
-      if (prepared.outcome.status !== "awaiting_approval") return;
+      // No approval rule matches, so the contract activates as soon as it is compiled.
+      expect(prepared.outcome.status).toBe("ready");
+      if (prepared.outcome.status !== "ready") return;
       const contractId = prepared.outcome.contractId;
 
-      const beforeActivation = await getContractForBackend(app.backendSecret, contractId);
-      expect(beforeActivation.requiredApprovalsCount).toBeGreaterThan(0);
-      expect(beforeActivation.tools).toEqual([TOOL]);
-
-      await activateContractDirectly(contractId, TENANT_A_ID, app.applicationId);
-
       const activeContract = await getContractForBackend(app.backendSecret, contractId);
+      expect(activeContract.requiredApprovalsCount).toBe(0);
+      expect(activeContract.tools).toEqual([TOOL]);
       expect(activeContract.contractStatus).toBe("active");
 
       // Session minted from the agent's OWN runtime key -- never the backend secret used for prepareTask().
@@ -238,7 +220,6 @@ describe("Stripe connector -- full backend lifecycle (prepareTask -> session -> 
       expect(bobTask.taskId).toBeNull();
 
       // Alex: genuinely delegated -- goes all the way to a real (fixture) execution with a persisted receipt.
-      await allowAutomation(app.applicationId, TOOL);
       const alexTask = await createCustomerTask({
         credentialSecret: app.backendSecret,
         customerId: alex.customerId!,
@@ -262,9 +243,8 @@ describe("Stripe connector -- full backend lifecycle (prepareTask -> session -> 
       });
       expect(prepared.ok).toBe(true);
       if (!prepared.ok) return;
-      expect(prepared.outcome.status).toBe("awaiting_approval");
-      if (prepared.outcome.status !== "awaiting_approval") return;
-      await activateContractDirectly(prepared.outcome.contractId, TENANT_A_ID, app.applicationId);
+      expect(prepared.outcome.status).toBe("ready");
+      if (prepared.outcome.status !== "ready") return;
 
       const { plaintext: sessionToken, hash: tokenHash } = generateTaskSessionToken();
       const session = await createTaskSession({

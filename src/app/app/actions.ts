@@ -345,3 +345,81 @@ export async function resolveApprovalAction(
     return { ok: false, error: presentActionError(error) };
   }
 }
+
+const approvalRuleSchema = z.object({
+  key: z.enum(["action", "provider", "tool"]),
+  matches: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9_.*]{1,100}$/),
+  role: z.enum(["security_admin", "admin", "owner"]),
+});
+
+const ACTION_RULE_LABELS: Record<string, string> = {
+  write: "Any write",
+  money: "Money movement",
+  delete: "Deletes and admin actions",
+  sensitive: "Sensitive data",
+  external: "Messages outside the organization",
+};
+
+/**
+ * Adds one approval rule: from now on, any contract including a matching
+ * operation needs a person to approve it before it activates. Created
+ * active through `create_approval_rule`, which re-checks the caller's role
+ * (security_admin and above) and the condition vocabulary itself.
+ */
+export async function createApprovalRuleAction(input: {
+  key: string;
+  matches: string;
+  role: string;
+}): Promise<ActionResult<{ ruleId: string }>> {
+  const parsed = approvalRuleSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Choose what the rule applies to and who approves." };
+  const { key, matches, role } = parsed.data;
+  if (key === "action" && !ACTION_RULE_LABELS[matches])
+    return { ok: false, error: "Unknown kind of action." };
+
+  const name =
+    key === "action"
+      ? ACTION_RULE_LABELS[matches]
+      : key === "provider"
+        ? `Service: ${matches}`
+        : `Tool: ${matches}`;
+
+  try {
+    const { context, identity } = await createRepositoriesForCurrentTenant("/app/approvals");
+    const { data, error } = await context.supabase.rpc("create_approval_rule", {
+      p_tenant_id: identity.tenant.tenantId,
+      p_name: name,
+      p_conditions: [{ key, matches }],
+      p_role: role,
+    });
+    if (error) throwDatabaseError("create approval rule", error);
+    const row = data?.[0];
+    if (row?.car_status === "forbidden")
+      return { ok: false, error: "Only admins can change approval rules." };
+    if (row?.car_status !== "ok" || !row.car_id) return { ok: false, error: "Could not add the rule." };
+    revalidatePath("/app/approvals");
+    return { ok: true, data: { ruleId: row.car_id } };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+/** Retires an approval rule. Contracts already waiting keep the requirement they were compiled with. */
+export async function archiveApprovalRuleAction(ruleId: string): Promise<ActionResult> {
+  if (!z.string().uuid().safeParse(ruleId).success)
+    return { ok: false, error: "That rule could not be found." };
+  try {
+    const { context } = await createRepositoriesForCurrentTenant("/app/approvals");
+    const { data, error } = await context.supabase.rpc("archive_approval_rule", { p_policy_id: ruleId });
+    if (error) throwDatabaseError("archive approval rule", error);
+    if (data === "forbidden") return { ok: false, error: "Only admins can change approval rules." };
+    if (data !== "ok") return { ok: false, error: "That rule could not be found." };
+    revalidatePath("/app/approvals");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
