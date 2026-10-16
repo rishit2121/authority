@@ -37,8 +37,7 @@ async function createApplicationFixture(name: string, returnUrls: string[]): Pro
   const urlsLiteral = `ARRAY[${returnUrls.map((u) => `'${u}'`).join(", ")}]::text[]`;
 
   await managementQuery(`
-    insert into public.applications (id, tenant_id, name, slug, allowed_return_urls)
-    values ('${applicationId}', '${TENANT_A_ID}', '${name}', 'e2e-${id}', ${urlsLiteral});
+    insert into public.applications (id, tenant_id, name, slug, allowed_return_urls, require_task_sessions) values ('${applicationId}', '${TENANT_A_ID}', '${name}', 'e2e-${id}', ${urlsLiteral}, false);
 
     insert into public.developer_backend_credentials (tenant_id, application_id, key_prefix, key_hash)
     values ('${TENANT_A_ID}', '${applicationId}', '${keyPrefix}', '${hash}');

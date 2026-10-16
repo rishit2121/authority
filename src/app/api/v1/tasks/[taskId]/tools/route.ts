@@ -13,6 +13,7 @@ import { TASK_SESSION_PREFIX } from "@/lib/gateway/task-session-token";
 import { buildMcpToolCatalog } from "@/lib/mcp/bridge";
 import { buildTenantRegistry } from "@/lib/registry";
 import type { ArgumentField } from "@/lib/registry/types";
+import { taskCredentialPolicy } from "@/lib/gateway/rpc";
 
 /**
  * `GET /api/v1/tasks/{taskId}/tools` — the contract-filtered tool manifest:
@@ -78,6 +79,14 @@ export async function GET(
     if (session.status !== "ok" || session.taskId !== taskId) {
       return jsonError(failureContract("session_task_mismatch"), requestId);
     }
+  }
+
+  // An application that requires task sessions never lists a task's tools for a raw runtime key.
+  if (
+    token.startsWith("authority_rk_") &&
+    (await taskCredentialPolicy(token, taskId)) === "session_required"
+  ) {
+    return jsonError(failureContract("session_required"), requestId);
   }
 
   // Either way, the credential's own tenant must actually own this task --

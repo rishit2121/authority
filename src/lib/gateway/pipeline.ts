@@ -17,9 +17,19 @@ import { runRiskEvaluation } from "@/lib/jev/risk-runner";
 import type { RiskEvaluationInput } from "@/lib/jev/risk-provider";
 import { JevProviderUnavailableError } from "@/lib/jev/types";
 
+import { checkAction, type ActionCheck, type ActionInput } from "@/lib/alignment/action-check";
+import type { AlignmentFinding, AlignmentPolicy } from "@/lib/alignment/types";
+
 import { buildArgumentAudit, sanitizeResource, type ArgumentValue } from "./argument-audit";
 import { generateCapabilityToken } from "./capability-token";
-import { commitAuthorization, prepareAuthorization, type CommitResult, type GatewayStatus } from "./rpc";
+import {
+  commitAuthorization,
+  commitAuthorizationAligned,
+  prepareAuthorization,
+  taskCredentialPolicy,
+  type CommitResult,
+  type GatewayStatus,
+} from "./rpc";
 import { approvalForRequest, type ApprovalStatus } from "./rpc-github";
 import { registryRequiresApproval, riskClassFor } from "./risk-class";
 
@@ -44,12 +54,23 @@ export interface AuthorizeInput {
 
 export type PipelineResult =
   | { kind: "failure"; status: Exclude<GatewayStatus, "ok"> }
+  /** Task alignment stopped (misaligned) or held (ambiguous/unreviewed) the call before any commit. */
+  | {
+      kind: "alignment";
+      outcome: "misaligned" | "ambiguous" | "unreviewed";
+      reviewId: string | null;
+      policy: AlignmentPolicy;
+      findings: AlignmentFinding[];
+      feedback: string | null;
+    }
   | {
       kind: "decision";
       commit: CommitResult;
       capabilityToken: string | null;
       riskClass: string;
       approval: ApprovalStatus | null;
+      /** Which task-alignment check ran for this call ("not_run" when the application has it off). */
+      taskAlignment: "not_run" | "shadow" | "passed" | "covered_by_plan_review";
     };
 
 export interface PipelineDeps {
@@ -71,6 +92,11 @@ export interface PipelineDeps {
    */
   riskClassFor: typeof riskClassFor;
   registryRequiresApproval: typeof registryRequiresApproval;
+  /** Task alignment's action check. Absent = not run (callers that inject their own deps keep exact old behavior). */
+  actionCheck?: (input: ActionInput) => Promise<ActionCheck>;
+  commitAligned?: typeof commitAuthorizationAligned;
+  /** Task isolation (applications.require_task_sessions), independent of alignment. Absent = not checked. */
+  credentialPolicy?: typeof taskCredentialPolicy;
 }
 
 export const defaultPipelineDeps: PipelineDeps = {
@@ -81,6 +107,9 @@ export const defaultPipelineDeps: PipelineDeps = {
   breakerFor,
   riskClassFor,
   registryRequiresApproval,
+  actionCheck: (input) => checkAction(input),
+  commitAligned: commitAuthorizationAligned,
+  credentialPolicy: taskCredentialPolicy,
 };
 
 /**
@@ -109,6 +138,14 @@ export async function authorizeThroughGateway(
   const argumentAudit = buildArgumentAudit(input.arguments);
   const resource = sanitizeResource(input.resource);
 
+  // Task isolation first, and never tied to any review setting: an application that requires task
+  // sessions refuses a raw (agent-scoped) runtime key on its tasks.
+  if (deps.credentialPolicy && input.credentialSecret.startsWith("authority_rk_")) {
+    if ((await deps.credentialPolicy(input.credentialSecret, input.taskId)) === "session_required") {
+      return { kind: "failure", status: "session_required" };
+    }
+  }
+
   const prepared = await deps.prepare({
     credentialSecret: input.credentialSecret,
     taskId: input.taskId,
@@ -121,6 +158,22 @@ export async function authorizeThroughGateway(
     maxUses,
   });
   if (prepared.status !== "ok") return { kind: "failure", status: prepared.status };
+
+  // Task alignment (off unless the task's application enabled it): authentication and task isolation, then a
+  // review of this exact call -- outside any transaction. A deterministic refusal is never reviewed.
+  const actionInput: ActionInput = {
+    credentialSecret: input.credentialSecret,
+    taskId: input.taskId,
+    tool: input.tool,
+    operation: input.operation,
+    resource,
+    args: input.arguments,
+    idempotencyKey: input.idempotencyKey,
+    detOutcome: prepared.detOutcome,
+  };
+  let action: ActionCheck = deps.actionCheck ? await deps.actionCheck(actionInput) : { kind: "off" };
+  if (action.kind === "failure") return { kind: "failure", status: action.status };
+  if (action.kind === "block") return alignmentResult(action);
 
   let evidence: SemanticEvidence | null = null;
   if (prepared.mode !== "off" && !prepared.alreadyDecided && prepared.provider && prepared.model) {
@@ -144,7 +197,7 @@ export async function authorizeThroughGateway(
   }
 
   const token = generateCapabilityToken();
-  const commit = await deps.commit({
+  const commitInput = {
     credentialSecret: input.credentialSecret,
     taskId: input.taskId,
     tool: input.tool,
@@ -162,8 +215,28 @@ export async function authorizeThroughGateway(
     evidence,
     gatewayVersion: GATEWAY_VERSION,
     registryRequiresApproval: deps.registryRequiresApproval(input.tool),
-  });
+  };
+  let commit =
+    action.kind === "clear" && deps.commitAligned
+      ? await deps.commitAligned(action.reviewId, commitInput)
+      : await deps.commit(commitInput);
+  // The task's objectives or context changed between review and commit: review once more against the new state.
+  if (commit.status === "alignment_stale" && deps.actionCheck && deps.commitAligned) {
+    action = await deps.actionCheck(actionInput);
+    if (action.kind === "failure") return { kind: "failure", status: action.status };
+    if (action.kind === "block") return alignmentResult(action);
+    if (action.kind === "clear") commit = await deps.commitAligned(action.reviewId, commitInput);
+  }
   if (commit.status !== "ok") return { kind: "failure", status: commit.status };
+
+  // Shadow alignment: reviewed after the decision, never awaited, never able to change it.
+  if (action.kind === "shadow") {
+    void action
+      .after()
+      .catch((error: unknown) =>
+        safeLog(`task alignment shadow review failed (${error instanceof Error ? error.name : "unknown"})`),
+      );
+  }
 
   // Role C (shadow only): fired after commit has already succeeded, never awaited — a Jev outage or this write
   // itself failing can never affect the authorization decision or add latency to the agent's response. See
@@ -186,6 +259,25 @@ export async function authorizeThroughGateway(
     // Plaintext leaves this function only when a capability was issued *now*.
     capabilityToken: commit.capabilityId && !commit.replayed ? token.plaintext : null,
     riskClass,
+    taskAlignment:
+      action.kind === "shadow"
+        ? "shadow"
+        : action.kind === "clear"
+          ? action.covered
+            ? "covered_by_plan_review"
+            : "passed"
+          : "not_run",
+  };
+}
+
+function alignmentResult(action: Extract<ActionCheck, { kind: "block" }>): PipelineResult {
+  return {
+    kind: "alignment",
+    outcome: action.outcome,
+    reviewId: action.reviewId,
+    policy: action.policy,
+    findings: action.findings,
+    feedback: action.feedback,
   };
 }
 

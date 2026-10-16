@@ -186,7 +186,7 @@ async function productionInspection(
   const epsilon = input.epsilon ?? REFERENCE_EPSILON;
   const nonce = randomBytes(8).toString("hex");
   const user = [
-    `The user's request (trusted):\n"""\n${input.objectives.requestText}\n"""`,
+    `The user's request (trusted; the user's own words):\n${input.objectives.requestText}`,
     `User task instructions:\n${input.objectives.taskInstructions.map((t, i) => `${i + 1}. ${t}`).join("\n")}`,
     input.objectives.prohibitions.length
       ? `The user forbids:\n${input.objectives.prohibitions.map((p) => `- ${p}`).join("\n")}`

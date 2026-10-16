@@ -54,8 +54,7 @@ test.describe("embedded connect, driven by a real browser through the example cu
     });
 
     await managementQuery(`
-      insert into public.applications (id, tenant_id, name, slug, allowed_return_urls)
-      values ('${applicationId}', '${TENANT_A_ID}', 'Embedded browser test app', 'embedded-browser-${suffix}', ARRAY['${demo.returnUrl}']::text[]);
+      insert into public.applications (id, tenant_id, name, slug, allowed_return_urls, require_task_sessions) values ('${applicationId}', '${TENANT_A_ID}', 'Embedded browser test app', 'embedded-browser-${suffix}', ARRAY['${demo.returnUrl}']::text[], false);
       insert into public.developer_backend_credentials (tenant_id, application_id, key_prefix, key_hash)
       values ('${TENANT_A_ID}', '${applicationId}', '${keyPrefix}', '${hash}');
     `);

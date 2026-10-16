@@ -143,3 +143,17 @@ describe("budgeted reviewer", () => {
     expect(await capped.call(request)).toMatchObject({ ok: false, reason: "budget_exhausted" });
   });
 });
+
+describe("configured reviewer", () => {
+  it("is capped for the whole process when ALIGNMENT_MAX_REVIEWER_CALLS is set", async () => {
+    const { createAlignmentReviewer } = await import("@/lib/alignment/reviewer");
+    delete (globalThis as { __authorityAlignmentBudget?: unknown }).__authorityAlignmentBudget;
+    const capped = createAlignmentReviewer({ OPENAI_API_KEY: "k", ALIGNMENT_MAX_REVIEWER_CALLS: "0" });
+    expect(capped).toBeInstanceOf(BudgetedReviewer);
+    // Every module copy in the process shares the same budget.
+    expect(createAlignmentReviewer({ OPENAI_API_KEY: "k", ALIGNMENT_MAX_REVIEWER_CALLS: "0" })).toBe(capped);
+    expect(await capped!.call(request)).toMatchObject({ ok: false, reason: "budget_exhausted" });
+    expect(createAlignmentReviewer({ OPENAI_API_KEY: "k" })).toBeInstanceOf(OpenAiAlignmentReviewer);
+    expect(createAlignmentReviewer({})).toBeNull();
+  });
+});

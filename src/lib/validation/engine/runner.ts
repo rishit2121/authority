@@ -330,6 +330,21 @@ export async function runScenario(opts: RunOptions): Promise<RunOutcome> {
           toolRequestId: null,
         };
       }
+      if (r.kind === "alignment") {
+        return {
+          actual: {
+            finalDecision: null,
+            reasonCodes: [`TASK_ALIGNMENT_${r.outcome.toUpperCase()}`],
+            capability: "not_issued",
+            execution: "n/a",
+            status: r.outcome,
+          },
+          token: null,
+          capabilityId: null,
+          latencyMs,
+          toolRequestId: null,
+        };
+      }
       const c = r.commit;
       const codes = agentReasonCodes(c.reasonCodes);
       const final = toDecision(c.finalOutcome);

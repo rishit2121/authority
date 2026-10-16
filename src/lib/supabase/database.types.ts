@@ -92,6 +92,10 @@ export type Database = {
           max_content_bytes: number;
           updated_by: string | null;
           updated_at: string;
+          check_plans: boolean;
+          check_content: boolean;
+          check_actions: boolean;
+          content_action: string;
         };
         Insert: {
           application_id: string;
@@ -494,6 +498,7 @@ export type Database = {
       };
       applications: {
         Row: {
+          require_task_sessions: boolean;
           allowed_return_urls: string[];
           created_at: string;
           created_by: string | null;
@@ -507,6 +512,7 @@ export type Database = {
           updated_at: string;
         };
         Insert: {
+          require_task_sessions?: boolean;
           allowed_return_urls?: string[];
           created_at?: string;
           created_by?: string | null;
@@ -520,6 +526,7 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          require_task_sessions?: boolean;
           allowed_return_urls?: string[];
           created_at?: string;
           created_by?: string | null;
@@ -5569,6 +5576,23 @@ export type Database = {
         Returns: string;
       };
       reveal_external_content: { Args: { p_item_id: string }; Returns: string | null };
+      set_application_require_task_sessions: {
+        Args: { p_application_id: string; p_required: boolean };
+        Returns: string;
+      };
+      set_alignment_content_screening: {
+        Args: { p_action: string; p_application_id: string; p_enabled: boolean };
+        Returns: string;
+      };
+      set_alignment_checks: {
+        Args: {
+          p_application_id: string;
+          p_check_actions: boolean;
+          p_check_content: boolean;
+          p_check_plans: boolean;
+        };
+        Returns: string;
+      };
       set_alignment_settings: {
         Args: { p_application_id: string; p_mode: string; p_policy: string };
         Returns: string;

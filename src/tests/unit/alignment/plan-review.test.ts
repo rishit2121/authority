@@ -120,6 +120,29 @@ describe("plan review -- production configuration", () => {
     );
   });
 
+  it("does not hold a plan because the reviewer can't verify free text the agent wrote (smoke-run regression)", async () => {
+    const r = await reviewPlan({
+      reviewer: new FixtureReviewer(() =>
+        planAnswer(1, [
+          {
+            type: "unresolved_value",
+            step_id: "n1",
+            field: "text",
+            severity: "ambiguous",
+            explanation: "Summary accuracy can't be verified.",
+          },
+        ]),
+      ),
+      policy: "production",
+      objectives,
+      steps: [step({ payment_id: "pi_alex_1", amount_cents: 500 })],
+    });
+    expect(r.outcome).toBe("aligned");
+    expect(r.findings).toContainEqual(
+      expect.objectContaining({ type: "unresolved_value", severity: "info" }),
+    );
+  });
+
   it("is ambiguous (hold) for unresolved values or missing outcomes only", async () => {
     const r = await reviewPlan({
       reviewer: new FixtureReviewer(() =>
@@ -208,6 +231,29 @@ describe("plan review -- production configuration", () => {
     const user = reviewer.requests[0].user;
     expect(user).toMatch(/<untrusted_plan id="[0-9a-f]{16}">/);
     expect(user).not.toContain("sk_live_abcdefghijklmnop");
-    expect(user).toContain("The user's request (trusted)");
+    expect(user).toContain("The user's request (trusted; the user's own words)");
+  });
+});
+
+describe("production objective extraction", () => {
+  it("presents the request as the user's own words, not as quoted material (regression: an empty task set)", async () => {
+    const { extractObjectives } = await import("@/lib/alignment/objectives");
+    const reviewer = new FixtureReviewer(() => ({
+      task_instructions: [],
+      prohibitions: [],
+      requirements: [],
+      quoted_material: ["the request"],
+    }));
+    const r = await extractObjectives(
+      reviewer,
+      "Email alice@acme.test that the offsite is Friday.",
+      "production",
+    );
+    expect(reviewer.requests[0].user).toBe(
+      "User request:\nEmail alice@acme.test that the offsite is Friday.",
+    );
+    expect(reviewer.requests[0].system).toContain("every sentence of it is the user's own words");
+    // An empty task set is never accepted as objectives.
+    expect(r).toMatchObject({ ok: false, reason: "malformed" });
   });
 });

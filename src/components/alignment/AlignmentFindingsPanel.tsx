@@ -184,6 +184,16 @@ export function AlignmentFindingsPanel({
       data-testid="alignment-findings"
     >
       <h2 className="text-[15px] font-semibold text-ink">Task alignment</h2>
+      <p className="text-[13px] text-ink-soft" data-testid="alignment-checks-ran">
+        Checks that ran: plan review{" "}
+        {reviews.some((r) => r.kind === "plan")
+          ? `${reviews.filter((r) => r.kind === "plan").length}×`
+          : "— not run"}{" "}
+        · tool-call checks {reviews.filter((r) => r.kind === "action").length}× · content screening{" "}
+        {items.length
+          ? `${items.length} item${items.length === 1 ? "" : "s"}`
+          : "— nothing submitted (optional; not the same as passed)"}
+      </p>
 
       {objectives ? (
         <div className="rounded-lg border border-line bg-paper p-4">

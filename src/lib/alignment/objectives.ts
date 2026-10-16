@@ -70,7 +70,7 @@ export async function extractObjectives(
   const r = await reviewer.call({
     name: "task_objectives",
     system: OBJECTIVES_SYSTEM,
-    user: `The user's request:\n"""\n${requestText}\n"""`,
+    user: `User request:\n${requestText}`,
     jsonSchema: objectivesJsonSchema,
     parse: objectivesSchema,
   });

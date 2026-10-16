@@ -28,6 +28,7 @@ import { ReturnUrlsForm } from "@/components/application/ReturnUrlsForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { ConnectionAccessScope } from "@/app/app/settings/applications/actions";
 import { AlignmentSettingsPanel } from "@/components/alignment/AlignmentSettingsPanel";
+import { TaskSessionsPanel } from "@/components/alignment/TaskSessionsPanel";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 export const metadata: Metadata = { title: "Application" };
@@ -44,14 +45,14 @@ export default async function ApplicationDetailPage({
 
   const { data: application } = await context.supabase
     .from("applications")
-    .select("id, name, slug, environment, status, allowed_return_urls")
+    .select("id, name, slug, environment, status, allowed_return_urls, require_task_sessions")
     .eq("id", applicationId)
     .maybeSingle();
   if (!application || !identity.tenant.tenantId) notFound();
 
   const { data: alignmentRow } = await context.supabase
     .from("alignment_settings")
-    .select("mode, policy")
+    .select("mode, policy, check_plans, check_content, check_actions, content_action")
     .eq("application_id", applicationId)
     .maybeSingle();
 
@@ -230,10 +231,21 @@ export default async function ApplicationDetailPage({
       />
 
       <BackendCredentialsPanel applicationId={applicationId} credentials={credentials} />
+      <TaskSessionsPanel
+        applicationId={applicationId}
+        initial={application.require_task_sessions}
+        canEdit={["security_admin", "admin", "owner"].includes(identity.role)}
+      />
       <AlignmentSettingsPanel
         applicationId={applicationId}
         initialMode={alignmentRow?.mode ?? "off"}
         initialPolicy={alignmentRow?.policy ?? "production"}
+        initialChecks={{
+          plans: alignmentRow?.check_plans ?? true,
+          content: alignmentRow?.check_content ?? false,
+          actions: alignmentRow?.check_actions ?? true,
+          contentAction: alignmentRow?.content_action === "quarantine" ? "quarantine" : "report",
+        }}
         canEdit={["security_admin", "admin", "owner"].includes(identity.role)}
       />
       <ReturnUrlsForm applicationId={applicationId} initialUrls={application.allowed_return_urls ?? []} />

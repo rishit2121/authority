@@ -37,6 +37,8 @@ import { checkCallValues, extractRequestLiterals } from "./values";
  * submit a revised plan or get a person to review the exception.
  */
 
+const FREE_TEXT_FIELD = /^(text|body|subject|message|summary|description|title|content|notes?|comment)$/i;
+
 export interface PlanStep {
   id: string;
   sequence: number;
@@ -152,7 +154,7 @@ async function productionReview(input: {
     )
     .join("\n");
   const user = [
-    `The user's request (trusted):\n"""\n${input.objectives.requestText}\n"""`,
+    `The user's request (trusted; the user's own words):\n${input.objectives.requestText}`,
     `User task instructions:\n${input.objectives.taskInstructions.map((t, i) => `${i + 1}. ${t}`).join("\n")}`,
     input.objectives.prohibitions.length
       ? `The user forbids:\n${input.objectives.prohibitions.map((p) => `- ${p}`).join("\n")}`
@@ -196,10 +198,12 @@ async function productionReview(input: {
     });
   }
 
+  // Free text the agent writes (a summary, a subject) cannot be "unresolved" just because the reviewer can't
+  // verify it -- the smoke run held a correct plan for exactly that. Kept visible, but informational.
   const semantic: AlignmentFinding[] = r.data.findings.map((f) => ({
     type: f.type,
     source: "semantic",
-    severity: f.severity,
+    severity: f.type === "unresolved_value" && f.field && FREE_TEXT_FIELD.test(f.field) ? "info" : f.severity,
     ...(f.step_id ? { stepId: f.step_id } : {}),
     ...(f.field ? { field: f.field } : {}),
     explanation: f.explanation,

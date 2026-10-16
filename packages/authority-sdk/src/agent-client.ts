@@ -1,6 +1,12 @@
 import { contentApi, type ContentApi } from "./content.js";
 import { request, type ClientConfig, type RequestOptions } from "./http.js";
-import type { AgentAuthorizeResponse, ApprovalStatus, ToolCallResult, ToolManifest } from "./types.js";
+import type {
+  AgentAuthorizeResponse,
+  ApprovalStatus,
+  ResultInspection,
+  ToolCallResult,
+  ToolManifest,
+} from "./types.js";
 
 export interface AuthorityAgentClientOptions {
   baseUrl: string;
@@ -123,6 +129,21 @@ export class AuthorityAgentClient {
         options,
       );
 
+      if (decision.alignment) {
+        return decision.alignment.outcome === "misaligned"
+          ? {
+              status: "requires_replan",
+              reasonCodes: decision.reasonCodes,
+              summary: decision.summary,
+              alignment: decision.alignment,
+            }
+          : {
+              status: "held_for_review",
+              reasonCodes: decision.reasonCodes,
+              summary: decision.summary,
+              alignment: decision.alignment,
+            };
+      }
       if (decision.requiresApproval && decision.approval) {
         return {
           status: "requires_approval",
@@ -160,6 +181,10 @@ export class AuthorityAgentClient {
         result: String(executed.result ?? "unknown"),
         data: executed.data,
         receiptId: typeof executed.receiptId === "string" ? executed.receiptId : undefined,
+        ...(executed.delivery === "held" || executed.delivery === "delivered"
+          ? { delivery: executed.delivery }
+          : {}),
+        ...(executed.inspection ? { inspection: executed.inspection as ResultInspection } : {}),
       };
     },
   };

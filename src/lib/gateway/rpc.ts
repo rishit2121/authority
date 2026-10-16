@@ -22,10 +22,30 @@ export type GatewayStatus =
   | "session_task_mismatch"
   | "session_contract_stale"
   | "session_revoked"
-  | "session_expired";
+  | "session_expired"
+  /** Task alignment: enforcement needs a task-bound credential. */
+  | "session_required"
+  /** Task alignment: the action review no longer matches the task's state (retried once by the pipeline). */
+  | "alignment_stale";
 
 type Outcome = "allow" | "allow_constrained" | "replan" | "clarify" | "require_approval" | "deny";
 type Mode = "off" | "shadow" | "enforce";
+
+/**
+ * "ok", or "session_required" when this credential is a raw runtime key and the
+ * task's application requires task sessions (applications.require_task_sessions).
+ * Independent of task alignment and of any AI review setting.
+ */
+export async function taskCredentialPolicy(
+  credentialSecret: string,
+  taskId: string,
+): Promise<"ok" | "session_required"> {
+  const rows = await gatewayQuery<Record<string, unknown>>(
+    `select gateway.task_credential_policy($1, $2::uuid) as p`,
+    [credentialSecret, taskId],
+  );
+  return rows[0]?.p === "session_required" ? "session_required" : "ok";
+}
 
 export interface PrepareResult {
   status: GatewayStatus;
@@ -108,7 +128,7 @@ export interface CommitResult {
   remainingInvocations: number | null;
 }
 
-export async function commitAuthorization(input: {
+export interface CommitInput {
   credentialSecret: string;
   taskId: string;
   tool: string;
@@ -126,10 +146,29 @@ export async function commitAuthorization(input: {
   evidence: SemanticEvidence | null;
   gatewayVersion: string;
   registryRequiresApproval: boolean;
-}): Promise<CommitResult> {
+}
+
+/**
+ * Task-alignment enforcement: the same commit, reached only through
+ * gateway.commit_authorization_aligned, which first re-verifies (under the
+ * task's lock) that the action review is for exactly these arguments and is
+ * still current. Returns status "alignment_stale" otherwise.
+ */
+export async function commitAuthorizationAligned(
+  reviewId: string,
+  input: CommitInput,
+): Promise<CommitResult> {
+  return commitWith(`gateway.commit_authorization_aligned($29::uuid, `, input, [reviewId]);
+}
+
+export async function commitAuthorization(input: CommitInput): Promise<CommitResult> {
+  return commitWith(`gateway.commit_authorization(`, input, []);
+}
+
+async function commitWith(fn: string, input: CommitInput, extra: unknown[]): Promise<CommitResult> {
   const e = input.evidence;
   const rows = await gatewayQuery<Record<string, unknown>>(
-    `select * from gateway.commit_authorization(
+    `select * from ${fn}
        $1, $2::uuid, $3, $4, $5, $6::jsonb, $7::jsonb, $8::uuid, $9, $10, $11, $12, $13::int, $14,
        $15, $16, $17, $18::public.semantic_evidence_state, $19::jsonb, $20::text[], $21::public.semantic_risk_level,
        $22::double precision, $23::int, $24, $25::jsonb, $26, $27, $28::boolean)`,
@@ -162,6 +201,7 @@ export async function commitAuthorization(input: {
       e?.errorCategory ?? null,
       input.gatewayVersion,
       input.registryRequiresApproval,
+      ...extra,
     ],
   );
   const r = rows[0];

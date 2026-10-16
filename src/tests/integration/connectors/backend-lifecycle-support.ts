@@ -38,8 +38,7 @@ export async function createApplicationFixture(
   const keyPrefix = plaintext.slice(0, 21);
 
   await managementQuery(`
-    insert into public.applications (id, tenant_id, name, slug)
-    values ('${applicationId}', '${TENANT_A_ID}', 'Connector lifecycle test app', '${slugPrefix}-${suffix}');
+    insert into public.applications (id, tenant_id, name, slug, require_task_sessions) values ('${applicationId}', '${TENANT_A_ID}', 'Connector lifecycle test app', '${slugPrefix}-${suffix}', false);
 
     insert into public.developer_backend_credentials (tenant_id, application_id, key_prefix, key_hash)
     values ('${TENANT_A_ID}', '${applicationId}', '${keyPrefix}', '${hash}');

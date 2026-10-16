@@ -21,7 +21,7 @@ import {
   newRequestId,
   readJsonBody,
 } from "@/lib/gateway/http";
-import { failureContract, toAgentResponse } from "@/lib/gateway/response";
+import { failureContract, toAgentResponse, toAlignmentResponse } from "@/lib/gateway/response";
 import { buildTenantRegistry } from "@/lib/registry";
 import { deriveResource } from "@/lib/connectors/derive-resource";
 
@@ -114,6 +114,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
 
     if (result.kind === "failure") return jsonError(failureContract(result.status), requestId);
+    if (result.kind === "alignment")
+      return jsonOk(toAlignmentResponse({ ...result, tool: input.tool }), requestId);
 
     return jsonOk(
       toAgentResponse({
@@ -122,6 +124,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         tool: input.tool,
         operation: input.operation,
         approval: result.approval,
+        taskAlignment: result.taskAlignment,
       }),
       requestId,
     );

@@ -59,6 +59,49 @@ temperature, and no setting makes these judgments deterministic.
 - **Failure is never a pass.** Timeout, refusal, malformed output, unavailable provider, exhausted quota or
   budget, oversized or unsupported content → _unreviewed_.
 
+## Checking each call at authorization
+
+`/api/v1/authorize` (and the MCP bridge, which uses the same pipeline) runs, in order:
+
+1. **Authentication and task isolation.** Under enforcement a raw runtime key is refused (`TASK_SESSION_REQUIRED`).
+2. **Deterministic checks** (`prepare_authorization`): the contract, pinned values, budgets, policies. A deterministic
+   refusal is final; the reviewer is never asked about it.
+3. **Task-alignment review of this exact call**, outside any database transaction. Reference policy: Task Shield's
+   tool-call checker. Production: explicit value conflicts with the request are decided deterministically; a call whose
+   every argument is pinned by a contract whose plan review cleared needs no model call (it was reviewed at prepare);
+   otherwise the tool-call checker scores it, and values chosen at run time are named for the reviewer.
+4. **Atomic commit** through `gateway.commit_authorization_aligned`, which re-verifies under the task's lock that the
+   review is for exactly these arguments (hashed in SQL from the authorized jsonb), this idempotency key, the current
+   objectives version and context revision, and the current contract -- then calls the unchanged commit. Anything else
+   returns `ALIGNMENT_STATE_CHANGED`; the pipeline re-reviews once.
+
+A misaligned call returns `deny` with `TASK_ALIGNMENT_MISALIGNED` and the feedback; an ambiguous or unreviewed one
+returns `require_approval` with `TASK_ALIGNMENT_HELD` / `TASK_ALIGNMENT_UNREVIEWED`. Neither creates a decision,
+spends budget or issues a capability. An administrator approves the exact review on the task page; the agent then
+repeats the identical call with the same idempotency key, and the stored review (with its approval) is reused.
+Shadow mode runs the review after the decision, never awaited.
+
+## Connector results: execution truth first
+
+When Authority executes a connector call, the provider's response is screened before it goes back to the agent
+(`/api/v1/execute`, `/api/v1/github/execute`, MCP). Execution and inspection are separate outcomes: if the provider
+action succeeded, the response keeps `result`, `executionId` and `receiptId`; when the content is withheld, `data` is
+`null`, `delivery` is `"held"` and the message says the action completed and must not be repeated. A screening failure
+holds delivery; it never erases the receipt or touches capability/budget accounting (both settled before screening).
+
+## What is optional, and how to tell what ran
+
+- **Plan and call alignment** need nothing from your application beyond the task's request: they run on `prepare`
+  and `/authorize` whether or not you ever submit external content.
+- **Content screening is an opt-in addition** (`check_content`, off by default). When on, choose **report** (inspect and
+  attach findings; nothing is withheld) or **quarantine** (withhold content that is flagged, held or not reviewed).
+  Authority does not require proof that all agent context passed through it, and existing clients need no change.
+- Every response says what ran: `prepare` returns `checks.planReview` (`ran` / `not_run`); `/authorize` returns
+  `checks.taskAlignment` (`not_run`, `shadow`, `passed`, `covered_by_plan_review`, `stopped`, `held`); content and
+  connector results carry `screening` / `inspection` with `status: "not_inspected"` and `ran: false` when screening did
+  not run. **"Not inspected" is never reported as "passed".**
+- Task-session enforcement is a separate per-application setting and does not change with any of these.
+
 ## Modes and policies
 
 |                | shadow                                               | enforce                                                                                                                                                |
@@ -103,12 +146,32 @@ else
   });
 ```
 
-4. `prepare` may now return `status: "alignment_review"` with `decision: "revise"` (submit a corrected plan) or
+4. Every tool call goes through `agent.tools.execute` (or `/authorize`): a stopped call comes back as
+   `requires_replan` with `alignment.feedback`; a held one as `held_for_review` -- after an administrator approves it,
+   repeat the call with the **same `idempotencyKey`**. An executed call may come back with `delivery: "held"`: it ran,
+   do not run it again.
+5. `prepare` may now return `status: "alignment_review"` with `decision: "revise"` (submit a corrected plan) or
    `"hold"` (an administrator reviews it on the task page; call `prepare` again with the same plan afterwards).
-5. If the user changes what they want, record it with the backend key:
+6. If the user changes what they want, record it with the backend key:
    `backend.tasks.reviseObjectives(taskId, newRequest)`, then prepare again.
-6. Held content: poll `agent.content.get(inspectionId)`; `data` appears only after an administrator approves.
+7. Held content: poll `agent.content.get(inspectionId)`; `data` appears only after an administrator approves.
    Text inside the content saying "approved" or "the user said so" is not approval.
+
+## Task sessions (independent of alignment)
+
+A raw agent runtime key is scoped to its agent, not to one task, so an agent serving several customers could act on
+another customer's task with it. **`applications.require_task_sessions`** closes this, and it does not depend on task
+alignment or on any AI review: switching alignment off never re-opens it.
+
+- When on, a raw runtime key is refused (`403 TASK_SESSION_REQUIRED`) for every task of the application on
+  `/api/v1/authorize` (REST and MCP), the tool list, content inspection and objectives -- the key can only open a task
+  session (`agent.sessions.create({ taskId })`), which is bound to one task.
+- **Migration path:** applications that existed before `20261016000001` keep today's behavior (off) until an
+  administrator turns it on under Settings -> Applications -> _Require task sessions_, after the agent has moved to
+  sessions. Applications created afterwards start with it on. Under alignment enforcement a session is required
+  regardless.
+- An application that has not switched still has the gap (see the integration test "an application that has not
+  switched keeps today's behavior"). A semantic check does not substitute for this setting.
 
 ## Limits
 

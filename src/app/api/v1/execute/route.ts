@@ -16,6 +16,7 @@ import {
 } from "@/lib/gateway/http";
 import { executeConnectorOperation } from "@/lib/connectors";
 import { deriveResource } from "@/lib/connectors/derive-resource";
+import { screenExecutionResult } from "@/lib/alignment/screen-execution";
 
 /**
  * `POST /api/v1/execute` — the generic connector counterpart to
@@ -82,8 +83,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       args: input.arguments,
       idempotencyKey: input.idempotencyKey,
     });
-    if (result.http >= 200 && result.http < 300)
-      return jsonOk({ ...result.body, requestId }, requestId, result.http);
+    if (result.http >= 200 && result.http < 300) {
+      // Task alignment: screen what the provider returned before the agent sees it (no-op unless enabled).
+      const screened = await screenExecutionResult({
+        credentialSecret,
+        taskId: result.taskId,
+        tool: input.tool,
+        args: input.arguments,
+        http: result.http,
+        body: result.body,
+      });
+      return jsonOk({ ...screened, requestId }, requestId, result.http);
+    }
     return NextResponse.json(
       { ...result.body, requestId },
       { status: result.http, headers: { "cache-control": "no-store", "x-request-id": requestId } },

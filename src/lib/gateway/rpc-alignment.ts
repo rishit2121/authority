@@ -26,6 +26,14 @@ export interface AlignmentContext {
   objectiveStatus: string | null;
   contractId: string | null;
   allowedActions: unknown;
+  checkPlans: boolean;
+  checkContent: boolean;
+  checkActions: boolean;
+  /** Latest plan review of the active contract under the current objectives, if any. */
+  planOutcome: string | null;
+  planDecision: string | null;
+  /** Content screening behavior: report findings only, or withhold flagged content. */
+  contentAction: "report" | "quarantine";
 }
 
 export async function alignmentContext(secret: string, taskId: string): Promise<AlignmentContext> {
@@ -50,6 +58,12 @@ export async function alignmentContext(secret: string, taskId: string): Promise<
     objectiveStatus: (r.ac_objective_status as string) ?? null,
     contractId: (r.ac_contract_id as string) ?? null,
     allowedActions: r.ac_allowed_actions ?? null,
+    checkPlans: r.ac_check_plans !== false,
+    checkContent: r.ac_check_content === true,
+    checkActions: r.ac_check_actions !== false,
+    planOutcome: (r.ac_plan_outcome as string) ?? null,
+    planDecision: (r.ac_plan_decision as string) ?? null,
+    contentAction: r.ac_content_action === "quarantine" ? "quarantine" : "report",
   };
 }
 
@@ -254,5 +268,116 @@ export async function getExternalContent(secret: string, itemId: string): Promis
     contextRevision: (r.gec_context_revision as number) ?? null,
     findings: r.gec_findings ?? null,
     content: (r.gec_content as string) ?? null,
+  };
+}
+
+export interface ActionReviewRecord {
+  secret: string;
+  taskId: string;
+  tool: string;
+  operation: string;
+  resource: string | null;
+  args: Record<string, unknown>;
+  idempotencyKey: string;
+  mode: "shadow" | "enforce";
+  policy: AlignmentPolicy;
+  objectiveVersion: number;
+  contextRevision: number;
+  contractId: string | null;
+  outcome: ReviewOutcome;
+  findings: unknown;
+  scores: unknown;
+  feedback: string | null;
+  reviewer: unknown;
+  usage: unknown;
+}
+
+/** The subject hash is computed in SQL from the same jsonb the commit receives (alignment_action_subject). */
+export async function recordActionReview(
+  input: ActionReviewRecord,
+): Promise<{ status: string; reviewId: string | null }> {
+  const rows = await gatewayQuery<Row>(
+    `select * from gateway.record_action_review($1, $2::uuid, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, $11, $12::uuid, $13, $14::jsonb, $15::jsonb, $16, $17::jsonb, $18::jsonb)`,
+    [
+      input.secret,
+      input.taskId,
+      input.tool,
+      input.operation,
+      input.resource,
+      JSON.stringify(input.args),
+      input.idempotencyKey,
+      input.mode,
+      input.policy,
+      input.objectiveVersion,
+      input.contextRevision,
+      input.contractId,
+      input.outcome,
+      JSON.stringify(input.findings ?? []),
+      JSON.stringify(input.scores ?? []),
+      input.feedback ? input.feedback.slice(0, 4000) : null,
+      JSON.stringify(input.reviewer ?? {}),
+      JSON.stringify(input.usage ?? {}),
+    ],
+  );
+  return { status: rows[0].rar_status as string, reviewId: (rows[0].rar_review_id as string) ?? null };
+}
+
+export interface FoundActionReview {
+  status: string;
+  reviewId: string | null;
+  outcome: ReviewOutcome | null;
+  decision: "approved" | "rejected" | null;
+  findings: unknown;
+  feedback: string | null;
+  policy: AlignmentPolicy | null;
+  mode: "shadow" | "enforce" | null;
+}
+
+export async function findActionReview(input: {
+  secret: string;
+  taskId: string;
+  tool: string;
+  operation: string;
+  resource: string | null;
+  args: Record<string, unknown>;
+  idempotencyKey: string;
+  objectiveVersion: number;
+  contextRevision: number;
+}): Promise<FoundActionReview> {
+  const rows = await gatewayQuery<Row>(
+    `select * from gateway.find_action_review($1, $2::uuid, $3, $4, $5, $6::jsonb, $7, $8, $9)`,
+    [
+      input.secret,
+      input.taskId,
+      input.tool,
+      input.operation,
+      input.resource,
+      JSON.stringify(input.args),
+      input.idempotencyKey,
+      input.objectiveVersion,
+      input.contextRevision,
+    ],
+  );
+  const r = rows[0];
+  if (!r)
+    return {
+      status: "not_found",
+      reviewId: null,
+      outcome: null,
+      decision: null,
+      findings: null,
+      feedback: null,
+      policy: null,
+      mode: null,
+    };
+  return {
+    status: r.far_status as string,
+    reviewId: (r.far_review_id as string) ?? null,
+    outcome: (r.far_outcome as ReviewOutcome) ?? null,
+    decision: (r.far_decision as FoundActionReview["decision"]) ?? null,
+    findings: r.far_findings ?? null,
+    feedback: (r.far_feedback as string) ?? null,
+    policy: (r.far_policy as AlignmentPolicy) ?? null,
+    mode: (r.far_mode as FoundActionReview["mode"]) ?? null,
   };
 }

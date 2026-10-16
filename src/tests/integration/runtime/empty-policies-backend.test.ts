@@ -56,8 +56,7 @@ describe("backend-credential policy listing on a policy-free tenant (real databa
     const applicationId = `eeee0000-0000-4000-8000-${suffix}0000`;
     const { plaintext: backendSecret, hash } = mintBackendSecret();
     await managementQuery(`
-      insert into public.applications (id, tenant_id, name, slug)
-      values ('${applicationId}', '${TENANT_B_ID}', 'Empty policies test app', 'epb-${suffix}');
+      insert into public.applications (id, tenant_id, name, slug, require_task_sessions) values ('${applicationId}', '${TENANT_B_ID}', 'Empty policies test app', 'epb-${suffix}', false);
       insert into public.developer_backend_credentials (tenant_id, application_id, key_prefix, key_hash)
       values ('${TENANT_B_ID}', '${applicationId}', '${backendSecret.slice(0, 21)}', '${hash}');
     `);

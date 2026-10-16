@@ -45,13 +45,21 @@ export interface PlanAlignment {
 }
 
 export type PrepareTaskOutcome =
-  | { status: "ready"; contractId: string; version: number; tools: string[]; alignment?: PlanAlignment }
+  | {
+      status: "ready";
+      contractId: string;
+      version: number;
+      tools: string[];
+      alignment?: PlanAlignment;
+      checks?: { planReview: "ran" | "not_run" };
+    }
   | {
       status: "awaiting_approval";
       contractId: string;
       version: number;
       approvalPath: string;
       alignment?: PlanAlignment;
+      checks?: { planReview: "ran" | "not_run" };
     }
   /** Enforced alignment review did not clear the plan: "revise" it, or wait for a person ("hold"). */
   | {
@@ -111,6 +119,10 @@ export interface ToolManifest {
 }
 
 export interface AgentAuthorizeResponse {
+  /** Which optional checks ran for this call; "not_run" is never a pass. */
+  checks?: { taskAlignment: "not_run" | "shadow" | "passed" | "covered_by_plan_review" | "stopped" | "held" };
+  /** Present when task alignment stopped or held this call before any authorization was committed. */
+  alignment?: ActionAlignment;
   decisionId: string;
   status: string;
   reasonCodes: string[];
@@ -157,11 +169,49 @@ export interface ApprovalStatus {
  * ordinary, expected decisions -- never thrown as errors. Only a request
  * that could not be completed at all throws `AuthorityApiError`.
  */
+/** Task alignment's verdict on one call, present only when it stopped or held the call. */
+export interface ActionAlignment {
+  reviewId: string | null;
+  outcome: "misaligned" | "ambiguous" | "unreviewed";
+  policy: string;
+  findings: AlignmentFinding[];
+  feedback: string | null;
+}
+
+/** How a connector's result was screened before delivery (task alignment on). */
+export interface ResultInspection {
+  inspectionId?: string | null;
+  /** "not_inspected" when screening did not run -- never read it as a pass. */
+  status: string;
+  ran?: boolean;
+  action?: "report" | "quarantine" | "shadow";
+  mode?: string;
+  policy?: string;
+  findings?: AlignmentFinding[];
+  feedback?: string | null;
+  reason?: string;
+}
+
 export type ToolCallResult =
-  | { status: "executed"; result: string; data?: unknown; receiptId?: string }
+  | {
+      status: "executed";
+      result: string;
+      data?: unknown;
+      receiptId?: string;
+      /** "held": the action completed but its result is withheld for review -- do not repeat it. */
+      delivery?: "delivered" | "held";
+      inspection?: ResultInspection;
+    }
   | { status: "denied"; reasonCodes: string[]; summary: string }
   | { status: "requires_approval"; approvalId: string; statusUrl: string }
-  | { status: "requires_clarification" | "requires_replan"; reasonCodes: string[]; summary: string };
+  | {
+      status: "requires_clarification" | "requires_replan";
+      reasonCodes: string[];
+      summary: string;
+      alignment?: ActionAlignment;
+    }
+  /** Task alignment needs a person: once approved on the task page, repeat the call with the same idempotencyKey. */
+  | { status: "held_for_review"; reasonCodes: string[]; summary: string; alignment: ActionAlignment };
 
 /** Where external content came from. Descriptive only: it never makes content trusted. */
 export interface ExternalContentSource {
@@ -196,6 +246,12 @@ export interface ContentInspectionResult {
   contextRevision: number | null;
   findings: AlignmentFinding[];
   feedback: string | null;
+  /** Whether screening ran. `ran: false` (status "not_inspected") means nobody looked -- not that it passed. */
+  screening: {
+    ran: boolean;
+    reason?: "alignment_off" | "content_screening_off";
+    action: "report" | "quarantine" | "shadow" | "none";
+  };
   /** What may go to the model, as external data -- null when withheld. */
   data: ExternalData | null;
 }

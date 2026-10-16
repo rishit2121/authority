@@ -18,6 +18,7 @@ import {
 } from "@/lib/gateway/risk-class";
 import { buildTenantRegistry } from "@/lib/registry";
 import type { ToolOperation } from "@/lib/registry/types";
+import { screenExecutionResult } from "@/lib/alignment/screen-execution";
 
 /**
  * Translates Authority's existing authorize+execute pipeline into MCP's
@@ -176,6 +177,21 @@ export async function authorizeAndExecuteMcpTool(input: {
       body: { error: { code: authorized.status } },
     };
   }
+  if (authorized.kind === "alignment") {
+    return {
+      success: false,
+      summary:
+        authorized.outcome === "misaligned"
+          ? "Task alignment: this call does not serve the user's request."
+          : "Task alignment: a person must review this call before it can run.",
+      body: {
+        outcome: authorized.outcome,
+        reviewId: authorized.reviewId,
+        findings: authorized.findings,
+        feedback: authorized.feedback,
+      },
+    };
+  }
   if (!authorized.capabilityToken) {
     // require_approval, or a replay that settled without minting a new
     // token: the agent must wait or poll, exactly as the REST API's own
@@ -202,5 +218,22 @@ export async function authorizeAndExecuteMcpTool(input: {
   });
 
   const ok = result.http >= 200 && result.http < 300;
-  return { success: ok, summary: ok ? "Succeeded." : "Failed.", body: result.body };
+  const body = await screenExecutionResult({
+    credentialSecret: input.credentialSecret,
+    taskId: result.taskId,
+    tool: input.tool,
+    args: input.args,
+    http: result.http,
+    body: result.body,
+  });
+  const held = body.delivery === "held";
+  return {
+    success: ok,
+    summary: !ok
+      ? "Failed."
+      : held
+        ? "Succeeded; the result is held for review -- do not repeat the action."
+        : "Succeeded.",
+    body,
+  };
 }

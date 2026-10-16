@@ -50,7 +50,7 @@ function authorize(fx: GatewayFixture, to: string) {
 const outcome = (r: Awaited<ReturnType<typeof authorize>>) =>
   r.kind === "decision"
     ? { status: r.commit.finalOutcome, codes: r.commit.reasonCodes, token: Boolean(r.capabilityToken) }
-    : { status: r.status, codes: [], token: false };
+    : { status: r.kind === "failure" ? r.status : r.outcome, codes: [], token: false };
 
 describe("a tool used twice with different arguments", () => {
   const fixtures: GatewayFixture[] = [];

@@ -103,8 +103,7 @@ describe("Gmail connector, Mode B credential broker (real local broker server, r
     broker = await startMockBrokerServer({ secret: BROKER_SECRET });
 
     await managementQuery(`
-      insert into public.applications (id, tenant_id, name, slug)
-      values ('${applicationId}', '${TENANT_A_ID}', 'Broker test app', 'broker-test-${applicationId.slice(0, 8)}');
+      insert into public.applications (id, tenant_id, name, slug, require_task_sessions) values ('${applicationId}', '${TENANT_A_ID}', 'Broker test app', 'broker-test-${applicationId.slice(0, 8)}', false);
 
       insert into public.customers (id, tenant_id, application_id, external_id)
       values ('${customerId}', '${TENANT_A_ID}', '${applicationId}', 'broker-customer-1');

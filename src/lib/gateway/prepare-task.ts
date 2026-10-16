@@ -72,6 +72,11 @@ export interface PlanAlignmentSummary {
   feedback: string | null;
 }
 
+/** Which optional checks ran during prepare ("not_run" is never a pass). */
+export interface PrepareChecks {
+  planReview: "ran" | "not_run";
+}
+
 export type PrepareTaskOutcome =
   | {
       status: "ready";
@@ -79,6 +84,7 @@ export type PrepareTaskOutcome =
       version: number;
       tools: string[];
       alignment?: PlanAlignmentSummary;
+      checks?: PrepareChecks;
     }
   | {
       status: "awaiting_approval";
@@ -86,6 +92,7 @@ export type PrepareTaskOutcome =
       version: number;
       approvalPath: string;
       alignment?: PlanAlignmentSummary;
+      checks?: PrepareChecks;
     }
   /**
    * Enforced task-alignment review did not clear the plan. "revise": submit a different plan (or have the
@@ -98,6 +105,7 @@ export type PrepareTaskOutcome =
       version: number;
       reviewPath: string;
       alignment: PlanAlignmentSummary;
+      checks?: PrepareChecks;
     }
   | { status: "clarification"; reason: string; details?: unknown }
   | { status: "rejected"; reason: string }
@@ -386,6 +394,7 @@ export async function prepareTask(
           version: contractResult.version,
           reviewPath: `/app/tasks/${input.taskId}`,
           alignment: alignmentSummary,
+          checks: { planReview: "ran" },
         },
       };
     }
@@ -401,6 +410,7 @@ export async function prepareTask(
         version: contractResult.version,
         tools: [...new Set(compiled.allowedActions.map((a) => a.tool))],
         ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
+        checks: { planReview: alignmentSummary ? "ran" : "not_run" },
       },
     };
   }
@@ -413,6 +423,7 @@ export async function prepareTask(
       version: contractResult.version,
       approvalPath: `/app/tasks/${input.taskId}`,
       ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
+      checks: { planReview: alignmentSummary ? "ran" : "not_run" },
     },
   };
 }

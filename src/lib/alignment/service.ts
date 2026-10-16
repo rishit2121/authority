@@ -96,7 +96,7 @@ export async function loadObjectives(
     requestText,
     extraction: extracted.extraction,
     status: "extracted",
-    reviewer: reviewerMeta(deps, context.policy),
+    reviewer: { ...reviewerMeta(deps, context.policy), usage: extracted.usage },
     expectedVersion: 0,
   });
   if (recorded.status === "stale") {
@@ -148,7 +148,7 @@ export async function reviseObjectives(
     requestText,
     extraction: extracted.extraction,
     status: "extracted",
-    reviewer: reviewerMeta(deps, context.policy),
+    reviewer: { ...reviewerMeta(deps, context.policy), usage: extracted.usage },
     expectedVersion: context.objectiveVersion,
   });
   if (recorded.status !== "ok" || !recorded.version) return { ok: false, status: recorded.status };
@@ -210,7 +210,7 @@ export async function reviewPlanForTask(input: {
 }): Promise<PlanAlignment | null> {
   const deps = input.deps ?? defaultAlignmentDeps();
   const context = await deps.context(input.secret, input.taskId);
-  if (context.status !== "ok" || context.mode === "off") return null;
+  if (context.status !== "ok" || context.mode === "off" || !context.checkPlans) return null;
   const mode = context.mode;
 
   const loaded = await loadObjectives(input.secret, input.taskId, context, deps);
@@ -330,6 +330,15 @@ export type ContentResponse =
       contextRevision: number | null;
       findings: AlignmentFinding[];
       feedback: string | null;
+      /**
+       * Which check ran. `ran: false` means the content was NOT inspected (screening off or alignment off) --
+       * never a pass. `action`: what screening does with findings ("report" never withholds).
+       */
+      screening: {
+        ran: boolean;
+        reason?: "alignment_off" | "content_screening_off";
+        action: "report" | "quarantine" | "shadow" | "none";
+      };
       /** Present only when the content may go to the model -- always as external data. */
       delivered: {
         role: "external_data";
@@ -347,23 +356,28 @@ export async function inspectExternalContentForTask(
   const context = await deps.context(req.secret, req.taskId);
   if (context.status !== "ok") return { ok: false, status: context.status };
   const source = { kind: req.source.kind, label: req.source.label ?? null, uri: req.source.uri ?? null };
-  if (context.mode === "off") {
+  if (context.mode === "off" || !context.checkContent) {
+    // Screening is an optional addition: when it is off the content goes through unchanged and is reported as
+    // NOT inspected. Plan and action alignment never depend on it.
     return {
       ok: true,
       inspectionId: null,
       status: "not_inspected",
-      mode: "off",
+      mode: context.mode,
       policy: context.policy,
       contentHash: null,
       contextRevision: null,
       findings: [],
       feedback: null,
+      screening: {
+        ran: false,
+        reason: context.mode === "off" ? "alignment_off" : "content_screening_off",
+        action: "none",
+      },
       delivered: { role: "external_data", source, text: req.content },
     };
   }
-  // Content enters one task's context; a raw runtime key cannot prove which task the agent is on.
-  if (context.mode === "enforce" && context.credentialKind === "runtime_key")
-    return { ok: false, status: "session_required" };
+  // Task isolation is decided by applications.require_task_sessions (in alignment_auth), not by these settings.
 
   const loaded = await loadObjectives(req.secret, req.taskId, context, deps);
   const ctx = loaded.context;
@@ -378,7 +392,12 @@ export async function inspectExternalContentForTask(
         maxBytes: ctx.maxContentBytes,
       })
     : null;
-  const status: ContentStatus = inspection?.status ?? "unreviewed";
+  const action = ctx.mode === "shadow" ? ("shadow" as const) : ctx.contentAction;
+  const assessed: ContentStatus = inspection?.status ?? "unreviewed";
+  // Report-only (and shadow): findings are attached but nothing is withheld, so "quarantined"/"held" are
+  // recorded as "flagged" -- reported, not quarantined.
+  const status: ContentStatus =
+    action !== "quarantine" && (assessed === "quarantined" || assessed === "held") ? "flagged" : assessed;
   const findings: AlignmentFinding[] = inspection?.findings ?? [
     {
       type: "reviewer_unavailable",
@@ -404,11 +423,11 @@ export async function inspectExternalContentForTask(
       contractId: null,
       idempotencyKey: null,
       outcome:
-        status === "passed"
+        assessed === "passed"
           ? "aligned"
-          : status === "held"
+          : assessed === "held"
             ? "ambiguous"
-            : status === "unreviewed"
+            : assessed === "unreviewed"
               ? "unreviewed"
               : "misaligned",
       findings,
@@ -420,6 +439,9 @@ export async function inspectExternalContentForTask(
     reviewId = recorded.reviewId;
   }
 
+  // Quarantine delivers only content that passed; report-only and shadow never withhold (the reference policy's
+  // "original output plus feedback" is report-only by definition).
+  const deliver = action !== "quarantine" || status === "passed";
   const fitsRetention = byteSize <= 131072;
   const item = await deps.recordContent({
     secret: req.secret,
@@ -434,16 +456,11 @@ export async function inspectExternalContentForTask(
     byteSize,
     status,
     receiptId: req.receiptId ?? null,
-    retainContent: status !== "passed" && fitsRetention ? req.content : null,
+    // Raw text is kept (encrypted, bounded) only when it was withheld, for the review path.
+    retainContent: !deliver && fitsRetention ? req.content : null,
     retentionSeconds: RETENTION_SECONDS,
   });
 
-  // What the model may see: shadow never withholds; the reference policy returns the original with
-  // feedback (as published); production delivers only content that passed.
-  const deliver =
-    ctx.mode === "shadow" || ctx.policy === "reference"
-      ? status !== "unreviewed" || ctx.mode === "shadow"
-      : status === "passed";
   return {
     ok: true,
     inspectionId: item.itemId,
@@ -454,6 +471,7 @@ export async function inspectExternalContentForTask(
     contextRevision: item.contextRevision,
     findings,
     feedback: inspection?.feedback ?? null,
+    screening: { ran: true, action },
     delivered: deliver ? { role: "external_data", source, text: req.content } : null,
   };
 }

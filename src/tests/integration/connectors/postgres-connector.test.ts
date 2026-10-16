@@ -56,7 +56,7 @@ async function authorize(
   });
   if (r.kind !== "decision" || !r.capabilityToken) {
     throw new Error(
-      `no capability for ${tool}: ${JSON.stringify(r.kind === "decision" ? r.commit.reasonCodes : r.status)}`,
+      `no capability for ${tool}: ${JSON.stringify(r.kind === "decision" ? r.commit.reasonCodes : r.kind === "failure" ? r.status : r.outcome)}`,
     );
   }
   return r.capabilityToken;

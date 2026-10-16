@@ -70,7 +70,8 @@ describe("gateway pipeline: semantic composition against the real database", () 
 
   const commitOf = async (deps: PipelineDeps, tool: string, args: Record<string, string>, idem?: string) => {
     const r = await call(deps, tool, args, idem);
-    if (r.kind !== "decision") throw new Error(`expected a decision, got ${r.status}`);
+    if (r.kind !== "decision")
+      throw new Error(`expected a decision, got ${r.kind === "failure" ? r.status : r.outcome}`);
     return r;
   };
 

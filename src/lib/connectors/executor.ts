@@ -28,6 +28,8 @@ export interface ExecuteConnectorInput {
 export interface ExecuteConnectorResult {
   http: number;
   body: Record<string, unknown>;
+  /** Internal (never serialized): the task this execution belonged to, for screening its result. */
+  taskId?: string;
 }
 
 /** Dependency-injection seam, mirroring src/lib/github/executor.ts's ExecutorDeps — lets tests exercise the full orchestration without touching the database or a real provider. */
@@ -302,6 +304,7 @@ export async function executeConnectorOperation(
   }
   return {
     http: 200,
+    taskId: reserved.taskId,
     body: {
       result: result.category,
       executionId,

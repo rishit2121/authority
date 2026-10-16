@@ -56,6 +56,61 @@ export async function setAlignmentSettingsAction(
   }
 }
 
+export async function setAlignmentChecksAction(
+  applicationId: string,
+  checks: { plans: boolean; content: boolean; actions: boolean; contentAction: "report" | "quarantine" },
+): Promise<AlignmentActionResult> {
+  if (!z.string().uuid().safeParse(applicationId).success)
+    return { ok: false, error: MESSAGES.invalid_request };
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(
+      `/app/settings/applications/${applicationId}`,
+    );
+    const { data, error } = await context.supabase.rpc("set_alignment_checks", {
+      p_application_id: applicationId,
+      p_check_plans: checks.plans,
+      p_check_content: checks.content,
+      p_check_actions: checks.actions,
+    });
+    if (error) return { ok: false, error: "Could not save." };
+    if (data !== "ok") return { ok: false, error: MESSAGES[data as string] ?? "Could not save." };
+    const screening = await context.supabase.rpc("set_alignment_content_screening", {
+      p_application_id: applicationId,
+      p_enabled: checks.content,
+      p_action: checks.contentAction,
+    });
+    if (screening.error || screening.data !== "ok")
+      return { ok: false, error: "Could not save content screening." };
+    revalidatePath(`/app/settings/applications/${applicationId}`);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Could not save." };
+  }
+}
+
+export async function setRequireTaskSessionsAction(
+  applicationId: string,
+  required: boolean,
+): Promise<AlignmentActionResult> {
+  if (!z.string().uuid().safeParse(applicationId).success)
+    return { ok: false, error: MESSAGES.invalid_request };
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(
+      `/app/settings/applications/${applicationId}`,
+    );
+    const { data, error } = await context.supabase.rpc("set_application_require_task_sessions", {
+      p_application_id: applicationId,
+      p_required: required,
+    });
+    if (error) return { ok: false, error: "Could not save." };
+    if (data !== "ok") return { ok: false, error: MESSAGES[data as string] ?? "Could not save." };
+    revalidatePath(`/app/settings/applications/${applicationId}`);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Could not save." };
+  }
+}
+
 export async function decideAlignmentReviewAction(
   taskId: string,
   reviewId: string,

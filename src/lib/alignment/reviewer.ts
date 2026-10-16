@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { z } from "zod";
 
 import { getOpenAiEnv } from "@/lib/ai/env";
+import { safeLog } from "@/lib/semantic/scrub";
 
 import { PRODUCTION_PROMPT_VERSION, REFERENCE_PROMPT_VERSION } from "./prompts";
 
@@ -218,6 +219,10 @@ export class BudgetedReviewer implements AlignmentReviewer {
     const result = await this.inner.call(request);
     this.used = addUsage(this.used, result.usage);
     if (!result.ok && result.reason === "quota_exhausted") this.quotaExhausted = true;
+    // Accounting only (schema name, outcome, counts) -- never prompt or response content.
+    safeLog(
+      `alignment reviewer: ${request.name} ${result.ok ? "ok" : result.reason} calls=${result.usage.calls} in=${result.usage.inputTokens} out=${result.usage.outputTokens} total_calls=${this.used.calls} total_tokens=${this.used.inputTokens + this.used.outputTokens}`,
+    );
     return result;
   }
 }
@@ -229,10 +234,24 @@ export function createAlignmentReviewer(
   const openAi = getOpenAiEnv(env);
   if (!openAi) return null;
   const timeoutMs = Number(env.ALIGNMENT_REVIEW_TIMEOUT_MS);
-  return new OpenAiAlignmentReviewer({
+  const reviewer = new OpenAiAlignmentReviewer({
     apiKey: openAi.apiKey,
     model: openAi.model,
     timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.min(timeoutMs, 60_000) : DEFAULT_TIMEOUT_MS,
     retries: 1,
   });
+  // Optional hard cap for this process (calls include retries), e.g. for a budgeted evaluation server.
+  const maxCalls = Number(env.ALIGNMENT_MAX_REVIEWER_CALLS);
+  const maxTokens = Number(env.ALIGNMENT_MAX_REVIEWER_TOKENS);
+  if (Number.isFinite(maxCalls) && maxCalls >= 0 && env.ALIGNMENT_MAX_REVIEWER_CALLS?.trim()) {
+    // One budget per process: route bundles each get their own copy of this module, so the instance
+    // lives on globalThis (found by the smoke run, where each route had counted separately).
+    const holder = globalThis as { __authorityAlignmentBudget?: BudgetedReviewer };
+    holder.__authorityAlignmentBudget ??= new BudgetedReviewer(reviewer, {
+      maxCalls,
+      ...(Number.isFinite(maxTokens) && maxTokens > 0 ? { maxTokens } : {}),
+    });
+    return holder.__authorityAlignmentBudget;
+  }
+  return reviewer;
 }

@@ -34,6 +34,8 @@ export interface ExecuteInput {
 export interface ExecuteResult {
   http: number;
   body: Record<string, unknown>;
+  /** Internal (never serialized): the task this execution belonged to, for screening its result. */
+  taskId?: string;
 }
 
 export interface ExecutorDeps {
@@ -363,6 +365,7 @@ export async function executeGithubOperation(
   }
   return {
     http: 200,
+    taskId: reserved.taskId ?? undefined,
     body: {
       result: result.category,
       executionId,
