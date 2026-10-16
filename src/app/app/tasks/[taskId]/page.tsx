@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import {
+  AlignmentFindingsPanel,
+  type ContentItemView,
+  type FindingView,
+  type ReviewView,
+} from "@/components/alignment/AlignmentFindingsPanel";
 import { GithubTaskPanel, type TaskGithubData } from "@/components/github/GithubTaskPanel";
 import type { FlowPhase, FlowStep } from "@/components/github/ExecutionFlowGraph";
 import { reconcileExpiredReservations } from "@/lib/gateway/rpc-github";
@@ -128,6 +134,73 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
 
   const boundIntegrations = githubData.bound ? [`GitHub · ${githubData.bound.fullName}`] : [];
 
+  const [objectiveRows, reviewRows, itemRows] = await Promise.all([
+    context.supabase
+      .from("task_objectives")
+      .select("version, source, request_text, extraction")
+      .eq("task_id", taskId)
+      .order("version", { ascending: false })
+      .limit(1),
+    context.supabase
+      .from("alignment_reviews")
+      .select(
+        "id, kind, mode, policy, outcome, decision, objective_version, context_revision, findings, feedback, usage, created_at",
+      )
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: false })
+      .limit(50),
+    context.supabase
+      .from("external_content_items")
+      .select(
+        "id, review_id, origin, source_kind, source_label, status, byte_size, content_hash, vault_secret_id, retained_until, created_at",
+      )
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: false })
+      .limit(50),
+  ]);
+  const latestObjectives = objectiveRows.data?.[0];
+  const extraction = (latestObjectives?.extraction ?? {}) as {
+    taskInstructions?: string[];
+    prohibitions?: string[];
+  };
+  const alignmentObjectives = latestObjectives
+    ? {
+        version: latestObjectives.version,
+        source: latestObjectives.source,
+        requestText: latestObjectives.request_text,
+        taskInstructions: extraction.taskInstructions ?? [],
+        prohibitions: extraction.prohibitions ?? [],
+      }
+    : null;
+  const alignmentReviews: ReviewView[] = (reviewRows.data ?? []).map((r) => ({
+    id: r.id,
+    kind: r.kind,
+    mode: r.mode,
+    policy: r.policy,
+    outcome: r.outcome,
+    decision: r.decision,
+    objectiveVersion: r.objective_version,
+    contextRevision: r.context_revision,
+    findings: (Array.isArray(r.findings) ? r.findings : []) as unknown as FindingView[],
+    feedback: r.feedback,
+    usage: (r.usage ?? null) as ReviewView["usage"],
+    createdAt: r.created_at,
+  }));
+  const contentItems: ContentItemView[] = (itemRows.data ?? []).map((i) => ({
+    id: i.id,
+    reviewId: i.review_id,
+    origin: i.origin,
+    sourceKind: i.source_kind,
+    sourceLabel: i.source_label,
+    status: i.status,
+    byteSize: i.byte_size,
+    contentHash: i.content_hash,
+    retained: Boolean(i.vault_secret_id && i.retained_until && Date.parse(i.retained_until) > Date.now()),
+    createdAt: i.created_at,
+  }));
+  const showAlignment =
+    Boolean(alignmentObjectives) || alignmentReviews.length > 0 || contentItems.length > 0;
+
   return (
     <div className="flex flex-col gap-space-lg">
       <TaskInvestigationView investigation={investigation} />
@@ -137,6 +210,15 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
         contract={investigation.contract}
         boundIntegrations={boundIntegrations}
       />
+      {showAlignment ? (
+        <AlignmentFindingsPanel
+          taskId={taskId}
+          objectives={alignmentObjectives}
+          reviews={alignmentReviews}
+          items={contentItems}
+          canDecide={["security_admin", "admin", "owner"].includes(identity.role)}
+        />
+      ) : null}
       <GithubTaskPanel data={githubData} />
       <SemanticShadowPanel rows={panelRows} />
     </div>

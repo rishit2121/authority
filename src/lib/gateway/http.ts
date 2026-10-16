@@ -62,16 +62,17 @@ export const UNAUTHENTICATED: FailureContract = {
 /** Reads a JSON body under a hard size cap; never echoes any of it back. */
 export async function readJsonBody(
   request: NextRequest,
+  maxBytes: number = MAX_BODY_BYTES,
 ): Promise<{ ok: true; body: unknown } | { ok: false; contract: FailureContract }> {
   const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > MAX_BODY_BYTES) {
+  if (declared > maxBytes) {
     return {
       ok: false,
       contract: { http: 413, code: "PAYLOAD_TOO_LARGE", message: "Request body is too large." },
     };
   }
   const text = await request.text();
-  if (Buffer.byteLength(text) > MAX_BODY_BYTES) {
+  if (Buffer.byteLength(text) > maxBytes) {
     return {
       ok: false,
       contract: { http: 413, code: "PAYLOAD_TOO_LARGE", message: "Request body is too large." },

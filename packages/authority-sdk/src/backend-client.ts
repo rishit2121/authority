@@ -1,9 +1,11 @@
+import { contentApi, type ContentApi } from "./content.js";
 import { request, type ClientConfig, type RequestOptions } from "./http.js";
 import type {
   CandidatePlanInput,
   ContractStatus,
   CustomerConnection,
   CustomerGithubRepository,
+  ObjectivesRevision,
   PrepareTaskOutcome,
 } from "./types.js";
 
@@ -202,6 +204,19 @@ export class AuthorityBackendClient {
     },
 
     /**
+     * The user changed or clarified what they want: records a new objectives
+     * version for task alignment (backend key only). Re-prepare afterwards --
+     * reviews of the old objectives no longer clear a contract.
+     */
+    reviseObjectives: (taskId: string, userRequest: string, options?: RequestOptions) =>
+      request<ObjectivesRevision>(
+        this.config,
+        `/api/v1/tasks/${taskId}/objectives`,
+        { method: "POST", body: { request: userRequest } },
+        { ...options, timeoutMs: options?.timeoutMs ?? Math.max(60_000, this.config.defaultTimeoutMs ?? 0) },
+      ),
+
+    /**
      * Binds a task to a GitHub repository delegated to that task's own
      * customer (`githubRepositories.list` discovers which ones). Required
      * once, before `tasks.prepare` compiles a contract containing any
@@ -217,6 +232,9 @@ export class AuthorityBackendClient {
         options,
       ),
   };
+
+  /** Inspect external content for a task before your model sees it (see content.ts). */
+  content: ContentApi = contentApi(() => this.config);
 
   contracts = {
     getStatus: (contractId: string, options?: RequestOptions) =>

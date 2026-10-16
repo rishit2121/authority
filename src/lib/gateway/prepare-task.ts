@@ -10,6 +10,13 @@ import {
   PlanProposalTimeoutError,
   type PlanProposalProvider,
 } from "@/lib/ai";
+import {
+  planStepsFrom,
+  reviewPlanForTask,
+  type AlignmentDeps,
+  type PlanAlignment,
+} from "@/lib/alignment/service";
+import type { AlignmentFinding } from "@/lib/alignment/types";
 import { getOpenRouterEnv } from "@/lib/openrouter/env";
 import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
@@ -54,9 +61,44 @@ import {
  * tasks yet. This is a stated scope limit, not a silent gap.
  */
 
+/** Task-alignment review of this plan, when the application has it on (shadow never changes the outcome). */
+export interface PlanAlignmentSummary {
+  mode: "shadow" | "enforce";
+  policy: "reference" | "production";
+  outcome: "aligned" | "misaligned" | "ambiguous" | "unreviewed";
+  decision: "approved" | "rejected" | null;
+  reviewId: string | null;
+  findings: AlignmentFinding[];
+  feedback: string | null;
+}
+
 export type PrepareTaskOutcome =
-  | { status: "ready"; contractId: string; version: number; tools: string[] }
-  | { status: "awaiting_approval"; contractId: string; version: number; approvalPath: string }
+  | {
+      status: "ready";
+      contractId: string;
+      version: number;
+      tools: string[];
+      alignment?: PlanAlignmentSummary;
+    }
+  | {
+      status: "awaiting_approval";
+      contractId: string;
+      version: number;
+      approvalPath: string;
+      alignment?: PlanAlignmentSummary;
+    }
+  /**
+   * Enforced task-alignment review did not clear the plan. "revise": submit a different plan (or have the
+   * exception approved); "hold": a person must review it. The contract exists but is not active.
+   */
+  | {
+      status: "alignment_review";
+      decision: "revise" | "hold";
+      contractId: string;
+      version: number;
+      reviewPath: string;
+      alignment: PlanAlignmentSummary;
+    }
   | { status: "clarification"; reason: string; details?: unknown }
   | { status: "rejected"; reason: string }
   | { status: "ai_unavailable" };
@@ -112,7 +154,22 @@ export function withoutEmptyResourceBindings(plan: unknown): unknown {
   };
 }
 
-export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskResult> {
+function summarize(a: PlanAlignment, reviewId: string | null): PlanAlignmentSummary {
+  return {
+    mode: a.mode,
+    policy: a.policy,
+    outcome: a.outcome,
+    decision: a.decision,
+    reviewId,
+    findings: a.findings,
+    feedback: a.feedback,
+  };
+}
+
+export async function prepareTask(
+  input: PrepareTaskInput,
+  options: { alignmentDeps?: AlignmentDeps } = {},
+): Promise<PrepareTaskResult> {
   const task = await getTaskForBackend(input.credentialSecret, input.taskId);
   if (task.status !== "ok" || !task.tenantId || task.intent === null) {
     return { ok: false, status: task.status };
@@ -261,6 +318,16 @@ export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskR
       .sort((a, b) => a.sequence - b.sequence),
   });
 
+  // Task alignment (off unless the application enabled it): does each step, with its concrete values,
+  // serve the user's request? Run before anything is persisted, and re-run for every new plan.
+  const alignment = await reviewPlanForTask({
+    secret: input.credentialSecret,
+    taskId: input.taskId,
+    steps: planStepsFrom(plan, validation.includedNodeIds, registry),
+    subjectHash: compiled.inputHash,
+    deps: options.alignmentDeps,
+  });
+
   const planResult = await createCandidatePlanForBackend({
     credentialSecret: input.credentialSecret,
     taskId: input.taskId,
@@ -301,6 +368,29 @@ export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskR
     return { ok: false, status: contractResult.status };
   }
 
+  let alignmentSummary: PlanAlignmentSummary | undefined;
+  if (alignment) {
+    const reviewId =
+      alignment.reviewId ?? (alignment.record ? await alignment.record(contractResult.contractId) : null);
+    alignmentSummary = summarize(alignment, reviewId);
+    // Enforcement: the contract stays inactive until the plan is aligned or a person approves the exception.
+    // gateway.activate_task_contract_core checks the same thing independently.
+    if (alignment.mode === "enforce" && (!alignment.cleared || !reviewId)) {
+      return {
+        ok: true,
+        outcome: {
+          status: "alignment_review",
+          decision:
+            alignment.outcome === "misaligned" || alignment.decision === "rejected" ? "revise" : "hold",
+          contractId: contractResult.contractId,
+          version: contractResult.version,
+          reviewPath: `/app/tasks/${input.taskId}`,
+          alignment: alignmentSummary,
+        },
+      };
+    }
+  }
+
   const activation = await activateTaskContractForBackend(input.credentialSecret, contractResult.contractId);
   if (activation === "ok") {
     return {
@@ -310,6 +400,7 @@ export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskR
         contractId: contractResult.contractId,
         version: contractResult.version,
         tools: [...new Set(compiled.allowedActions.map((a) => a.tool))],
+        ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
       },
     };
   }
@@ -321,6 +412,7 @@ export async function prepareTask(input: PrepareTaskInput): Promise<PrepareTaskR
       contractId: contractResult.contractId,
       version: contractResult.version,
       approvalPath: `/app/tasks/${input.taskId}`,
+      ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
     },
   };
 }

@@ -27,6 +27,7 @@ import {
 import { ReturnUrlsForm } from "@/components/application/ReturnUrlsForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { ConnectionAccessScope } from "@/app/app/settings/applications/actions";
+import { AlignmentSettingsPanel } from "@/components/alignment/AlignmentSettingsPanel";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
 export const metadata: Metadata = { title: "Application" };
@@ -47,6 +48,12 @@ export default async function ApplicationDetailPage({
     .eq("id", applicationId)
     .maybeSingle();
   if (!application || !identity.tenant.tenantId) notFound();
+
+  const { data: alignmentRow } = await context.supabase
+    .from("alignment_settings")
+    .select("mode, policy")
+    .eq("application_id", applicationId)
+    .maybeSingle();
 
   const [
     credentialsResult,
@@ -223,6 +230,12 @@ export default async function ApplicationDetailPage({
       />
 
       <BackendCredentialsPanel applicationId={applicationId} credentials={credentials} />
+      <AlignmentSettingsPanel
+        applicationId={applicationId}
+        initialMode={alignmentRow?.mode ?? "off"}
+        initialPolicy={alignmentRow?.policy ?? "production"}
+        canEdit={["security_admin", "admin", "owner"].includes(identity.role)}
+      />
       <ReturnUrlsForm applicationId={applicationId} initialUrls={application.allowed_return_urls ?? []} />
       <CustomersPanel customers={customers} />
       <ConnectionBrokersPanel applicationId={applicationId} brokers={brokers} />

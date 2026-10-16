@@ -42,7 +42,7 @@ export default async function ApprovalsPage() {
     .from("semantic_settings")
     .select("runtime_approval_classes")
     .maybeSingle();
-  const [allApprovals, tasks, policies, registry, waitingResult] = await Promise.all([
+  const [allApprovals, tasks, policies, registry, waitingResult, alignmentResult] = await Promise.all([
     repositories.approvals.listByTenant(identity.tenant.tenantId),
     repositories.tasks.listByTenant(identity.tenant.tenantId),
     repositories.policies.listByTenant(identity.tenant.tenantId),
@@ -53,7 +53,30 @@ export default async function ApprovalsPage() {
       .in("contract_status", ["proposed", "awaiting_approval"])
       .order("created_at", { ascending: false })
       .limit(50),
+    context.supabase
+      .from("alignment_reviews")
+      .select("id, task_id, kind, outcome, findings, created_at")
+      .eq("mode", "enforce")
+      .is("decision", null)
+      .in("outcome", ["misaligned", "ambiguous", "unreviewed"])
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
+  const alignmentHolds = (alignmentResult.data ?? []).map((r) => {
+    const findings = (Array.isArray(r.findings) ? r.findings : []) as {
+      explanation?: string;
+      severity?: string;
+    }[];
+    return {
+      id: r.id,
+      taskId: r.task_id,
+      kind: r.kind,
+      outcome: r.outcome,
+      summary:
+        findings.find((f) => f.severity !== "info")?.explanation ??
+        "Task-alignment review did not clear this.",
+    };
+  });
 
   const rules: ApprovalRuleView[] = policies
     .filter((p) => p.effect === "require_approval" && p.status === "active" && p.conditions.length > 0)
@@ -106,7 +129,7 @@ export default async function ApprovalsPage() {
           Tool-call approvals
         </h2>
 
-        {approvals.length === 0 && waiting.length === 0 ? (
+        {approvals.length === 0 && waiting.length === 0 && alignmentHolds.length === 0 ? (
           <EmptyState
             icon="verified_user"
             heading="No requests waiting"
@@ -114,6 +137,32 @@ export default async function ApprovalsPage() {
           />
         ) : (
           <div className="flex flex-col gap-3" data-testid="approvals-list">
+            {alignmentHolds.map((h) => (
+              <article
+                key={h.id}
+                className="rounded-[10px] border border-line bg-paper-raised p-5"
+                data-testid="alignment-hold"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[14px] text-ink">{taskIntent(h.taskId)}</p>
+                    <p className="mt-0.5 max-w-xl text-[13px] text-ink-soft">
+                      {h.kind === "plan" ? "Plan" : h.kind === "content" ? "External content" : "Tool call"}{" "}
+                      {h.outcome}: {h.summary}
+                    </p>
+                  </div>
+                  <StatusPill tone="attention">Task alignment</StatusPill>
+                </div>
+                <div className="mt-4 border-t border-line pt-4">
+                  <Link
+                    href={`/app/tasks/${h.taskId}`}
+                    className="text-[13px] font-medium text-signal hover:underline"
+                  >
+                    Review findings →
+                  </Link>
+                </div>
+              </article>
+            ))}
             {waiting.map((c) => (
               <article key={c.id} className="rounded-[10px] border border-line bg-paper-raised p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">

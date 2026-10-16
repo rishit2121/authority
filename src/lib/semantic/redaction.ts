@@ -157,6 +157,25 @@ function redactString(input: string, limits: RedactionLimits, counter: Counter, 
   return text;
 }
 
+/**
+ * Secret material only (keys, tokens, credentials), for text whose other
+ * content a reviewer must still see verbatim -- recipients, ids, amounts.
+ * Returns the number of replacements per kind.
+ */
+export function removeSecretMaterial(input: string): { text: string; removed: Record<string, number> } {
+  const removed: Record<string, number> = {};
+  let text = input;
+  for (const { kind, regex, group } of SECRET_PATTERNS) {
+    text = text.replace(regex, (...args: unknown[]) => {
+      const match = args[0] as string;
+      removed[kind] = (removed[kind] ?? 0) + 1;
+      if (group === undefined) return `[REDACTED:${kind}]`;
+      return match.replace(args[group] as string, `[REDACTED:${kind}]`);
+    });
+  }
+  return { text, removed };
+}
+
 type ArgValue = string | number | boolean | string[];
 
 export interface RedactableInput {

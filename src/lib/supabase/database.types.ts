@@ -8,6 +8,240 @@ export type Database = {
   };
   public: {
     Tables: {
+      alignment_reviews: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          task_id: string;
+          kind: string;
+          mode: string;
+          policy: string;
+          subject_hash: string;
+          objective_version: number;
+          context_revision: number;
+          contract_id: string | null;
+          idempotency_key: string | null;
+          outcome: string;
+          findings: Json;
+          scores: Json;
+          feedback: string | null;
+          reviewer: Json;
+          usage: Json;
+          decision: string | null;
+          decided_by: string | null;
+          decided_at: string | null;
+          decision_note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          task_id: string;
+          kind: string;
+          mode: string;
+          policy: string;
+          subject_hash: string;
+          objective_version: number;
+          context_revision: number;
+          contract_id?: string | null;
+          idempotency_key?: string | null;
+          outcome: string;
+          findings?: Json;
+          scores?: Json;
+          feedback?: string | null;
+          reviewer?: Json;
+          usage?: Json;
+          decision?: string | null;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          decision_note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          task_id?: string;
+          kind?: string;
+          mode?: string;
+          policy?: string;
+          subject_hash?: string;
+          objective_version?: number;
+          context_revision?: number;
+          contract_id?: string | null;
+          idempotency_key?: string | null;
+          outcome?: string;
+          findings?: Json;
+          scores?: Json;
+          feedback?: string | null;
+          reviewer?: Json;
+          usage?: Json;
+          decision?: string | null;
+          decided_by?: string | null;
+          decided_at?: string | null;
+          decision_note?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      alignment_settings: {
+        Row: {
+          application_id: string;
+          tenant_id: string;
+          mode: string;
+          policy: string;
+          max_content_bytes: number;
+          updated_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          application_id: string;
+          tenant_id: string;
+          mode?: string;
+          policy?: string;
+          max_content_bytes?: number;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          application_id?: string;
+          tenant_id?: string;
+          mode?: string;
+          policy?: string;
+          max_content_bytes?: number;
+          updated_by?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      external_content_items: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          task_id: string;
+          review_id: string | null;
+          origin: string;
+          source_kind: string;
+          source_label: string | null;
+          source_uri: string | null;
+          content_type: string;
+          content_hash: string;
+          byte_size: number;
+          status: string;
+          context_revision: number;
+          receipt_id: string | null;
+          vault_secret_id: string | null;
+          retained_until: string | null;
+          last_revealed_by: string | null;
+          last_revealed_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          task_id: string;
+          review_id?: string | null;
+          origin: string;
+          source_kind: string;
+          source_label?: string | null;
+          source_uri?: string | null;
+          content_type: string;
+          content_hash: string;
+          byte_size: number;
+          status: string;
+          context_revision: number;
+          receipt_id?: string | null;
+          vault_secret_id?: string | null;
+          retained_until?: string | null;
+          last_revealed_by?: string | null;
+          last_revealed_at?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          task_id?: string;
+          review_id?: string | null;
+          origin?: string;
+          source_kind?: string;
+          source_label?: string | null;
+          source_uri?: string | null;
+          content_type?: string;
+          content_hash?: string;
+          byte_size?: number;
+          status?: string;
+          context_revision?: number;
+          receipt_id?: string | null;
+          vault_secret_id?: string | null;
+          retained_until?: string | null;
+          last_revealed_by?: string | null;
+          last_revealed_at?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      task_alignment_state: {
+        Row: {
+          task_id: string;
+          tenant_id: string;
+          objective_version: number;
+          context_revision: number;
+          updated_at: string;
+        };
+        Insert: {
+          task_id: string;
+          tenant_id: string;
+          objective_version?: number;
+          context_revision?: number;
+          updated_at?: string;
+        };
+        Update: {
+          task_id?: string;
+          tenant_id?: string;
+          objective_version?: number;
+          context_revision?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      task_objectives: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          task_id: string;
+          version: number;
+          source: string;
+          request_text: string;
+          extraction: Json;
+          status: string;
+          reviewer: Json;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          task_id: string;
+          version: number;
+          source: string;
+          request_text: string;
+          extraction: Json;
+          status: string;
+          reviewer?: Json;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          task_id?: string;
+          version?: number;
+          source?: string;
+          request_text?: string;
+          extraction?: Json;
+          status?: string;
+          reviewer?: Json;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       agent_auth_events: {
         Row: {
           agent_id: string | null;
@@ -5330,6 +5564,15 @@ export type Database = {
         }[];
       };
       archive_approval_rule: { Args: { p_policy_id: string }; Returns: string };
+      decide_alignment_review: {
+        Args: { p_decision: string; p_note: string; p_review_id: string };
+        Returns: string;
+      };
+      reveal_external_content: { Args: { p_item_id: string }; Returns: string | null };
+      set_alignment_settings: {
+        Args: { p_application_id: string; p_mode: string; p_policy: string };
+        Returns: string;
+      };
       create_approval_rule: {
         Args: {
           p_conditions: Json;

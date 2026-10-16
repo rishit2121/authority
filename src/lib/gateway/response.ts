@@ -310,6 +310,43 @@ export function developerApiFailureContract(status: string): FailureContract {
       };
     case "task_closed":
       return { http: 409, code: "TASK_CLOSED", message: "This task has already ended." };
+    case "task_not_found":
+      return { http: 404, code: "TASK_NOT_FOUND", message: "Task not found for this credential." };
+    case "agent_mismatch":
+    case "session_task_mismatch":
+      return {
+        http: 403,
+        code: "AGENT_TASK_MISMATCH",
+        message: "This credential is not bound to this task.",
+      };
+    case "session_required":
+      return {
+        http: 403,
+        code: "TASK_SESSION_REQUIRED",
+        message:
+          "Task alignment is enforced for this application: use a task session or the backend key, not a raw runtime key.",
+      };
+    case "backend_key_required":
+      return {
+        http: 403,
+        code: "BACKEND_KEY_REQUIRED",
+        message: "Only the application's backend key can change what the user asked for.",
+      };
+    case "alignment_disabled":
+      return {
+        http: 409,
+        code: "ALIGNMENT_DISABLED",
+        message: "Task alignment is off for this application.",
+      };
+    case "reviewer_unavailable":
+      return {
+        http: 503,
+        code: "REVIEWER_UNAVAILABLE",
+        message: "The alignment reviewer could not complete; nothing was recorded.",
+        retryAfterSeconds: 30,
+      };
+    case "stale":
+      return { http: 409, code: "STALE", message: "The task's objectives changed concurrently; retry." };
     case "forbidden":
       return {
         http: 403,

@@ -1,3 +1,4 @@
+import { contentApi, type ContentApi } from "./content.js";
 import { request, type ClientConfig, type RequestOptions } from "./http.js";
 import type { AgentAuthorizeResponse, ApprovalStatus, ToolCallResult, ToolManifest } from "./types.js";
 
@@ -30,6 +31,12 @@ function operationOf(tool: string, operation?: string): string {
  */
 export class AuthorityAgentClient {
   private readonly config: ClientConfig;
+
+  /**
+   * Inspect external content for this agent's task before the model sees it. Use a task session:
+   * when alignment is enforced, a raw runtime key is refused because it is not bound to one task.
+   */
+  content: ContentApi = contentApi(() => this.config);
 
   constructor(options: AuthorityAgentClientOptions) {
     this.config = {
