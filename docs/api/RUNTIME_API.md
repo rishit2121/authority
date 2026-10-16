@@ -123,17 +123,19 @@ Administrators revoke from the dashboard (`revoke_capability()`, security_admin+
 { "error": { "code": "UNAUTHENTICATED", "reason": "unauthenticated", "message": "…", "requestId": "uuid" } }
 ```
 
-| code                   | HTTP |                                                                        |
-| ---------------------- | ---- | ---------------------------------------------------------------------- |
-| `UNAUTHENTICATED`      | 401  | missing, invalid **or revoked** key (deliberately identical)           |
-| `RATE_LIMITED`         | 429  | ≥ 20 failed attempts for a key prefix in 60 s; sends `Retry-After: 60` |
-| `TASK_NOT_FOUND`       | 404  | also returned for another tenant's task                                |
-| `AGENT_TASK_MISMATCH`  | 403  | the key's agent is not the task's agent                                |
-| `IDEMPOTENCY_CONFLICT` | 409  |                                                                        |
-| `INVALID_REQUEST`      | 400  | field paths only, never values                                         |
-| `PAYLOAD_TOO_LARGE`    | 413  |                                                                        |
-| `GATEWAY_UNAVAILABLE`  | 503  | with `Retry-After: 5`; fails closed                                    |
-| `INTERNAL_ERROR`       | 500  | generic                                                                |
+| code                      | HTTP |                                                                             |
+| ------------------------- | ---- | --------------------------------------------------------------------------- |
+| `UNAUTHENTICATED`         | 401  | missing, invalid **or revoked** key (deliberately identical)                |
+| `RATE_LIMITED`            | 429  | ≥ 20 failed attempts for a key prefix in 60 s; sends `Retry-After: 60`      |
+| `TASK_NOT_FOUND`          | 404  | also returned for another tenant's task                                     |
+| `AGENT_TASK_MISMATCH`     | 403  | the key's agent is not the task's agent, or a session used for another task |
+| `TASK_SESSION_REQUIRED`   | 403  | the application requires task sessions; a raw runtime key was used          |
+| `ALIGNMENT_STATE_CHANGED` | 409  | objectives or context changed during review; retry the same request         |
+| `IDEMPOTENCY_CONFLICT`    | 409  |                                                                             |
+| `INVALID_REQUEST`         | 400  | field paths only, never values                                              |
+| `PAYLOAD_TOO_LARGE`       | 413  |                                                                             |
+| `GATEWAY_UNAVAILABLE`     | 503  | with `Retry-After: 5`; fails closed                                         |
+| `INTERNAL_ERROR`          | 500  | generic                                                                     |
 
 Failed authentication attempts are audited (`agent_auth_events`: only a 21-character key prefix, never the key).
 
@@ -177,15 +179,28 @@ validate → solve → compile → derive-approvals → verify pipeline the dash
 runs, persists the result, then attempts automatic activation. Always `200` with a discriminated `status`:
 
 - `ready` — activated automatically. `{ contractId, version, tools }`.
-- `awaiting_approval` — proposed, waiting on a human (or an admin has not allow-listed this task's tools
-  under Settings → Applications → Automation). `{ contractId, version, approvalPath }`.
+- `awaiting_approval` — proposed; one of the organization's approval rules matched, so a person approves it on the
+  dashboard. `{ contractId, version, approvalPath }`.
+- `alignment_review` — task alignment is enforced and the plan did not clear. `{ decision: "revise" | "hold",
+contractId, version, reviewPath, alignment }`.
 - `clarification` — the plan (structured or generated) could not be compiled as given. `{ reason, details? }`.
 - `rejected` — the solver or verifier refused outright. `{ reason }`.
 - `ai_unavailable` — `generate: true` was set but no model credentials are configured. Never a silent mock.
 
-Automatic activation never widens what the compiler itself decided: it only skips a human clicking "activate"
-on a contract whose own freshly recomputed required-approvals list is independently empty **and** every
-allowed tool is allow-listed for this specific application.
+`ready` / `awaiting_approval` / `alignment_review` also carry `checks.planReview` (`ran` | `not_run`).
+A contract activates automatically unless an approval rule matched or enforced task alignment holds it;
+neither ever widens what the compiler decided.
+
+### Task alignment and content (see `docs/alignment/README.md`)
+
+- `POST /tasks/{taskId}/content` — optional external-content screening: `{ content, contentType?, source }`.
+  Backend key or the task's session. Returns `{ inspectionId, status, screening, findings, feedback, data }`;
+  `status: "not_inspected"` (with `screening.ran: false`) when screening is off — never a pass.
+- `GET /content/{inspectionId}` — status; held content is returned only after an administrator approved it.
+- `POST /tasks/{taskId}/objectives` — backend key only: `{ request }` records a new objectives version.
+- `/authorize` responses carry `checks.taskAlignment`; a stopped or held call returns `alignment` and
+  `TASK_ALIGNMENT_MISALIGNED` / `TASK_ALIGNMENT_HELD` / `TASK_ALIGNMENT_UNREVIEWED`.
+- `/execute` responses may carry `inspection` and `delivery: "held"` (the action ran; do not repeat it).
 
 ### `GET /contracts/{contractId}`
 

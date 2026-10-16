@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Authority Runtime API
-  version: "1.2.0"
+  version: "1.3.0"
   summary: >
     The public contract between an external agent (or anything acting on its
     behalf — an ordinary HTTP client, the official SDKs, or the MCP bridge)
@@ -27,7 +27,10 @@ info:
 
     - **Agent credential** (`authority_rk_...`) — identifies a registered
       agent. Proves *who is calling*, nothing else. Works on every endpoint
-      below, for any of that agent's tasks.
+      below, for any of that agent's tasks -- unless the task's application
+      requires task sessions, in which case it is refused with
+      `403 TASK_SESSION_REQUIRED` (except for opening a session). This
+      setting is independent of task alignment and of any AI review.
     - **Task session** (`authority_ts_...`) — an optional, short-lived
       (≤15 minutes) stand-in for the agent credential, scoped to one task and
       the contract version active when it was created. It exists so a client
@@ -72,6 +75,11 @@ tags:
     description: Task-bound sessions — an optional, short-lived stand-in for the agent credential.
   - name: manifests
     description: Contract-filtered tool manifests.
+  - name: alignment
+    description: >
+      Optional task alignment: objectives and external-content screening.
+      Off for every application until enabled; plan and per-call checks run
+      inside /tasks/{taskId}/prepare and /authorize without any of these calls.
   - name: customers
     description: >
       The developer API: an application backend creates its own external
@@ -684,13 +692,11 @@ paths:
         Runs the identical validate -> solve -> compile -> derive-approvals
         -> verify pipeline the dashboard's "propose contract" action runs
         (never a second, divergent authorization engine), persists the
-        result, then attempts automatic activation. Activation only ever
-        succeeds when the contract's own freshly-recompiled required-
-        approvals list is independently empty AND every allowed tool is on
-        this application's automation allowlist (Settings -> Applications
-        -> Automation) — never based on a caller-supplied risk label.
-        Anything else leaves the contract `proposed`, exactly where a human
-        would find it on the dashboard today.
+        result, then attempts automatic activation. The contract activates
+        unless one of the organization's approval rules matched (status
+        `awaiting_approval`) or enforced task alignment did not clear the plan
+        (status `alignment_review`). Neither ever widens what the compiler
+        decided, and the caller cannot supply a risk label.
 
         Always responds `200` with a discriminated `status` on success:
         `awaiting_approval` and `clarification` are expected, common
@@ -722,6 +728,128 @@ paths:
         "400": { $ref: "#/components/responses/InvalidRequest" }
         "401": { $ref: "#/components/responses/Unauthenticated" }
         "404": { description: TASK_NOT_FOUND. }
+
+  /tasks/{taskId}/content:
+    post:
+      operationId: inspectContent
+      summary: Optionally screen external content before your model sees it
+      tags: [alignment]
+      x-status: stable
+      security:
+        - backendCredential: []
+        - agentCredential: []
+      description: |
+        Optional. Submit text you fetched (email, web page, document, database
+        or API text, memory) with the backend key or the task's session. Source
+        fields are descriptive only and unknown fields are rejected -- nothing
+        here can mark content as a trusted instruction. With screening off the
+        response is `status: not_inspected` (`screening.ran: false`) and the
+        content is returned unchanged; that is never a pass.
+      parameters:
+        - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [content, source]
+              properties:
+                content: { type: string, maxLength: 140000 }
+                contentType:
+                  { type: string, enum: [text/plain, text/markdown, application/json], default: text/plain }
+                source:
+                  type: object
+                  additionalProperties: false
+                  required: [kind]
+                  properties:
+                    kind:
+                      {
+                        type: string,
+                        enum: [web, document, email, slack, database, api, memory, tool_result, other],
+                      }
+                    label: { type: string, maxLength: 200 }
+                    uri: { type: string, maxLength: 500 }
+                    toolName: { type: string, maxLength: 100 }
+                    toolArgs: { type: string, maxLength: 2000 }
+      responses:
+        "200":
+          description: The inspection result.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ContentInspection" }
+        "400": { $ref: "#/components/responses/InvalidRequest" }
+        "401": { $ref: "#/components/responses/Unauthenticated" }
+        "403": { description: "TASK_SESSION_REQUIRED or AGENT_TASK_MISMATCH." }
+        "404": { description: TASK_NOT_FOUND. }
+
+  /content/{inspectionId}:
+    get:
+      operationId: getContentInspection
+      summary: Status of an inspection; held content only after an administrator approved it
+      tags: [alignment]
+      x-status: stable
+      security:
+        - backendCredential: []
+        - agentCredential: []
+      parameters:
+        - { name: inspectionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inspectionId: { type: string, format: uuid }
+                  taskId: { type: string, format: uuid }
+                  status: { type: string }
+                  decision: { type: string, enum: [approved, rejected], nullable: true }
+                  contentHash: { type: string }
+                  contextRevision: { type: integer }
+                  findings: { type: array, items: { $ref: "#/components/schemas/AlignmentFinding" } }
+                  data: { type: object, nullable: true }
+        "404": { description: NOT_FOUND. }
+
+  /tasks/{taskId}/objectives:
+    post:
+      operationId: reviseObjectives
+      summary: Record that the user changed what they want (backend key only)
+      tags: [alignment]
+      x-status: stable
+      security:
+        - backendCredential: []
+      description: Agents, tool results and external content can never revise objectives. Re-prepare afterwards.
+      parameters:
+        - { name: taskId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [request]
+              properties:
+                request: { type: string, minLength: 1, maxLength: 8000 }
+      responses:
+        "200":
+          description: The new objectives version.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  taskId: { type: string, format: uuid }
+                  version: { type: integer }
+                  taskInstructions: { type: array, items: { type: string } }
+                  prohibitions: { type: array, items: { type: string } }
+                  requirements: { type: array, items: { type: object } }
+        "403": { description: "BACKEND_KEY_REQUIRED." }
+        "409": { description: "ALIGNMENT_DISABLED or STALE." }
+        "503": { description: "REVIEWER_UNAVAILABLE -- nothing was recorded." }
 
   /contracts/{contractId}:
     get:
@@ -925,7 +1053,25 @@ components:
               - SECURITY_POLICY_DENIED
               - APPROVAL_REQUIRED_BY_POLICY
               - SECURITY_REVIEW_UNAVAILABLE
+              - TASK_ALIGNMENT_MISALIGNED
+              - TASK_ALIGNMENT_HELD
+              - TASK_ALIGNMENT_UNREVIEWED
         summary: { type: string }
+        checks:
+          type: object
+          description: Which optional checks ran for this call. `not_run` is never a pass.
+          properties:
+            taskAlignment:
+              { type: string, enum: [not_run, shadow, passed, covered_by_plan_review, stopped, held] }
+        alignment:
+          description: Present only when task alignment stopped (deny) or held (require_approval) the call before any authorization was committed.
+          type: object
+          properties:
+            reviewId: { type: string, format: uuid, nullable: true }
+            outcome: { type: string, enum: [misaligned, ambiguous, unreviewed] }
+            policy: { type: string }
+            findings: { type: array, items: { $ref: "#/components/schemas/AlignmentFinding" } }
+            feedback: { type: string, nullable: true }
         contract:
           nullable: true
           type: object
@@ -1053,7 +1199,20 @@ components:
         resource: { type: string }
         data:
           type: object
-          description: Connector-specific, redacted, size-bounded response projection.
+          nullable: true
+          description: Connector-specific, redacted, size-bounded response projection. null when delivery is held.
+        delivery:
+          type: string
+          enum: [delivered, held]
+          description: "held: the action RAN (see receiptId) but its result is withheld for review -- never execute it again."
+        inspection:
+          type: object
+          description: "Present when the application screens results. status not_inspected (ran: false) when screening did not run."
+          properties:
+            status: { type: string }
+            ran: { type: boolean }
+            action: { type: string, enum: [report, quarantine, shadow] }
+            inspectionId: { type: string, format: uuid, nullable: true }
 
     ErrorEnvelope:
       type: object
@@ -1137,18 +1296,96 @@ components:
       required: [taskId, status]
       properties:
         taskId: { type: string, format: uuid }
-        status: { type: string, enum: [ready, awaiting_approval, clarification, rejected, ai_unavailable] }
-        contractId: { type: string, format: uuid, description: "Present for: ready, awaiting_approval." }
-        version: { type: integer, description: "Present for: ready, awaiting_approval." }
+        status:
+          type: string
+          enum: [ready, awaiting_approval, alignment_review, clarification, rejected, ai_unavailable]
+        contractId:
+          {
+            type: string,
+            format: uuid,
+            description: "Present for: ready, awaiting_approval, alignment_review.",
+          }
+        version: { type: integer, description: "Present for: ready, awaiting_approval, alignment_review." }
         tools:
           type: array
           items: { type: string }
           description: "Present for: ready — every tool the now-active contract allows."
         approvalPath:
           type: string
-          description: "Present for: awaiting_approval — a dashboard path a human can activate this contract from."
+          description: "Present for: awaiting_approval — an approval rule matched; a person approves on the dashboard."
+        decision:
+          type: string
+          enum: [revise, hold]
+          description: "Present for: alignment_review — revise the plan, or wait for a person."
+        reviewPath: { type: string, description: "Present for: alignment_review." }
+        alignment: { $ref: "#/components/schemas/PlanAlignment" }
+        checks:
+          type: object
+          description: Which optional checks ran. `not_run` is never a pass.
+          properties:
+            planReview: { type: string, enum: [ran, not_run] }
         reason: { type: string, description: "Present for: clarification, rejected." }
         details: { description: "Present for: clarification, only when the plan came from `generate: true`." }
+
+    AlignmentFinding:
+      type: object
+      required: [type, source, severity, explanation]
+      properties:
+        type:
+          {
+            type: string,
+            description: "e.g. wrong_recipient, wrong_amount, unresolved_value, misaligned_instruction, injected_directive, reviewer_unavailable",
+          }
+        source: { type: string, enum: [deterministic, semantic, task_shield, inspection] }
+        severity: { type: string, enum: [conflict, ambiguous, unreviewed, info] }
+        stepId: { type: string }
+        field: { type: string }
+        value: { type: string }
+        explanation: { type: string }
+
+    PlanAlignment:
+      type: object
+      description: Present when the application has plan checks on. Model-based findings are judgments, not certainties.
+      properties:
+        mode: { type: string, enum: [shadow, enforce] }
+        policy: { type: string, enum: [reference, production] }
+        outcome: { type: string, enum: [aligned, misaligned, ambiguous, unreviewed] }
+        decision: { type: string, enum: [approved, rejected], nullable: true }
+        reviewId: { type: string, format: uuid, nullable: true }
+        findings: { type: array, items: { $ref: "#/components/schemas/AlignmentFinding" } }
+        feedback: { type: string, nullable: true }
+
+    ContentInspection:
+      type: object
+      required: [taskId, status, screening]
+      properties:
+        taskId: { type: string, format: uuid }
+        inspectionId: { type: string, format: uuid, nullable: true }
+        status:
+          type: string
+          enum: [not_inspected, passed, flagged, quarantined, held, unreviewed]
+          description: "`not_inspected` means screening did not run -- never a pass."
+        mode: { type: string, enum: [off, shadow, enforce] }
+        policy: { type: string, enum: [reference, production] }
+        contentHash: { type: string, nullable: true }
+        contextRevision: { type: integer, nullable: true }
+        screening:
+          type: object
+          required: [ran, action]
+          properties:
+            ran: { type: boolean }
+            reason: { type: string, enum: [alignment_off, content_screening_off] }
+            action: { type: string, enum: [report, quarantine, shadow, none] }
+        findings: { type: array, items: { $ref: "#/components/schemas/AlignmentFinding" } }
+        feedback: { type: string, nullable: true }
+        data:
+          nullable: true
+          description: What may go to the model, always as external data; null when quarantine withheld it.
+          type: object
+          properties:
+            role: { const: external_data }
+            source: { type: object }
+            text: { type: string }
 
     ContractStatus:
       type: object
@@ -1226,7 +1463,7 @@ components:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorEnvelope" }
     AgentTaskMismatch:
-      description: AGENT_TASK_MISMATCH — the key's agent is not the task's agent.
+      description: AGENT_TASK_MISMATCH — the key's agent is not the task's agent (or a session used for another task); TASK_SESSION_REQUIRED — the application requires task sessions.
       content:
         application/json:
           schema: { $ref: "#/components/schemas/ErrorEnvelope" }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { DOCS_NAV, type DocsNavItem } from "./docs-nav-data";
+import { DOCS_NAV_GROUPS, type DocsNavItem } from "./docs-nav-data";
 
 function NavLink({ item, pathname }: { item: DocsNavItem; pathname: string }) {
   const active = pathname === item.href;
@@ -30,16 +30,23 @@ export function DocsNav() {
       >
         Documentation
       </Link>
-      {DOCS_NAV.map((item) => (
-        <div key={item.href}>
-          <NavLink item={item} pathname={pathname} />
-          {item.children ? (
-            <div className="ml-3 flex flex-col gap-0.5 border-l border-line pl-2">
-              {item.children.map((child) => (
-                <NavLink key={child.href} item={child} pathname={pathname} />
-              ))}
+      {DOCS_NAV_GROUPS.map((group) => (
+        <div key={group.title} className="mb-2">
+          <p className="px-2.5 pb-0.5 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-outline">
+            {group.title}
+          </p>
+          {group.items.map((item) => (
+            <div key={item.href}>
+              <NavLink item={item} pathname={pathname} />
+              {item.children ? (
+                <div className="ml-3 flex flex-col gap-0.5 border-l border-line pl-2">
+                  {item.children.map((child) => (
+                    <NavLink key={child.href} item={child} pathname={pathname} />
+                  ))}
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          ))}
         </div>
       ))}
     </nav>

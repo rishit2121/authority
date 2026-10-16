@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { decideAlignmentReviewAction, revealExternalContentAction } from "@/app/app/alignment/actions";
+import { findingHelp } from "@/lib/alignment/finding-help";
 
 export interface FindingView {
   type: string;
@@ -84,6 +85,12 @@ function Findings({ findings }: { findings: FindingView[] }) {
             {f.field ? ` · ${f.field}` : ""}
           </span>
           <div>{f.explanation}</div>
+          {findingHelp(f.type) ? (
+            <div className="text-[12px] text-ink-soft">
+              <span className="font-medium text-ink">{findingHelp(f.type)!.title}.</span> Next:{" "}
+              {findingHelp(f.type)!.next}
+            </div>
+          ) : null}
           {f.value ? (
             <div className="break-all font-mono-code text-[12px] text-ink-soft">{f.value}</div>
           ) : null}
@@ -183,7 +190,15 @@ export function AlignmentFindingsPanel({
       className="flex flex-col gap-3 rounded-[12px] border border-line bg-paper-raised p-5"
       data-testid="alignment-findings"
     >
-      <h2 className="text-[15px] font-semibold text-ink">Task alignment</h2>
+      <h2 className="text-[15px] font-semibold text-ink">
+        Task alignment{" "}
+        <a
+          href="/docs/task-alignment#findings"
+          className="text-[12px] font-normal text-ink-soft underline underline-offset-2"
+        >
+          what findings mean
+        </a>
+      </h2>
       <p className="text-[13px] text-ink-soft" data-testid="alignment-checks-ran">
         Checks that ran: plan review{" "}
         {reviews.some((r) => r.kind === "plan")

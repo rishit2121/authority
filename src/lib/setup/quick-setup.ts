@@ -65,26 +65,46 @@ const { taskId } = await backend.tasks.create({
   connections: connections.map(({ connectorId, connectionId }) => ({ connectorId, connectionId })),
 });
 const prepared = await backend.tasks.prepare(taskId, { generate: true });
-if (prepared.status !== "ready") {
-  console.log(prepared.status, "-- approve it on the Approvals page, then run this again.");
-  process.exit(0);
+
+// 3. Handle the outcome. "ready" is the default; the others only happen if you set them up.
+if (prepared.status === "awaiting_approval") {
+  // One of your approval rules matched: wait for a person on the Approvals page.
+  console.log("Waiting for approval on the Approvals page...");
+  for (;;) {
+    const c = await backend.contracts.getStatus(prepared.contractId);
+    if (c.status === "active") break;
+    if (c.status === "rejected") process.exit(1);
+    await new Promise((r) => setTimeout(r, 5000));
+  }
+} else if (prepared.status === "alignment_review") {
+  // Task alignment (if enabled) found the plan does not match the request: revise it, or ask an admin.
+  console.log(prepared.decision, prepared.alignment.feedback ?? prepared.alignment.findings);
+  process.exit(1);
+} else if (prepared.status !== "ready") {
+  console.log(prepared.status, prepared.reason ?? "");
+  process.exit(1);
 }
 
-// 3. Hand your agent a session for this one task: it can't reach any other task,
+// 4. Hand your agent a session for this one task: it can't reach any other task,
 //    including other users' -- and sees, and can call, only the tools it was granted.
 await agent.sessions.create({ taskId });
 const { tools } = await agent.tools.list(taskId);
 console.log("granted:", tools.map((t) => t.tool));
 
-// 4. Call them. The arguments Authority pinned for this task come with each tool.
+// 5. Call them. The arguments Authority pinned for this task come with each tool.
 for (const t of tools) {
   const args = {};
   for (const { key, equals } of t.resourceConstraints) {
     const type = t.inputSchema.properties?.[key]?.type;
     args[key] = type === "number" ? Number(equals) : type === "boolean" ? equals === "true" : equals;
   }
-  const result = await agent.tools.execute({ taskId, tool: t.tool, arguments: args });
-  console.log(t.tool, "->", result.status, JSON.stringify(result.data ?? result.summary ?? "").slice(0, 500));
+  const result = await agent.tools.execute({ taskId, tool: t.tool, arguments: args, idempotencyKey: \`\${taskId}-\${t.tool}\` });
+  if (result.status === "executed") {
+    // 6. The receipt proves what ran. If delivery is "held", it RAN -- never run it again.
+    console.log(t.tool, "receipt:", result.receiptId, result.delivery === "held" ? "(result held for review)" : JSON.stringify(result.data ?? "").slice(0, 300));
+  } else {
+    console.log(t.tool, "->", result.status, result.summary ?? "");
+  }
 }
 `;
 }

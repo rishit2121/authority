@@ -65,6 +65,24 @@ const ENDPOINTS: Array<{
     credential: "Runtime key or session",
     summary: "Revoke one of your own capabilities.",
   },
+  {
+    method: "POST",
+    path: "/api/v1/tasks/{taskId}/content",
+    credential: "Backend key or session",
+    summary: "Optional external-content screening; status not_inspected when screening is off.",
+  },
+  {
+    method: "GET",
+    path: "/api/v1/content/{inspectionId}",
+    credential: "Backend key or session",
+    summary: "Inspection status; held content only after an administrator approved it.",
+  },
+  {
+    method: "POST",
+    path: "/api/v1/tasks/{taskId}/objectives",
+    credential: "Backend key",
+    summary: "Record that the user changed what they want (task alignment).",
+  },
 ];
 
 export default function ApiReferencePage() {

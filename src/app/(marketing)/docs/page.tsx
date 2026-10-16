@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { DOCS_NAV } from "@/components/docs/docs-nav-data";
+import { DOCS_NAV_GROUPS } from "@/components/docs/docs-nav-data";
 
 export const metadata: Metadata = {
   title: "Authority Docs",
@@ -23,17 +23,22 @@ export default function DocsIndexPage() {
         API directly — no SDK is required either way. Two credentials, one authorize call, one execute call.
         Start with the Quickstart.
       </p>
-      <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {DOCS_NAV.flatMap((item) => (item.children ? item.children : [item])).map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="rounded-[10px] border border-line bg-paper-raised p-4 transition-colors hover:bg-black/[0.02]"
-          >
-            <span className="text-[14px] font-medium text-ink">{item.label}</span>
-          </Link>
-        ))}
-      </div>
+      {DOCS_NAV_GROUPS.map((group) => (
+        <section key={group.title} className="mt-8">
+          <h2 className="text-[13px] font-medium uppercase tracking-wide text-ink-soft">{group.title}</h2>
+          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {group.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-[10px] border border-line bg-paper-raised p-4 transition-colors hover:bg-black/[0.02]"
+              >
+                <span className="text-[14px] font-medium text-ink">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
     </article>
   );
 }

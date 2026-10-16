@@ -88,7 +88,10 @@ export function ApprovalRulesPanel({
       </h2>
       <p className="mt-1 max-w-2xl text-[13px] text-ink-soft">
         Tasks start as soon as their contract is ready unless they match a rule below — then they wait for a
-        person here. Either way, every call is still checked against the task&apos;s contract.
+        person here. Either way, every call is still checked against the task&apos;s contract.{" "}
+        <a href="/docs/approvals-and-replanning" className="underline underline-offset-2">
+          Approvals and retries
+        </a>
       </p>
 
       <ul className="mt-4 flex flex-col gap-2" data-testid="approval-rules-list">

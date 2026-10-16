@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RevokeCapabilityButton } from "@/components/runtime/RevokeCapabilityButton";
 import { SemanticEvidenceDetail } from "@/components/semantic/SemanticEvidenceDetail";
 import { SemanticShadowBadge } from "@/components/semantic/SemanticShadowBadge";
@@ -179,6 +180,20 @@ export default async function RuntimePage({
         title="Activity"
         description="Every authorization request, its decision, and the authority issued."
       />
+      <p className="-mt-3 text-[13px] text-ink-soft">
+        Reading a decision:{" "}
+        <Link href="/docs/results-and-evaluation" className="underline underline-offset-2">
+          results and troubleshooting
+        </Link>
+        {" · "}
+        <Link href="/docs/errors" className="underline underline-offset-2">
+          reason codes
+        </Link>
+        {" · "}
+        <Link href="/docs/task-alignment" className="underline underline-offset-2">
+          task alignment
+        </Link>
+      </p>
 
       <StatusRow
         items={[

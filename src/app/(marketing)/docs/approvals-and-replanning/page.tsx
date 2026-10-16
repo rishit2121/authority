@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import Link from "next/link";
+
 import { CodeBlock } from "@/components/docs/CodeBlock";
 import { DocsPage, DocsSection, DocsTable } from "@/components/docs/DocsPage";
 
@@ -83,6 +85,56 @@ export default function ApprovalsPage() {
           <code>examples/agent/authority-client.mjs</code>, which times out to{" "}
           <code>&#123; state: &quot;pending&quot;, timedOut: true &#125;</code> rather than guessing.
         </p>
+      </DocsSection>
+
+      <DocsSection title="When a whole task waits: approval rules">
+        <p>
+          Nothing waits for a person by default. A task&apos;s contract waits only when one of your{" "}
+          <strong>approval rules</strong> (Approvals page: a kind of action such as money movement, a service,
+          or a specific tool) matches what the plan includes. <code>prepare</code> then returns{" "}
+          <code>awaiting_approval</code>; poll <code>GET /api/v1/contracts/&#123;contractId&#125;</code> (SDK:{" "}
+          <code>backend.contracts.getStatus</code>) until <code>status</code> is <code>active</code> or{" "}
+          <code>rejected</code>.
+        </p>
+      </DocsSection>
+
+      <DocsSection title="Held by task alignment: approve, then retry the identical call">
+        <p>
+          With <Link href="/docs/task-alignment">task alignment</Link> enforced, a call can come back held (
+          <code>TASK_ALIGNMENT_HELD</code> or <code>TASK_ALIGNMENT_UNREVIEWED</code>). No decision is recorded
+          and no budget is spent. An administrator approves that exact review on the task page; then repeat
+          the call with the <strong>same idempotency key and arguments</strong> -- the stored review and its
+          approval are reused. A different key or different arguments is a new call and is reviewed again.
+        </p>
+        <CodeBlock
+          language="javascript"
+          code={`const call = { taskId, tool: "stripe.issue_refund", arguments: { payment_id: "pi_1", amount_cents: 500 }, idempotencyKey: "refund-pi_1" };
+let result = await agent.tools.execute(call);
+if (result.status === "held_for_review") {
+  console.log("Waiting for an administrator:", result.alignment.reviewId);
+  // ...after it is approved on the task page:
+  result = await agent.tools.execute(call); // same idempotencyKey, same arguments
+}`}
+        />
+      </DocsSection>
+
+      <DocsSection title="Replanning after a value conflict">
+        <p>
+          If alignment finds the plan disagrees with the request (for example a refund of $500 when the user
+          asked for $5), <code>prepare</code> returns <code>status: &quot;alignment_review&quot;</code> with{" "}
+          <code>decision: &quot;revise&quot;</code> and the findings. Fix the plan and prepare again -- or ask
+          an administrator to approve the exception. Authority never edits your plan for you.
+        </p>
+        <CodeBlock
+          language="javascript"
+          code={`let prepared = await backend.tasks.prepare(taskId, { plan });
+if (prepared.status === "alignment_review" && prepared.decision === "revise") {
+  for (const f of prepared.alignment.findings) console.log(f.type, f.field ?? "", f.explanation);
+  // e.g. wrong_amount amount_cents "The request states 5.00 USD; the plan uses 50000"
+  prepared = await backend.tasks.prepare(taskId, { plan: correctedPlan });
+}
+// A held call during execution: result.status === "requires_replan" with result.alignment.feedback.`}
+        />
       </DocsSection>
     </DocsPage>
   );

@@ -160,6 +160,12 @@ export default async function ApprovalsPage() {
                   >
                     Review findings →
                   </Link>
+                  <Link
+                    href="/docs/task-alignment#findings"
+                    className="ml-4 text-[13px] text-ink-soft hover:underline"
+                  >
+                    What this means
+                  </Link>
                 </div>
               </article>
             ))}

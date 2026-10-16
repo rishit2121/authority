@@ -29,7 +29,10 @@ export function TaskSessionsPanel({
         on, the key can only open a task session (<code>agent.sessions.create(&#123; taskId &#125;)</code>),
         and every authorization, tool list and content call must use that session. This does not depend on
         task alignment or any AI review. Turn it on after your agent uses sessions; new applications start
-        with it on.
+        with it on.{" "}
+        <a href="/docs/task-sessions#require-task-sessions" className="underline underline-offset-2">
+          Migration steps
+        </a>
       </p>
       <label className="mt-3 flex items-center gap-2 text-[14px] text-ink">
         <input

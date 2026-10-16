@@ -224,6 +224,20 @@ const result = await agent.tools.execute({ taskId: task.taskId, tool: manifest.t
           Approval rules
           <Icon name="arrow_forward" size={14} />
         </Link>
+        <p className="mt-3 text-[13px] text-ink-soft">
+          Docs:{" "}
+          <Link href="/docs/task-sessions#require-task-sessions" className="underline underline-offset-2">
+            require task sessions
+          </Link>
+          {" · "}
+          <Link href="/docs/task-alignment" className="underline underline-offset-2">
+            task alignment (optional)
+          </Link>
+          {" · "}
+          <Link href="/docs/content-screening" className="underline underline-offset-2">
+            content screening (optional)
+          </Link>
+        </p>
       </Step>
 
       <Step number={4} title="Run your agent" state={step4State}>

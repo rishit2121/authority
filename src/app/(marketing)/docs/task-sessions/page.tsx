@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 
+import Link from "next/link";
+
 import { CodeBlock } from "@/components/docs/CodeBlock";
 import { DocsPage, DocsSection, DocsTable } from "@/components/docs/DocsPage";
 
@@ -119,6 +121,49 @@ export default function TaskSessionsPage() {
             ],
           ]}
         />
+      </DocsSection>
+
+      <DocsSection title="Require task sessions (per application)" id="require-task-sessions">
+        <p>
+          An agent&apos;s runtime key belongs to the agent, not to one task, so on its own it can act on{" "}
+          <strong>any</strong> task of that agent -- including another of your customers&apos; tasks. A
+          session is bound to one task. Turning on <strong>Require task sessions</strong> (Settings →
+          Applications → your app) makes Authority refuse the raw runtime key on that application&apos;s tasks
+          with <code>403 TASK_SESSION_REQUIRED</code> -- on authorize (REST and MCP), the tool list, content
+          inspection and objectives. The key can still open sessions.
+        </p>
+        <p>
+          This setting is <strong>independent of task alignment, AI review and content screening</strong>:
+          turning any of those off never re-opens it.
+        </p>
+        <p>
+          <strong>Existing applications keep their setting</strong> (off). New applications start with it on.
+          Until you turn it on, the broad-runtime-key limitation above applies to your application.
+        </p>
+        <p>Migration:</p>
+        <ol className="list-decimal pl-5">
+          <li>
+            Call <code>await agent.sessions.create(&#123; taskId &#125;)</code> before{" "}
+            <code>agent.tools.list</code> / <code>agent.tools.execute</code> (one session per task; it swaps
+            in the session token for you).
+          </li>
+          <li>Deploy, and confirm in Activity that calls succeed.</li>
+          <li>
+            Turn on <strong>Require task sessions</strong>. Any remaining raw-key call now fails with{" "}
+            <code>TASK_SESSION_REQUIRED</code> instead of reaching another task.
+          </li>
+        </ol>
+        <CodeBlock
+          language="javascript"
+          code={`const agent = new AuthorityAgentClient({ baseUrl: process.env.AUTHORITY_URL, token: process.env.AUTHORITY_AGENT_RUNTIME_KEY });
+await agent.sessions.create({ taskId });            // bound to this one task from here on
+const { tools } = await agent.tools.list(taskId);
+const result = await agent.tools.execute({ taskId, tool: tools[0].tool, arguments: { /* ... */ } });`}
+        />
+        <p>
+          See also <Link href="/docs/task-alignment">Task alignment</Link>, which is separate from this
+          setting.
+        </p>
       </DocsSection>
     </DocsPage>
   );

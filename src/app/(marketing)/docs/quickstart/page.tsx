@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { CodeBlock } from "@/components/docs/CodeBlock";
-import { DocsPage, DocsSection } from "@/components/docs/DocsPage";
+import { DocsPage, DocsSection, DocsTable } from "@/components/docs/DocsPage";
 import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
 import { installCommand, quickstartSnippet, RUN_COMMAND } from "@/lib/setup/quick-setup";
 
@@ -46,10 +46,38 @@ AUTHORITY_AGENT_ID=...
 AUTHORITY_AGENT_RUNTIME_KEY=authority_rk_...`}
         />
         <p>
-          With <strong>Run read-only tools automatically</strong> on (the default), tasks that only read run
-          immediately. Anything that writes, sends email, or moves money still waits for you on the{" "}
-          <strong>Approvals</strong> page.
+          New applications start with <strong>Require task sessions</strong> on: your agent opens a session
+          for each task (the snippet below does), and its runtime key alone is refused on your tasks. Nothing
+          waits for a person unless you add an approval rule.
         </p>
+      </DocsSection>
+
+      <DocsSection title="One-time setup vs. what your code does">
+        <DocsTable
+          headers={["Once, in the dashboard", "Every task, from your code"]}
+          rows={[
+            [
+              "Connect services; share them with your app (Setup does this)",
+              "Create a task for a user: backend.tasks.create",
+            ],
+            [
+              "Create the agent and keys",
+              "Prepare it: backend.tasks.prepare -- Authority plans and compiles the contract",
+            ],
+            [
+              "Optional: approval rules (Approvals page)",
+              'If a rule matched: wait for status "active" (backend.contracts.getStatus)',
+            ],
+            [
+              "Optional: task alignment and content screening (Settings → Applications)",
+              "Open a task session: agent.sessions.create",
+            ],
+            [
+              "Require task sessions (on for new applications)",
+              "List permitted tools, then execute: agent.tools.list, agent.tools.execute",
+            ],
+          ]}
+        />
       </DocsSection>
 
       <DocsSection title="4. Run your first task">
@@ -65,10 +93,19 @@ AUTHORITY_AGENT_RUNTIME_KEY=authority_rk_...`}
         <p>Run it:</p>
         <CodeBlock code={RUN_COMMAND} />
         <p>
-          You describe the task in plain English. Authority drafts a plan, grants only the tools that plan
-          needs, and your agent can call those tools — and nothing else. A call to any other tool is refused
-          before it reaches the service. The Setup page turns green as soon as your first call arrives, and
-          every call shows up under <strong>Activity</strong>.
+          The flow:{" "}
+          <strong>
+            create task → prepare → handle approval (only if a rule matched) → create a task session → fetch
+            the permitted tools → execute → read the receipt
+          </strong>
+          . Authority drafts a plan, grants only the tools that plan needs, and your agent can call those
+          tools — and nothing else. Each executed call returns a <code>receiptId</code>; every call shows up
+          under <strong>Activity</strong>.
+        </p>
+        <p>
+          If <code>delivery</code> is <code>&quot;held&quot;</code>, the action <strong>already ran</strong>{" "}
+          and only its result is being withheld for review — never execute it again. See{" "}
+          <Link href="/docs/results-and-evaluation">Results</Link>.
         </p>
       </DocsSection>
 
@@ -79,7 +116,12 @@ AUTHORITY_AGENT_RUNTIME_KEY=authority_rk_...`}
             call.
           </li>
           <li>
-            <Link href="/docs/approvals-and-replanning">Approvals</Link> — how write actions wait for a human.
+            <Link href="/docs/approvals-and-replanning">Approvals and replanning</Link> — approval rules, and
+            retrying with the same idempotency key.
+          </li>
+          <li>
+            <Link href="/docs/task-alignment">Task alignment</Link> — optional checks that a plan and its
+            values match what the user asked for.
           </li>
           <li>
             <Link href="/docs/customer-connections">Customer connections</Link> — let each of your own users

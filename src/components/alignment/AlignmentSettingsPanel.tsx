@@ -55,7 +55,10 @@ export function AlignmentSettingsPanel({
       <p className="mt-1 max-w-2xl text-[13px] text-ink-soft">
         Checks that each plan and its values serve what the user asked for, and screens external content your
         app sends through Authority for instructions aimed at the agent. Based on Task Shield; findings are
-        model judgments, not guarantees.
+        model judgments, not guarantees.{" "}
+        <a href="/docs/task-alignment" className="underline underline-offset-2">
+          How these settings work
+        </a>
       </p>
       <div className="mt-4 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-[12px] text-ink-soft">

@@ -46,6 +46,10 @@ export default function TaskLifecyclePage() {
               "One of your approval rules matched, so a person must approve it first -- see below. Response includes approvalPath.",
             ],
             [
+              "alignment_review",
+              "Task alignment is enforced and the plan did not clear: decision is revise (fix the plan) or hold (a person reviews it). Includes alignment findings.",
+            ],
+            [
               "clarification",
               "The plan, structured or generated, could not be compiled as given. Includes reason.",
             ],
@@ -108,7 +112,8 @@ const task = await backend.tasks.create({
 const outcome = await backend.tasks.prepare(task.taskId, {
   plan: { schemaVersion: 1, nodes: [/* ... */] },
 });
-// outcome.status: "ready" | "awaiting_approval" | "clarification" | "rejected" | "ai_unavailable"`}
+// outcome.status: "ready" | "awaiting_approval" | "alignment_review" | "clarification" | "rejected" | "ai_unavailable"
+// outcome.checks.planReview: "ran" | "not_run"`}
         />
         <p>
           See <code>examples/connector-quickstart</code> for a complete, runnable version (idempotent, reuses
