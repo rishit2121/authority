@@ -5693,6 +5693,62 @@ export type Database = {
           was_created: boolean;
         }[];
       };
+      pilot_viewer: {
+        Args: never;
+        Returns: {
+          pv_access: string;
+          pv_is_owner: boolean;
+          pv_gate_enabled: boolean;
+        }[];
+      };
+      pilot_admin_list: {
+        Args: never;
+        Returns: {
+          id: string;
+          email: string;
+          email_normalized: string;
+          name: string | null;
+          company: string | null;
+          building: string | null;
+          usage: string | null;
+          services: string | null;
+          source: string;
+          status: string;
+          admin_notes: string | null;
+          submit_count: number;
+          submitted_at: string | null;
+          last_submitted_at: string | null;
+          decided_at: string | null;
+          notification_status: string | null;
+          notification_detail: string | null;
+          notified_at: string | null;
+          created_at: string;
+          updated_at: string;
+        }[];
+      };
+      pilot_admin_update: {
+        Args: { p_id: string; p_status: string | null; p_notes: string | null };
+        Returns: string;
+      };
+      pilot_admin_add: {
+        Args: { p_email: string; p_name: string | null; p_notes: string | null; p_source?: string };
+        Returns: string;
+      };
+      pilot_admin_accounts: {
+        Args: never;
+        Returns: {
+          pa_email: string;
+          pa_created_at: string;
+          pa_confirmed: boolean;
+          pa_last_sign_in_at: string | null;
+          pa_status: string;
+          pa_is_owner: boolean;
+        }[];
+      };
+      pilot_admin_set_gate: {
+        Args: { p_enabled: boolean };
+        Returns: string;
+      };
       get_semantic_evaluation_context: {
         Args: { p_credential_secret: string; p_decision_id: string };
         Returns: {

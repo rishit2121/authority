@@ -60,8 +60,8 @@ export function MobileNav({
                 <Link href="/login" className="py-2 text-[15px] text-ink">
                   Sign in
                 </Link>
-                <Link href="/signup" className="py-2 text-[15px] font-medium text-ink">
-                  Start building
+                <Link href="/request-access" className="py-2 text-[15px] font-medium text-ink">
+                  Request access
                 </Link>
               </>
             )}

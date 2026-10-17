@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { loadPilotViewer } from "@/lib/pilot/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { buildReportHtml, buildReportJson, buildReportMarkdown } from "@/lib/validation/report";
 import { buildReportInputFromDb } from "@/lib/validation/read-model";
@@ -19,6 +20,9 @@ export async function GET(
   const db = await createClient();
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  if ((await loadPilotViewer(db)).access !== "eligible") {
+    return NextResponse.json({ error: "invite_only" }, { status: 403 });
+  }
 
   const input = await buildReportInputFromDb(db, id);
   if (!input) return NextResponse.json({ error: "not_found_or_not_finished" }, { status: 404 });

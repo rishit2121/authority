@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { loadPilotViewer } from "@/lib/pilot/viewer";
 import { createClient } from "@/lib/supabase/server";
 import {
   loadRunsWithSteps,
@@ -23,6 +24,9 @@ export async function GET(
   const db = await createClient();
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  if ((await loadPilotViewer(db)).access !== "eligible") {
+    return NextResponse.json({ error: "invite_only" }, { status: 403 });
+  }
 
   const { data: row } = await db.from("validation_campaigns").select("*").eq("id", id).maybeSingle();
   if (!row) return NextResponse.json({ error: "not_found" }, { status: 404 });

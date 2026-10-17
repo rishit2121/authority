@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { DEFAULT_AUTHENTICATED_PATH, safeReturnPath } from "@/lib/auth/redirect";
+import { INVITE_ONLY_PATH, loadPilotViewer } from "@/lib/pilot/viewer";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -58,6 +59,14 @@ export async function GET(request: NextRequest) {
   // the reset silently completes without a new password being set.
   if (isRecovery) {
     return redirectTo("/reset-password");
+  }
+
+  // Invite-only pilot: a confirmed email is authentication, not pilot access.
+  // The console re-checks on every request; this only routes the user to the
+  // right page straight away. A failed check falls through to that re-check.
+  const pilot = await loadPilotViewer(supabase).catch(() => null);
+  if (pilot && pilot.access !== "eligible") {
+    return redirectTo(INVITE_ONLY_PATH);
   }
 
   return redirectTo(safeReturnPath(searchParams.get("next"), DEFAULT_AUTHENTICATED_PATH));

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
+import { loadPilotViewer } from "@/lib/pilot/viewer";
 import { createClient } from "@/lib/supabase/server";
 
 import { getVerifiedUser } from "./identity";
@@ -34,6 +35,9 @@ export async function switchWorkspaceAction(tenantId: string): Promise<SwitchWor
 
   if (!user) {
     return { ok: false, error: "Your session expired. Sign in again." };
+  }
+  if ((await loadPilotViewer(supabase)).access !== "eligible") {
+    return { ok: false, error: "Authority is currently invite-only." };
   }
 
   // Filtered to this user for the same reason as in identity.ts: the

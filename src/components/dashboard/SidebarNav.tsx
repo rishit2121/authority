@@ -15,6 +15,7 @@ import {
 interface SidebarNavProps {
   badges: NavBadgeCounts;
   isPlatformAdmin?: boolean;
+  isPilotOwner?: boolean;
   /** Icons-only rail; each row gets a hover/focus tooltip instead of a label. */
   collapsed?: boolean;
   onNavigate?: () => void;
@@ -93,6 +94,7 @@ const ADVANCED_OPEN_KEY = "authority.nav.advancedOpen";
 export function SidebarNav({
   badges,
   isPlatformAdmin = false,
+  isPilotOwner = false,
   collapsed = false,
   onNavigate,
 }: SidebarNavProps) {
@@ -138,6 +140,7 @@ export function SidebarNav({
               <div className="flex flex-col gap-0.5">
                 {group.items
                   .filter((item) => !item.platformAdminOnly || isPlatformAdmin)
+                  .filter((item) => !item.pilotOwnerOnly || isPilotOwner)
                   .map((item) => (
                     <NavRow
                       key={item.href}

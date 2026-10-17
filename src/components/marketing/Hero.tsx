@@ -52,7 +52,7 @@ export function Hero() {
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-4">
-              <InkButton href="/signup">Start building</InkButton>
+              <InkButton href="/request-access">Request access</InkButton>
               <InkOutlineButton href="/demo">See a tool call</InkOutlineButton>
             </div>
 

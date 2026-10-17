@@ -56,8 +56,8 @@ export async function SiteHeader() {
               <Link href="/login" className="text-[13px] text-ink-soft hover:text-ink">
                 Sign in
               </Link>
-              <InkButton href="/signup" className="px-4 py-2 text-[13px]">
-                Start building
+              <InkButton href="/request-access" className="px-4 py-2 text-[13px]">
+                Request access
               </InkButton>
             </>
           )}

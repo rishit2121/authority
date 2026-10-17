@@ -10,8 +10,10 @@ import {
   PASSWORD_RESET_NEUTRAL_MESSAGE,
   presentAuthError,
   resolveSignUpOutcome,
+  SIGNUP_NEUTRAL_MESSAGE,
 } from "@/lib/auth/errors";
 import { DEFAULT_AUTHENTICATED_PATH, safeReturnPath } from "@/lib/auth/redirect";
+import { pilotSignupAllowed } from "@/lib/pilot/gateway";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -124,6 +126,21 @@ export async function signUpAction(_previous: AuthFormState, formData: FormData)
 
   if (!parsed.success) {
     return { error: firstIssue(parsed.error), email };
+  }
+
+  // Invite-only pilot: an address that is not approved gets the same neutral
+  // response as a real sign-up and no account, so this form cannot be used to
+  // check whether an address is approved. (An account created by calling
+  // Supabase directly still gets nothing: the console and ensure_onboarded()
+  // check approval themselves.)
+  let allowed: boolean;
+  try {
+    allowed = await pilotSignupAllowed(parsed.data.email);
+  } catch {
+    return { error: "Sign-up is temporarily unavailable. Try again shortly.", email };
+  }
+  if (!allowed) {
+    return { success: SIGNUP_NEUTRAL_MESSAGE, email };
   }
 
   const supabase = await createClient();

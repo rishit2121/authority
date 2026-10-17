@@ -32,12 +32,19 @@ export default async function LoginPage({
       description="Access the control plane to review task authority, decisions and active capabilities."
       footer={
         <p>
-          Need an account?{" "}
+          Authority is an invite-only pilot. Approved?{" "}
           <Link
             href="/signup"
             className="font-medium text-primary-container underline decoration-primary-container/40 underline-offset-2"
           >
-            Create one
+            Create your account
+          </Link>
+          . Not yet?{" "}
+          <Link
+            href="/request-access"
+            className="font-medium text-primary-container underline decoration-primary-container/40 underline-offset-2"
+          >
+            Request access
           </Link>
         </p>
       }

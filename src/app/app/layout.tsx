@@ -65,6 +65,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       memberships={identity.memberships}
       currentTenantId={identity.tenant.tenantId}
       isPlatformAdmin={isPlatformAdmin(identity.email)}
+      isPilotOwner={identity.isPilotOwner}
     >
       {children}
     </DashboardShell>

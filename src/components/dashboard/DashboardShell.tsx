@@ -112,6 +112,7 @@ interface DashboardShellProps {
   memberships: TenantMembership[];
   currentTenantId: string;
   isPlatformAdmin: boolean;
+  isPilotOwner: boolean;
 }
 
 /**
@@ -127,6 +128,7 @@ export function DashboardShell({
   memberships,
   currentTenantId,
   isPlatformAdmin,
+  isPilotOwner,
 }: DashboardShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useSidebarCollapsed();
@@ -194,7 +196,12 @@ export function DashboardShell({
               />
             )}
 
-            <SidebarNav badges={badges} isPlatformAdmin={isPlatformAdmin} collapsed={collapsed} />
+            <SidebarNav
+              badges={badges}
+              isPlatformAdmin={isPlatformAdmin}
+              isPilotOwner={isPilotOwner}
+              collapsed={collapsed}
+            />
           </div>
 
           <SidebarFooter collapsed={collapsed} identity={identity} jevAdvisory={jevAdvisory} />
@@ -273,6 +280,7 @@ export function DashboardShell({
             <SidebarNav
               badges={badges}
               isPlatformAdmin={isPlatformAdmin}
+              isPilotOwner={isPilotOwner}
               onNavigate={() => setMenuOpen(false)}
             />
 

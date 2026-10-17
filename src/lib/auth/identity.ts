@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
+import { INVITE_ONLY_PATH, loadPilotViewer } from "@/lib/pilot/viewer";
 import { createClient } from "@/lib/supabase/server";
 
 import { initialsFor } from "./display";
@@ -32,6 +33,8 @@ export interface AuthorityIdentity {
   role: TenantRole;
   /** Every tenant the caller belongs to, for the workspace selector. */
   memberships: TenantMembership[];
+  /** The verified platform owner, who manages the invite-only pilot. */
+  isPilotOwner: boolean;
 }
 
 /** Raised when onboarding cannot complete, so the failure is visible rather than silent. */
@@ -153,6 +156,13 @@ export const loadIdentity = cache(async (): Promise<AuthorityIdentity | null> =>
 
   if (!user) return null;
 
+  // The invite-only pilot gate, before any workspace is created or read.
+  // Decided in the database from the verified account; a session alone
+  // (including one for an account created by calling Supabase directly)
+  // is not enough. ensure_onboarded() enforces the same rule itself.
+  const pilot = await loadPilotViewer(supabase);
+  if (pilot.access !== "eligible") redirect(INVITE_ONLY_PATH);
+
   const memberships = await ensureOnboardedMemberships(supabase, user.id);
 
   const cookieStore = await cookies();
@@ -189,6 +199,7 @@ export const loadIdentity = cache(async (): Promise<AuthorityIdentity | null> =>
     tenant: resolution.current,
     role: resolution.current.role,
     memberships,
+    isPilotOwner: pilot.isOwner,
   };
 });
 

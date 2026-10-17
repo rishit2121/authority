@@ -18,10 +18,18 @@ export default function QuickstartPage() {
       title="Quickstart"
       description="From a new account to an agent making its first least-privilege call, in about five minutes. Everything here also lives on the Setup page inside the app."
     >
-      <DocsSection title="1. Create an account">
+      <DocsSection title="1. Get access and create an account">
         <p>
-          <Link href="/signup">Sign up</Link>. You land on <strong>Setup</strong>, which walks you through the
-          same three steps below and checks each one off as you finish it.
+          Authority is an invite-only developer pilot. <Link href="/request-access">Request access</Link> --
+          approval is manual, and we&apos;ll reach out if there&apos;s a fit. Once you&apos;re approved,{" "}
+          <Link href="/signup">sign up</Link> with the <strong>same email address</strong> and confirm it from
+          the link we send. You land on <strong>Setup</strong>, which walks you through the same three steps
+          below and checks each one off as you finish it.
+        </p>
+        <p>
+          Signing up with a different address, or before you&apos;re approved, shows an
+          &quot;invite-only&quot; page instead of the console. Your application&apos;s own customers never
+          need pilot access: they use your backend and agent credentials, not an Authority account.
         </p>
       </DocsSection>
 

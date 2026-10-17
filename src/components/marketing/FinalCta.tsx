@@ -12,7 +12,7 @@ export function FinalCta() {
         </h2>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-6">
-          <PrimaryButton href="/signup">Start building</PrimaryButton>
+          <PrimaryButton href="/request-access">Request access</PrimaryButton>
           <Link
             href="#security"
             className="text-[15px] font-medium text-mkt-text underline decoration-mkt-hairline underline-offset-4 hover:decoration-mkt-text"

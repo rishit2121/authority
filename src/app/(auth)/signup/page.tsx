@@ -14,10 +14,17 @@ export default function SignUpPage() {
   return (
     <AuthShell
       title="Create your account"
-      description="You'll get a personal workspace to start with. Invite your team once you're in."
+      description="Authority is an invite-only developer pilot. Sign up with the email address you were approved with; you'll get a personal workspace to start with."
       footer={
         <p>
-          Already have an account?{" "}
+          Not invited yet?{" "}
+          <Link
+            href="/request-access"
+            className="font-medium text-primary-container underline decoration-primary-container/40 underline-offset-2"
+          >
+            Request access
+          </Link>
+          . Already have an account?{" "}
           <Link
             href="/login"
             className="font-medium text-primary-container underline decoration-primary-container/40 underline-offset-2"

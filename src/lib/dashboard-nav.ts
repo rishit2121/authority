@@ -12,6 +12,8 @@ export interface DashboardNavItem {
   badgeTone?: "neutral" | "warning";
   /** Shown only to operators of this deployment (PLATFORM_ADMIN_EMAILS); the page re-checks server-side. */
   platformAdminOnly?: boolean;
+  /** Shown only to the verified pilot owner; the page and its RPCs re-check server-side. */
+  pilotOwnerOnly?: boolean;
 }
 
 export interface DashboardNavGroup {
@@ -47,6 +49,7 @@ export const DASHBOARD_NAV_GROUPS: DashboardNavGroup[] = [
       { label: "Settings", href: "/app/settings", icon: "lock" },
       { label: "Docs", href: "/docs", icon: "description" },
       { label: "Metrics", href: "/app/admin", icon: "person", platformAdminOnly: true },
+      { label: "Pilot", href: "/app/pilot", icon: "key", pilotOwnerOnly: true },
     ],
   },
   {
