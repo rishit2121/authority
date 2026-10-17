@@ -33,6 +33,23 @@ function loadEnvFile(file: string): void {
 
 loadEnvFile(path.join(process.cwd(), ".supabase-cli.env"));
 
+// The console flows here sign in as seeded @authority.test fixtures. The hosted project now runs the
+// invite-only pilot gate, and fixtures are deliberately NOT approved there, so this suite must not target
+// it: run it against a local Supabase (`supabase start`; set NEXT_PUBLIC_SUPABASE_URL to the local API) or
+// use the pilot-aware local suite (`npm run test:e2e:local`). E2E_ALLOW_REMOTE_SUPABASE=1 overrides, for
+// a hosted project you control whose fixtures are allowed in.
+loadEnvFile(path.join(process.cwd(), ".env.local"));
+{
+  const target = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const host = target ? new URL(target).hostname : "";
+  if (target && !["127.0.0.1", "localhost"].includes(host) && process.env.E2E_ALLOW_REMOTE_SUPABASE !== "1") {
+    throw new Error(
+      `Refusing to run e2e against hosted Supabase (${host}). Point NEXT_PUBLIC_SUPABASE_URL at a local ` +
+        "Supabase, or set E2E_ALLOW_REMOTE_SUPABASE=1 for a project whose fixture accounts are allowed in.",
+    );
+  }
+}
+
 const PORT = 3100;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 

@@ -5,6 +5,8 @@ name: CI
 #  - `scenario-packs` starts a throwaway LOCAL Supabase (Docker), applies the repo's migrations, and runs the
 #    adversarial starter pack through the real authorization gateway with mock integrations. It fails the pull request
 #    if any attack that was contained in validation/baseline.starter.json is no longer contained.
+#  - `local-supabase` runs the invite-only pilot suites (API and dashboard) against a throwaway LOCAL Supabase,
+#    signed in as seeded fixture users; it changes the gate and owner only in that local database.
 # Optional suites that need real credentials live in integration.yml and are never required.
 
 on:
@@ -95,6 +97,50 @@ jobs:
           path: |
             validation-report.json
             validation-summary.txt
+          if-no-files-found: ignore
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --no-backup
+
+  local-supabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start a local Supabase (migrations + seed)
+        run: |
+          for attempt in 1 2 3; do
+            if supabase start -x studio,imgproxy,mailpit,edge-runtime,logflare,vector; then exit 0; fi
+            echo "supabase start failed (attempt $attempt); cleaning up and retrying"
+            supabase stop --no-backup || true
+            sleep $((attempt * 20))
+          done
+          exit 1
+      - name: Export the local connection settings
+        run: supabase status -o env | sed -E 's/^([A-Z_]+)="?([^"]*)"?$/\1=\2/' | grep -E '^(API_URL|ANON_KEY|PUBLISHABLE_KEY|DB_URL)=' >> "$GITHUB_ENV"
+      - name: Provision the restricted gateway login (local, throwaway password)
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 \
+            -c "alter role authority_gateway with login password 'ci-only-gateway-password'"
+      - name: Pilot access through the authenticated API
+        run: npm run test:local
+      - run: npx playwright install --with-deps chromium
+      - name: Pilot dashboard in the browser
+        run: npm run test:e2e:local
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: local-supabase-traces
+          path: test-results/
           if-no-files-found: ignore
       - name: Stop Supabase
         if: always()

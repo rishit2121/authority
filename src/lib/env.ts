@@ -18,11 +18,16 @@ const urlSchema = z
   .min(1)
   .refine((value) => {
     try {
-      return new URL(value).protocol === "https:";
+      const url = new URL(value);
+      // https always; plain http only for a local Supabase on this machine (`supabase start`).
+      return (
+        url.protocol === "https:" ||
+        (url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname))
+      );
     } catch {
       return false;
     }
-  }, "must be an absolute https URL");
+  }, "must be an absolute https URL (http only for a local Supabase)");
 
 /**
  * Publishable keys (`sb_publishable_…`) and the legacy anon JWT (`eyJ…`) are

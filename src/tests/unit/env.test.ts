@@ -63,10 +63,22 @@ describe("parseSupabaseEnv", () => {
       );
     });
 
-    it("rejects a non-https URL, since Supabase is always https", () => {
+    it("rejects a non-https URL for anything but a local Supabase", () => {
+      expect(() =>
+        parseSupabaseEnv({ ...VALID, NEXT_PUBLIC_SUPABASE_URL: "http://project.supabase.co" }),
+      ).toThrow(EnvironmentError);
+      expect(() => parseSupabaseEnv({ ...VALID, NEXT_PUBLIC_SUPABASE_URL: "http://10.0.0.5:54321" })).toThrow(
+        EnvironmentError,
+      );
+    });
+
+    it("accepts plain http only for a local Supabase on this machine", () => {
+      expect(parseSupabaseEnv({ ...VALID, NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321" }).url).toBe(
+        "http://127.0.0.1:54321",
+      );
       expect(() =>
         parseSupabaseEnv({ ...VALID, NEXT_PUBLIC_SUPABASE_URL: "http://localhost:54321" }),
-      ).toThrow(EnvironmentError);
+      ).not.toThrow();
     });
 
     it("rejects a value that is not a URL at all", () => {
