@@ -125,6 +125,29 @@ describe("generic connector executor (no database, no real provider)", () => {
     expect(h2.dispatch).not.toHaveBeenCalled();
   });
 
+  it("matches a raw email resource against the sanitized request resource, and still refuses a different one", async () => {
+    const { sanitizeResource } = await import("@/lib/gateway/argument-audit");
+    const rawEmail = fakeConnector({
+      normalizeRequest: async (tool) => ({
+        tool,
+        operation: tool,
+        resource: "dana.reyes@northwind.example",
+        args: {},
+      }),
+    });
+    const sameSanitized = { ...input(), resource: sanitizeResource("dana.reyes@northwind.example")! };
+    const ok = harness({ connector: rawEmail });
+    const r1 = await executeConnectorOperation(sameSanitized, ok.deps);
+    expect(r1.body.error).toBeUndefined();
+    expect(ok.dispatch).toHaveBeenCalled();
+
+    const otherSanitized = { ...input(), resource: sanitizeResource("someone.else@northwind.example")! };
+    const refused = harness({ connector: rawEmail });
+    const r2 = await executeConnectorOperation(otherSanitized, refused.deps);
+    expect(r2.body.error).toMatchObject({ code: "RESOURCE_MISMATCH" });
+    expect(refused.dispatch).not.toHaveBeenCalled();
+  });
+
   it("never sends a request when the dispatch re-check blocks, and never calls finish again", async () => {
     const h = harness({
       dispatch: (async () => ({ status: "blocked", reason: "CAPABILITY_REVOKED" })) as never,

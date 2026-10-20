@@ -1,5 +1,7 @@
 import "server-only";
 
+import { sanitizeResource } from "@/lib/gateway/argument-audit";
+
 import { failureContract } from "@/lib/gateway/response";
 import {
   finishConnectorExecution,
@@ -197,7 +199,16 @@ export async function executeConnectorOperation(
     if (reserved.connectorId && !normalized.tool.startsWith(`${reserved.connectorId}.`)) {
       return released("OPERATION_CONNECTOR_MISMATCH", 422);
     }
-    if (input.resource && normalized.resource !== input.resource) {
+    // The request's resource arrives sanitized (src/app/api/v1/execute/route.ts), exactly as the capability
+    // was bound at authorize time: an identifier outside the clean charset -- an email address -- is
+    // redacted to a short hash. A connector may report its resource raw (Custom API: the identifying
+    // field's value) or already sanitized (Gmail), so compare both forms. Still exact: a different value
+    // never matches. Comparing only the raw form refused every Custom API operation keyed by an email.
+    if (
+      input.resource &&
+      normalized.resource !== input.resource &&
+      sanitizeResource(normalized.resource) !== input.resource
+    ) {
       return released("RESOURCE_MISMATCH", 403);
     }
   } catch {
