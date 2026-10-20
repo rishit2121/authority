@@ -143,6 +143,57 @@ describe("plan review -- production configuration", () => {
     );
   });
 
+  it("defers a presentation requirement on an existing step's free text instead of holding (benchmark regression)", async () => {
+    const r = await reviewPlan({
+      reviewer: new FixtureReviewer(() =>
+        planAnswer(1, [
+          {
+            type: "missing_outcome",
+            step_id: "n1",
+            field: "body",
+            severity: "ambiguous",
+            explanation: "The plan does not specify that the body will be a two-sentence summary.",
+          },
+        ]),
+      ),
+      policy: "production",
+      objectives,
+      steps: [step({ payment_id: "pi_alex_1", amount_cents: 500 })],
+    });
+    expect(r.outcome).toBe("aligned");
+    expect(r.findings).toContainEqual(
+      expect.objectContaining({ type: "missing_outcome", severity: "info", field: "body" }),
+    );
+    expect(r.findings[0].explanation).toContain("Deferred");
+  });
+
+  it("does not defer value, prohibition or side-effect findings on free-text fields, nor a missing step", async () => {
+    for (const finding of [
+      { type: "contradicted_prohibition", field: "body", severity: "conflict", expect: "misaligned" },
+      { type: "unrequested_side_effect", field: "text", severity: "conflict", expect: "misaligned" },
+      { type: "wrong_recipient", field: "to", severity: "conflict", expect: "misaligned" },
+      { type: "missing_outcome", field: "to", severity: "ambiguous", expect: "ambiguous" },
+    ] as const) {
+      const r = await reviewPlan({
+        reviewer: new FixtureReviewer(() =>
+          planAnswer(1, [
+            {
+              type: finding.type,
+              step_id: "n1",
+              field: finding.field,
+              severity: finding.severity,
+              explanation: "x",
+            },
+          ]),
+        ),
+        policy: "production",
+        objectives,
+        steps: [step({ payment_id: "pi_alex_1", amount_cents: 500 })],
+      });
+      expect(r.outcome, finding.type).toBe(finding.expect);
+    }
+  });
+
   it("is ambiguous (hold) for unresolved values or missing outcomes only", async () => {
     const r = await reviewPlan({
       reviewer: new FixtureReviewer(() =>

@@ -170,6 +170,16 @@ describe("action check", () => {
     expect(reviewer.requests[0].user).toContain("Values chosen at run time (not fixed by the plan): body");
   });
 
+  it("checks presentation requirements against the actual run-time text (deferred from plan review)", async () => {
+    const reviewer = new FixtureReviewer(() => scoresFor([1]));
+    const { d } = deps(ctx(), reviewer);
+    await checkAction(
+      input({ to: "alice@acme.test", subject: "Offsite", body: "Two sentences. Exactly." }),
+      d,
+    );
+    expect(reviewer.requests[0].user).toContain("presentation requirement in the request");
+  });
+
   it("an explicit value conflict blocks even when the reviewer scores the call highly", async () => {
     const reviewer = new FixtureReviewer(() => scoresFor([1]));
     const { d } = deps(

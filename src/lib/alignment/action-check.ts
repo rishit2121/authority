@@ -181,6 +181,10 @@ async function review(
       ? `The user forbids: ${objectives.prohibitions.join("; ")}.`
       : "",
     ctx.policy === "production" ? `The user's original request: "${clip(objectives.requestText, 1500)}"` : "",
+    // Presentation requirements are deferred from plan review to here, where the actual message exists.
+    ctx.policy === "production" && unpinned.length
+      ? "Check the actual text in this call against any presentation requirement in the request (length, number of sentences or lines, format, the same summary as elsewhere). A call whose text clearly ignores one does not contribute to that instruction."
+      : "",
     `Content Authority has inspected for this task so far: revision ${ctx.contextRevision}.`,
   ]
     .filter(Boolean)

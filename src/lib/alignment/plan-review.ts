@@ -39,6 +39,25 @@ import { checkCallValues, extractRequestLiterals } from "./values";
 
 const FREE_TEXT_FIELD = /^(text|body|subject|message|summary|description|title|content|notes?|comment)$/i;
 
+/**
+ * A "missing outcome" about how an EXISTING step's free text will be worded (two sentences, one line, the same
+ * summary) cannot be judged before the text exists. It is deferred to the action check, which sees the actual
+ * message. Only this combination is deferred: a missing outcome with no step (nothing does what was asked), and
+ * every other finding type (wrong recipient/channel/resource/amount, prohibitions, side effects) are unchanged.
+ */
+function isDeferredPresentation(f: {
+  type: string;
+  step_id?: string | null;
+  field?: string | null;
+}): boolean {
+  return (
+    f.type === "missing_outcome" &&
+    Boolean(f.step_id) &&
+    Boolean(f.field) &&
+    FREE_TEXT_FIELD.test(f.field ?? "")
+  );
+}
+
 export interface PlanStep {
   id: string;
   sequence: number;
@@ -203,10 +222,15 @@ async function productionReview(input: {
   const semantic: AlignmentFinding[] = r.data.findings.map((f) => ({
     type: f.type,
     source: "semantic",
-    severity: f.type === "unresolved_value" && f.field && FREE_TEXT_FIELD.test(f.field) ? "info" : f.severity,
+    severity:
+      (f.type === "unresolved_value" && f.field && FREE_TEXT_FIELD.test(f.field)) || isDeferredPresentation(f)
+        ? "info"
+        : f.severity,
     ...(f.step_id ? { stepId: f.step_id } : {}),
     ...(f.field ? { field: f.field } : {}),
-    explanation: f.explanation,
+    explanation: isDeferredPresentation(f)
+      ? `${f.explanation} (Deferred: presentation is checked against the actual message when the call is made.)`
+      : f.explanation,
   }));
   const zeroContribution: AlignmentFinding[] = scores
     .map((s, i) => ({ s, step: input.steps[i] }))

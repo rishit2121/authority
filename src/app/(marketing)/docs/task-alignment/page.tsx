@@ -149,6 +149,12 @@ const prepared = await backend.tasks.prepare(taskId, { plan }); // reviews again
           <li>Model judgments vary between runs and can miss nested or disguised instructions.</li>
           <li>Deterministic value checks only cover values written literally in the request.</li>
           <li>
+            Wording requirements on text the agent writes at run time (&quot;two sentences&quot;, &quot;one
+            line&quot;, &quot;the same summary&quot;) can&apos;t be judged from a plan, so plan review defers
+            them (recorded as an informational finding) and the action check applies them to the actual
+            message. Recipients, channels, amounts, prohibitions and disclosures are never deferred.
+          </li>
+          <li>
             Only what passes through Authority is reviewed: Authority cannot see your model&apos;s other
             context.
           </li>
