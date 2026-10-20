@@ -5,11 +5,11 @@ import { z } from "zod";
 import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
 import { toolArgumentsSchema, toolNameSchema } from "@/lib/domain";
 import { authorizeThroughGateway, defaultPipelineDeps } from "@/lib/gateway/pipeline";
-import { tenantForTask } from "@/lib/gateway/rpc";
+import { autoExecuteToolsForTask, tenantForTask } from "@/lib/gateway/rpc";
 import {
   gatewayRegistry,
   riskClassForRegistry,
-  registryRequiresApprovalForRegistry,
+  registryRequiresApprovalWithOptIn,
 } from "@/lib/gateway/risk-class";
 import {
   UNAUTHENTICATED,
@@ -87,7 +87,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // unresolvable task (null) falls back the same way, and is rejected by
     // the deterministic pipeline's own task/contract lookup regardless.
     const tenantId = await tenantForTask(input.taskId);
-    const registry = tenantId ? await buildTenantRegistry(tenantId) : null;
+    const [registry, autoExecute] = tenantId
+      ? await Promise.all([buildTenantRegistry(tenantId), autoExecuteToolsForTask(input.taskId)])
+      : [null, new Set<string>()];
     const registryVersion = registry?.registryVersion ?? gatewayRegistry.registryVersion;
 
     const result = await authorizeThroughGateway(
@@ -108,7 +110,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         ? {
             ...defaultPipelineDeps,
             riskClassFor: (tool) => riskClassForRegistry(registry, tool),
-            registryRequiresApproval: (tool) => registryRequiresApprovalForRegistry(registry, tool),
+            registryRequiresApproval: (tool) =>
+              registryRequiresApprovalWithOptIn(registry, tool, autoExecute),
           }
         : defaultPipelineDeps,
     );

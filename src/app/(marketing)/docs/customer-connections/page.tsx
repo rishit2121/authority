@@ -200,7 +200,7 @@ export default function CustomerConnectionsPage() {
         </p>
       </DocsSection>
 
-      <DocsSection title="Delegation">
+      <DocsSection title="Delegation" id="delegation">
         <p>
           An organization-owned connection (created the ordinary way, from Integrations) stays
           organization-owned, but can be explicitly shared with specific customers -- a support mailbox every
@@ -208,6 +208,19 @@ export default function CustomerConnectionsPage() {
           application → Organization connections &amp; delegation. Revoking takes effect immediately: any task
           still relying on that delegation fails its next execution with an explicit error, never a silent
           fallback to a different account.
+        </p>
+        <p>
+          From your backend, an admin first marks the connection <strong>Backend-grantable</strong> for the
+          application and ticks <strong>Can manage access</strong> on the backend credential; then{" "}
+          <code>backend.connections.grantAccess(&#123; customerId, connectionId &#125;)</code> (and{" "}
+          <code>revokeAccess</code>) work without a dashboard click per customer. You need the
+          connection&apos;s id for that call, and the API cannot look it up for you:{" "}
+          <code>connections.list(customerId)</code> returns only connections the customer can already use, so
+          a connection nobody has been granted yet never appears there. Copy the id from the dashboard once
+          and keep it in your configuration. The call takes the connection&apos;s UUID. A Custom API
+          connection&apos;s tools are named{" "}
+          <code>custom_&lt;that UUID without dashes&gt;.&lt;operation&gt;</code>, so if you only have the tool
+          prefix, put the dashes back (8-4-4-4-12).
         </p>
       </DocsSection>
 

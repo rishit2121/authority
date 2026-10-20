@@ -111,6 +111,39 @@ export async function setRequireTaskSessionsAction(
   }
 }
 
+/** Opt an application in (or out) of automatic execution for one published Custom API write operation. */
+export async function setCustomOperationAutoExecuteAction(
+  applicationId: string,
+  operationDefinitionId: string,
+  enabled: boolean,
+  note: string,
+): Promise<AlignmentActionResult> {
+  const uuid = z.string().uuid();
+  if (
+    !uuid.safeParse(applicationId).success ||
+    !uuid.safeParse(operationDefinitionId).success ||
+    note.length > 500
+  )
+    return { ok: false, error: MESSAGES.invalid_request };
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(
+      `/app/settings/applications/${applicationId}`,
+    );
+    const { data, error } = await context.supabase.rpc("set_custom_operation_auto_execute", {
+      p_application_id: applicationId,
+      p_operation_definition_id: operationDefinitionId,
+      p_enabled: enabled,
+      p_note: note,
+    });
+    if (error) return { ok: false, error: "Could not save." };
+    if (data !== "ok") return { ok: false, error: MESSAGES[data as string] ?? "Could not save." };
+    revalidatePath(`/app/settings/applications/${applicationId}`);
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Could not save." };
+  }
+}
+
 export async function decideAlignmentReviewAction(
   taskId: string,
   reviewId: string,

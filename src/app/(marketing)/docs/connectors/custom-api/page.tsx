@@ -115,15 +115,36 @@ curl -s -X POST "$AUTHORITY_URL/api/v1/execute" -H "Authorization: Bearer $AUTHO
         </p>
       </DocsSection>
 
+      <DocsSection title="Approval for write operations" id="approval">
+        <p>
+          Every published Custom API operation whose effect is not <code>read</code> (POST, PUT, PATCH,
+          DELETE) is <strong>held for a person on every call by default</strong>: <code>/authorize</code>{" "}
+          returns <code>require_approval</code> with <code>APPROVAL_REQUIRED_BY_POLICY</code>, and{" "}
+          <code>tools.list</code> reports <code>requiresApproval: true</code>. This is different from the
+          built-in connectors (Gmail, Slack, Stripe...), which are held only when one of your approval rules
+          asks for it. Reads are never held by this default.
+        </p>
+        <p>
+          To let unattended agents run a specific write, a security admin opts it in per application: Settings
+          → Applications → your app → <strong>Custom API automatic execution</strong>, tick the operation and
+          give a reason. That lifts only this default hold, only for that application&apos;s tasks and only
+          for that operation. The call must still be in the task&apos;s contract with its pinned values and
+          budget; your approval rules, task alignment and required task sessions still apply. Every change is
+          kept in the panel&apos;s append-only audit trail, and retiring the operation ends its opt-in.
+        </p>
+      </DocsSection>
+
       <DocsSection title="One credential, many of your customers">
         <p>
           A Custom API connection is one stored credential against one base URL, not a per-end-user login —
           there is no OAuth onboarding here. Every request is sent with the same credential regardless of
           which customer a task runs on behalf of. Delegate the connection to whichever of your customers
           should be able to trigger its published operations (Settings → the connection → Delegations, or the
-          developer API&apos;s connection-delegation calls) — the same organization-owned-connection-plus-
-          delegation model Stripe, Slack and GitHub repositories all use. Revoking a delegation stops that
-          customer&apos;s access immediately; it never touches the underlying credential.
+          developer API&apos;s connection-delegation calls — see{" "}
+          <a href="/docs/customer-connections#delegation">Delegation</a> for the connection id those need) —
+          the same organization-owned-connection-plus- delegation model Stripe, Slack and GitHub repositories
+          all use. Revoking a delegation stops that customer&apos;s access immediately; it never touches the
+          underlying credential.
         </p>
       </DocsSection>
     </DocsPage>

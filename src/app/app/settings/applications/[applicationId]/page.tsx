@@ -28,6 +28,7 @@ import { ReturnUrlsForm } from "@/components/application/ReturnUrlsForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import type { ConnectionAccessScope } from "@/app/app/settings/applications/actions";
 import { AlignmentSettingsPanel } from "@/components/alignment/AlignmentSettingsPanel";
+import { CustomApiAutoExecutePanel } from "@/components/alignment/CustomApiAutoExecutePanel";
 import { TaskSessionsPanel } from "@/components/alignment/TaskSessionsPanel";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
 
@@ -55,6 +56,26 @@ export default async function ApplicationDetailPage({
     .select("mode, policy, check_plans, check_content, check_actions, content_action")
     .eq("application_id", applicationId)
     .maybeSingle();
+
+  const [customWriteOps, autoExecuteRows, autoExecuteAudit] = await Promise.all([
+    context.supabase
+      .from("custom_operation_definitions")
+      .select("id, tool_name, name, effect")
+      .eq("status", "published")
+      .neq("effect", "read")
+      .order("tool_name"),
+    context.supabase
+      .from("application_custom_operation_auto_execute")
+      .select("operation_definition_id")
+      .eq("application_id", applicationId),
+    context.supabase
+      .from("custom_operation_auto_execute_audit")
+      .select("created_at, tool_name, action, note")
+      .eq("application_id", applicationId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+  const autoExecuteEnabled = new Set((autoExecuteRows.data ?? []).map((r) => r.operation_definition_id));
 
   const [
     credentialsResult,
@@ -234,6 +255,23 @@ export default async function ApplicationDetailPage({
       <TaskSessionsPanel
         applicationId={applicationId}
         initial={application.require_task_sessions}
+        canEdit={["security_admin", "admin", "owner"].includes(identity.role)}
+      />
+      <CustomApiAutoExecutePanel
+        applicationId={applicationId}
+        operations={(customWriteOps.data ?? []).map((o) => ({
+          id: o.id,
+          toolName: o.tool_name,
+          name: o.name,
+          effect: o.effect,
+          enabled: autoExecuteEnabled.has(o.id),
+        }))}
+        audit={(autoExecuteAudit.data ?? []).map((a) => ({
+          at: a.created_at,
+          toolName: a.tool_name,
+          action: a.action,
+          note: a.note,
+        }))}
         canEdit={["security_admin", "admin", "owner"].includes(identity.role)}
       />
       <AlignmentSettingsPanel

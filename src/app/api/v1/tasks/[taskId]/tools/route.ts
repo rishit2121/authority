@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
 import { UNAUTHENTICATED, extractBearer, jsonError, jsonOk, newRequestId } from "@/lib/gateway/http";
-import { activeContractForTask, tenantForTask } from "@/lib/gateway/rpc";
+import { activeContractForTask, autoExecuteToolsForTask, tenantForTask } from "@/lib/gateway/rpc";
 import { failureContract } from "@/lib/gateway/response";
 import { resolveCredential, taskSessionInfo } from "@/lib/gateway/rpc-sessions";
 import { TASK_SESSION_PREFIX } from "@/lib/gateway/task-session-token";
@@ -105,7 +105,10 @@ export async function GET(
   }
 
   const contract = await activeContractForTask(taskId);
-  const registry = await buildTenantRegistry(resolved.tenantId!);
+  const [registry, autoExecute] = await Promise.all([
+    buildTenantRegistry(resolved.tenantId!),
+    autoExecuteToolsForTask(taskId),
+  ]);
 
   // One entry per allowed action: a tool the plan uses with two different sets
   // of pinned arguments (e.g. two recipients) appears twice, each entry with its
@@ -122,7 +125,8 @@ export async function GET(
         inputSchema: jsonSchemaFor(t.operation.argumentFields),
         resourceConstraints: action?.constraints ?? [],
         maxInvocations: action?.maxInvocations ?? null,
-        requiresApproval: t.operation.requiresApproval,
+        // Reflects this application's explicit automatic-execution opt-in for published Custom API writes.
+        requiresApproval: t.operation.requiresApproval && !autoExecute.has(t.operation.id),
       })),
     )
     .sort((a, b) => a.tool.localeCompare(b.tool));

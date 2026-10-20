@@ -38,6 +38,19 @@ export function registryRequiresApprovalForRegistry(forRegistry: LoadedRegistry,
   return forRegistry.operations.get(tool)?.requiresApproval ?? false;
 }
 
+/**
+ * The registry-declared approval requirement after an application's explicit automatic-execution opt-in.
+ * The opt-in removes only the registry default for exactly the opted-in tools; approval rules and every
+ * other hold are applied elsewhere and are unaffected.
+ */
+export function registryRequiresApprovalWithOptIn(
+  forRegistry: LoadedRegistry,
+  tool: string,
+  autoExecute: ReadonlySet<string>,
+): boolean {
+  return registryRequiresApprovalForRegistry(forRegistry, tool) && !autoExecute.has(tool);
+}
+
 /** GitHub-fixture-only convenience wrappers, kept for every existing call site that has no tenant context of its own. */
 export function riskClassFor(tool: string): RiskClass {
   return riskClassForRegistry(registry, tool);

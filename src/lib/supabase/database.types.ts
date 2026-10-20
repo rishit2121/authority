@@ -83,6 +83,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      application_custom_operation_auto_execute: {
+        Row: {
+          application_id: string;
+          operation_definition_id: string;
+          tenant_id: string;
+          tool_name: string;
+          enabled_by: string;
+          enabled_at: string;
+          note: string | null;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      custom_operation_auto_execute_audit: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          application_id: string;
+          operation_definition_id: string;
+          tool_name: string;
+          action: string;
+          actor_user_id: string;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       alignment_settings: {
         Row: {
           application_id: string;
@@ -5590,6 +5620,15 @@ export type Database = {
           p_check_actions: boolean;
           p_check_content: boolean;
           p_check_plans: boolean;
+        };
+        Returns: string;
+      };
+      set_custom_operation_auto_execute: {
+        Args: {
+          p_application_id: string;
+          p_operation_definition_id: string;
+          p_enabled: boolean;
+          p_note: string;
         };
         Returns: string;
       };

@@ -10,10 +10,10 @@ import { executeGithubOperation } from "@/lib/github/executor";
 import { sanitizeResource, type ArgumentValue } from "@/lib/gateway/argument-audit";
 import { hashCapabilityToken } from "@/lib/gateway/capability-token";
 import { authorizeThroughGateway, defaultPipelineDeps } from "@/lib/gateway/pipeline";
-import { activeContractForTask, tenantForTask } from "@/lib/gateway/rpc";
+import { activeContractForTask, autoExecuteToolsForTask, tenantForTask } from "@/lib/gateway/rpc";
 import {
   gatewayRegistry,
-  registryRequiresApprovalForRegistry,
+  registryRequiresApprovalWithOptIn,
   riskClassForRegistry,
 } from "@/lib/gateway/risk-class";
 import { buildTenantRegistry } from "@/lib/registry";
@@ -141,7 +141,9 @@ export async function authorizeAndExecuteMcpTool(input: {
   const operationScope = input.tool.slice(input.tool.indexOf(".") + 1);
 
   const tenantId = await tenantForTask(input.taskId);
-  const registry = tenantId ? await buildTenantRegistry(tenantId) : null;
+  const [registry, autoExecute] = tenantId
+    ? await Promise.all([buildTenantRegistry(tenantId), autoExecuteToolsForTask(input.taskId)])
+    : [null, new Set<string>()];
   const registryVersion = registry?.registryVersion ?? gatewayRegistry.registryVersion;
 
   const authorized = await authorizeThroughGateway(
@@ -165,7 +167,7 @@ export async function authorizeAndExecuteMcpTool(input: {
       ? {
           ...defaultPipelineDeps,
           riskClassFor: (tool) => riskClassForRegistry(registry, tool),
-          registryRequiresApproval: (tool) => registryRequiresApprovalForRegistry(registry, tool),
+          registryRequiresApproval: (tool) => registryRequiresApprovalWithOptIn(registry, tool, autoExecute),
         }
       : defaultPipelineDeps,
   );

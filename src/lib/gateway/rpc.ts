@@ -299,6 +299,19 @@ export async function tenantForTask(taskId: string): Promise<string | null> {
   return rows[0]?.tenant_for_task ?? null;
 }
 
+/**
+ * Published Custom API write operations that this task's application has explicitly opted in for
+ * automatic execution (dashboard: Settings → Applications → the app → Custom API automatic execution).
+ * Empty for every application that has not opted in, and for tasks with no customer.
+ */
+export async function autoExecuteToolsForTask(taskId: string): Promise<ReadonlySet<string>> {
+  const rows = await gatewayQuery<{ tools: string[] | null }>(
+    `select gateway.auto_execute_tools_for_task($1::uuid) as tools`,
+    [taskId],
+  );
+  return new Set(rows[0]?.tools ?? []);
+}
+
 export interface ActiveContractSummary {
   contractId: string;
   version: number;
