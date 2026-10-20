@@ -3,7 +3,7 @@
 -- connectors, against the real deployed schema. Mirrors
 -- 20_github_connector.sql's structure for the parts that generalize.
 
-select plan(34);
+select plan(37);
 
 set local role postgres;
 
@@ -135,6 +135,13 @@ select public.t23_auth('a-2');
 select set_config('t23.exec2', (select exec::text from public.t23_reserve('r-3', 'a-2')), true);
 select gateway.settle_connector_reservation(current_setting('t23.exec2')::uuid, 'released', 'ARGUMENTS_INVALID', null, null, null, null, null);
 select t(is((select uses || '/' || reserved_uses from public.capability_tokens where token_hash = public.t23_tok('a-2')), '0/0', 'a release before dispatch refunds the use'));
+select t(is((select status || ':' || revoked_by from public.capability_tokens where token_hash = public.t23_tok('a-2')), 'revoked:system',
+  'a single-use capability released before dispatch is retired'));
+select t(is((select budget_released_uses from public.capability_tokens where token_hash = public.t23_tok('a-2')), 1,
+  'and its one use goes back to the step budget exactly once'));
+select t(is((select c.consumed_uses from public.capabilities c join public.capability_tokens ct on ct.budget_capability_id = c.id
+             where ct.token_hash = public.t23_tok('a-2')), 1,
+  'the step budget counts only the dispatched execution (a-1), not the released one (a-2)'));
 
 select public.t23_auth('a-3');
 select set_config('t23.exec3', (select exec::text from public.t23_reserve('r-4', 'a-3')), true);
