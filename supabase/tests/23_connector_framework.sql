@@ -3,7 +3,7 @@
 -- connectors, against the real deployed schema. Mirrors
 -- 20_github_connector.sql's structure for the parts that generalize.
 
-select plan(37);
+select plan(39);
 
 set local role postgres;
 
@@ -173,7 +173,12 @@ select t(is((select dc_status from gateway.disconnect_connector_connection(
 select t(is((select dc_revoked_capabilities from gateway.disconnect_connector_connection(
   '11111111-1111-4111-8111-111111111111'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
   (select id from public.connector_connections where tenant_id = '11111111-1111-4111-8111-111111111111' and connector_id = 'widgetco'))),
-  3, 'disconnecting revokes every still-active widgetco capability, including ones already reserved-then-released'));
+  1, 'disconnecting revokes every still-active widgetco capability (a-5; a-2 and a-4 were already retired when released before dispatch, #57)'));
+select t(is((select status || ':' || revoked_by from public.capability_tokens where token_hash = public.t23_tok('a-4')), 'revoked:system',
+  'a lease that expired before dispatch also retired its single-use capability'));
+select t(is((select count(*)::int from public.capability_tokens ct join public.tasks tk on tk.id = ct.task_id
+             where tk.tenant_id = '11111111-1111-4111-8111-111111111111' and ct.tool like 'widgetco.%' and ct.status = 'active'), 0,
+  'no widgetco capability remains active after disconnect'));
 select t(is((select status from public.capability_tokens where token_hash = public.t23_tok('a-5')), 'revoked', 'and it is actually revoked'));
 select t(is((select reason from public.t23_reserve('r-6', 'a-5')), 'CAPABILITY_REVOKED', 'a revoked capability can never be reserved again'));
 select public.t23_auth('a-6');

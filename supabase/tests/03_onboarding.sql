@@ -3,7 +3,7 @@
 -- A fresh auth.users row is created inside the suite's transaction, so these
 -- assertions run against a genuinely un-onboarded user and are rolled back.
 
-select plan(11);
+select plan(12);
 
 -- A user who has signed up but never hit a protected route.
 insert into auth.users (
@@ -27,6 +27,13 @@ values (
   '', '', '', '', '', '', '', ''
 );
 
+-- The invite-only pilot gate (20261017000001) refuses onboarding to any unapproved account. This suite's
+-- test identity is explicitly approved here, inside the suite's own rolled-back transaction, so the gate
+-- stays exactly as configured and no approval persists. Nothing else is approved.
+insert into public.pilot_access (email, email_normalized, source, status, decided_at)
+values ('fresh.user@authority.test', 'fresh.user@authority.test', 'manual', 'approved', now())
+on conflict (email_normalized) do update set status = 'approved', decided_at = now();
+
 -- ---------------------------------------------------------------------------
 -- Unauthenticated callers.
 -- ---------------------------------------------------------------------------
@@ -47,6 +54,14 @@ select t(
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"c0000000-0000-4000-8000-0000000000ff","role":"authenticated"}';
+
+select t(
+  is(
+    (select pv_access from public.pilot_viewer()),
+    'eligible',
+    'the explicitly approved test identity is eligible under the pilot gate'
+  )
+);
 
 select t(
   is(
