@@ -67,8 +67,10 @@ create table public.tap_out (seq bigserial primary key, line text);
 
 -- The suites switch to the \`authenticated\` role to exercise RLS, so that role
 -- must be able to record its own results. Scoped to this transaction only.
-grant insert, select on public.tap_out to authenticated;
-grant usage, select on sequence public.tap_out_seq_seq to authenticated;
+-- Explicit grants for the harness's own scratch table: since 20261022000001 new public tables no longer
+-- default to anon/authenticated write privileges, and suites switch to both roles before writing TAP lines.
+grant insert, select on public.tap_out to authenticated, anon;
+grant usage, select on sequence public.tap_out_seq_seq to authenticated, anon;
 
 create or replace function public.t(p_line text) returns void
 language sql as $harness$

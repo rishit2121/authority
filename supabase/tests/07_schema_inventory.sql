@@ -10,7 +10,7 @@
 -- test 3 below would have failed the moment those thirteen tables were
 -- created, instead of surfacing only when someone went looking for it.
 
-select plan(4);
+select plan(7);
 
 -- `tap_out` is this test harness's own scratch table (see the PRELUDE in
 -- scripts/db-test.mjs) — created fresh inside this suite's own transaction
@@ -74,4 +74,46 @@ select t(is(
    where schemaname = 'public' and (qual = 'true' or with_check = 'true')),
   0,
   'no policy in the public schema uses an unconditional using(true) or with_check(true)'
+));
+
+-- 5. Effective privileges (MAINTAIN is the Postgres 17 privilege covering VACUUM/ANALYZE/REINDEX/LOCK TABLE) (has_table_privilege: includes grants to PUBLIC and inherited roles), not just
+-- direct grants: neither anon nor authenticated may TRUNCATE, create TRIGGERs on, or take REFERENCES to any
+-- public table. TRUNCATE is not governed by row level security, so a grant alone would let a signed-in
+-- user empty every tenant's rows (issue #58).
+select t(is(
+  (select count(*)::int from pg_class c
+   cross join (values ('anon'), ('authenticated')) r(role)
+   cross join (values ('TRUNCATE'), ('TRIGGER'), ('REFERENCES'), ('MAINTAIN')) p(priv)
+   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') and c.relname <> 'tap_out'
+     and has_table_privilege(r.role, c.oid, p.priv)),
+  0,
+  'no anon or authenticated TRUNCATE/TRIGGER/REFERENCES/MAINTAIN privilege on any public table (effective)'
+));
+
+-- 6. The same policy-backing rule as test 3, but over effective privileges, so a write privilege reached
+-- through PUBLIC or an inherited role cannot slip past it.
+select t(is(
+  (select count(*)::int from pg_class c
+   cross join (values ('INSERT'), ('UPDATE'), ('DELETE')) p(priv)
+   where c.relnamespace = 'public'::regnamespace and c.relkind in ('r', 'p') and c.relname <> 'tap_out'
+     and has_table_privilege('authenticated', c.oid, p.priv)
+     and not exists (
+       select 1 from pg_policies pol
+       where pol.schemaname = 'public' and pol.tablename = c.relname
+         and pol.cmd::text in (p.priv, 'ALL') and 'authenticated' = any (pol.roles))),
+  0,
+  'every effective authenticated INSERT/UPDATE/DELETE privilege is backed by a matching policy'
+));
+
+-- 7. The mechanism that caused #58: tables created by postgres in public must not default to any anon
+-- privilege, or to more than SELECT for authenticated.
+select t(is(
+  (select count(*)::int from pg_default_acl d
+   cross join lateral aclexplode(d.defaclacl) a
+   where d.defaclnamespace = 'public'::regnamespace and d.defaclobjtype = 'r'
+     and d.defaclrole = 'postgres'::regrole
+     and ((a.grantee = 'anon'::regrole)
+       or (a.grantee = 'authenticated'::regrole and a.privilege_type <> 'SELECT'))),
+  0,
+  'new public tables default to no anon privilege and SELECT-only for authenticated'
 ));
