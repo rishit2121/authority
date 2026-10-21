@@ -55,3 +55,18 @@ deletion or export of those is not offered in the MVP.
 - Rotate the gateway login: `npm run gateway:provision`, then update `GATEWAY_DATABASE_URL` everywhere it is deployed.
 - Kill switch: revoke the contract or the agent key from the dashboard; capabilities already issued are refused at use time.
 - Stuck `indeterminate` executions are not retried automatically: a human inspects the receipt and resolves it.
+
+## Writing migrations: table privileges
+
+Since `20261022000001`/`20261022000002` (#61, issue #58), a table created by `postgres` in `public` starts with **no privileges for `anon`** and **`SELECT` only for `authenticated`**, and that `SELECT` is still filtered by row level security. Earlier tables got every privilege by default, which is how five alignment tables ended up granting `TRUNCATE` and `MAINTAIN`.
+
+For a new table:
+
+1. Enable RLS and add a `SELECT` policy if signed-in users may read it.
+2. Prefer writes through `SECURITY DEFINER` functions (the existing pattern). If signed-in users must write directly, add an explicit `grant insert/update/delete ... to authenticated` **and** a matching policy for each command.
+3. Never grant `TRUNCATE`, `TRIGGER`, `REFERENCES` or `MAINTAIN` to `anon` or `authenticated`: row level security does not govern them.
+4. Bump `gateway.schema_version()` and `EXPECTED_SCHEMA_VERSION`, and update the literal in `supabase/tests/21_validation_lab_and_hardening.sql`.
+
+`supabase/tests/07_schema_inventory.sql` checks rules 1–3 against effective privileges and the default ACL. Destructive privilege tests belong in `src/tests/local` (a disposable database in CI), never against a hosted project.
+
+Known gap: the GitHub execution path does not yet return a released-before-dispatch use to the step's budget (#59).
