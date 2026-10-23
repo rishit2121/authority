@@ -6,14 +6,12 @@ import { z } from "zod";
 
 import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
 import { UNAUTHENTICATED, extractBearer, jsonError, jsonOk, newRequestId } from "@/lib/gateway/http";
-import { activeContractForTask, autoExecuteToolsForTask, tenantForTask } from "@/lib/gateway/rpc";
+import { activeContractForTask, autoExecuteToolsForTask } from "@/lib/gateway/rpc";
 import { failureContract } from "@/lib/gateway/response";
-import { resolveCredential, taskSessionInfo } from "@/lib/gateway/rpc-sessions";
-import { TASK_SESSION_PREFIX } from "@/lib/gateway/task-session-token";
+import { checkTaskReadAccess } from "@/lib/gateway/task-access";
 import { buildMcpToolCatalog } from "@/lib/mcp/bridge";
 import { buildTenantRegistry } from "@/lib/registry";
 import type { ArgumentField } from "@/lib/registry/types";
-import { taskCredentialPolicy } from "@/lib/gateway/rpc";
 
 /**
  * `GET /api/v1/tasks/{taskId}/tools` — the contract-filtered tool manifest:
@@ -69,32 +67,13 @@ export async function GET(
     return jsonError({ http: 400, code: "INVALID_REQUEST", message: "taskId must be a UUID." }, requestId);
   }
 
-  const resolved = await resolveCredential(token);
-  if (resolved.status !== "ok") return jsonError(failureContract(resolved.status), requestId);
-
-  // A session is scoped to one task; a direct runtime key is not, so
-  // cross-task use is only meaningful to check for a session.
-  if (token.startsWith(TASK_SESSION_PREFIX)) {
-    const session = await taskSessionInfo(token);
-    if (session.status !== "ok" || session.taskId !== taskId) {
-      return jsonError(failureContract("session_task_mismatch"), requestId);
-    }
+  const access = await checkTaskReadAccess(token, taskId);
+  if (!access.ok) {
+    return access.status === "task_not_found"
+      ? jsonError({ http: 404, code: "TASK_NOT_FOUND", message: "Task not found." }, requestId)
+      : jsonError(failureContract(access.status), requestId);
   }
-
-  // An application that requires task sessions never lists a task's tools for a raw runtime key.
-  if (
-    token.startsWith("authority_rk_") &&
-    (await taskCredentialPolicy(token, taskId)) === "session_required"
-  ) {
-    return jsonError(failureContract("session_required"), requestId);
-  }
-
-  // Either way, the credential's own tenant must actually own this task --
-  // never trust the taskId in the URL alone.
-  const owningTenantId = await tenantForTask(taskId);
-  if (!owningTenantId || owningTenantId !== resolved.tenantId) {
-    return jsonError({ http: 404, code: "TASK_NOT_FOUND", message: "Task not found." }, requestId);
-  }
+  const resolved = { tenantId: access.tenantId };
 
   const catalog = await buildMcpToolCatalog(taskId);
   if (catalog.status === "task_not_found") {

@@ -6,6 +6,8 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 
 import { authorizeAndExecuteMcpTool, buildMcpToolCatalog } from "@/lib/mcp/bridge";
 import { extractBearer, UNAUTHENTICATED } from "@/lib/gateway/http";
+import { failureContract } from "@/lib/gateway/response";
+import { checkTaskReadAccess } from "@/lib/gateway/task-access";
 
 /**
  * The MCP bridge (Phase 17 of the agent-integration roadmap): one Streamable
@@ -22,13 +24,13 @@ import { extractBearer, UNAUTHENTICATED } from "@/lib/gateway/http";
  * each HTTP request is independently authenticated and handled, which is
  * also simply what a serverless Next.js deployment requires.
  *
- * Discovery (tools/list) only requires a bearer token to be present, not
- * one already verified to belong to this task's tenant -- the information
- * it exposes is registry metadata (tool names, argument shapes), not tenant
- * data, and actually running anything (tools/call) is independently
- * authorized against this exact task and tenant regardless of what was
- * listed. A fresh McpServer and transport are built per request; nothing is
- * cached across requests or across tasks.
+ * Every request, including discovery (tools/list), first passes the same
+ * credential check as REST `GET /tasks/{id}/tools` (gateway/task-access.ts):
+ * the catalog is this task's active contract and can include a tenant's own
+ * published operations, so it is not public metadata. Running a tool
+ * (tools/call) is then authorized per call as before. A fresh McpServer and
+ * transport are built per request; nothing is cached across requests or
+ * across tasks.
  */
 
 export const runtime = "nodejs";
@@ -79,6 +81,18 @@ async function handle(
   const { taskId } = await context.params;
   if (!z.string().uuid().safeParse(taskId).success) {
     return NextResponse.json({ error: { code: "INVALID_TASK_ID" } }, { status: 400 });
+  }
+
+  const access = await checkTaskReadAccess(credentialSecret, taskId);
+  if (!access.ok) {
+    if (access.status === "task_not_found") {
+      return NextResponse.json({ error: { code: "TASK_NOT_FOUND" } }, { status: 404 });
+    }
+    const failure = failureContract(access.status);
+    return NextResponse.json(
+      { error: { code: failure.code, message: failure.message } },
+      { status: failure.http },
+    );
   }
 
   const built = await buildServerForTask(taskId, credentialSecret);
