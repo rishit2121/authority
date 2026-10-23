@@ -86,6 +86,7 @@ export async function loadRoutes() {
     sessions: await load("@/app/api/v1/sessions/route"),
     authorize: await load("@/app/api/v1/authorize/route"),
     execute: await load("@/app/api/v1/execute/route"),
+    revoke: await load("@/app/api/v1/capabilities/revoke/route"),
     tools: await load("@/app/api/v1/tasks/[taskId]/tools/route", "GET"),
     mcp: await load("@/app/api/mcp/tasks/[taskId]/route"),
   };

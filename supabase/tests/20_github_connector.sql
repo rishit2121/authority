@@ -2,7 +2,7 @@
 -- capability state machine, receipts, installation constraints, runtime approvals, and the
 -- removal of the legacy authorization function — all against the real deployed schema.
 
-select plan(111);
+select plan(115);
 
 set local role postgres;
 
@@ -261,6 +261,23 @@ select gateway.revoke_capability(current_setting('test.secret_a'), (select id fr
 select t(is((select consumed_uses::int from public.capabilities where task_id = '20000000-0000-4000-8000-000000000021'), 0, 'exactly once'));
 select t(is((select budget_released_uses from public.capability_tokens where token_hash = public.t20_tok('d-1')), 3, 'the release is recorded on the capability'));
 select t(throws_ok($$ update public.capability_tokens set budget_released_uses = 0 where token_hash = public.t20_tok('d-1') $$, '23514', null, 'released budget only moves forward'));
+
+-- A write already dispatched when its capability is revoked (here by its own agent) still spends its use: the
+-- revocation must not hand that use back to the step's budget (20261023000003).
+select public.t20_auth('d-2', 'github.get_issue', '{}'::jsonb, '20000000-0000-4000-8000-000000000021', 'acme-t20/widgets', 1);
+select set_config('t20.budget_d2', (select consumed_uses::text from public.capabilities where task_id = '20000000-0000-4000-8000-000000000021'), true);
+select set_config('t20.exec_d2', (select exec::text from public.t20_reserve('r-d2', 'd-2')), true);
+select gateway.mark_dispatched(current_setting('t20.exec_d2')::uuid, '20000000-0000-4000-8000-000000000010'::uuid);
+select gateway.revoke_capability(current_setting('test.secret_a'), (select id from public.capability_tokens where token_hash = public.t20_tok('d-2')), 'revoked mid-flight');
+select gateway.finish_execution(current_setting('t20.exec_d2')::uuid, '20000000-0000-4000-8000-000000000010'::uuid, 'succeeded', null, null, null,
+  '{"schemaVersion":1}'::jsonb, null, null, now(), '{"schemaVersion":1}'::jsonb);
+select t(is((select uses || '/' || reserved_uses || '/' || status from public.capability_tokens where token_hash = public.t20_tok('d-2')), '1/0/revoked',
+  'a write dispatched before its capability was revoked spends the use; the capability stays revoked'));
+select t(is((select consumed_uses::text from public.capabilities where task_id = '20000000-0000-4000-8000-000000000021'), current_setting('t20.budget_d2'),
+  'and that use is not returned to the step''s budget'));
+select t(is((select budget_released_uses from public.capability_tokens where token_hash = public.t20_tok('d-2')), 0, 'nothing is recorded as released'));
+select t(throws_ok($$ update public.capability_tokens set uses = uses + 1 where token_hash = public.t20_tok('d-1') $$, '23514', 'a revoked capability is frozen',
+  'otherwise a revoked capability''s uses stay frozen'));
 
 -- =====================================================================
 -- 5. Runtime approvals.

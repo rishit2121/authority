@@ -149,6 +149,42 @@ describe("disconnect races (mock provider)", () => {
     expect(["succeeded", "indeterminate"]).toContain((await receiptsFor(w, cap.id))[0]);
   });
 
+  it("an agent that revokes its own capability while the write is in flight does not get the use back", async () => {
+    const w = await world("race-agent-revoke");
+    const t = await preparedTask(w, [writeNode(w, "1002")], "Refund order 1002");
+    const cap = await authorize(w, t, w.writeTool, { orderId: "1002" });
+    provider.mode = "hold";
+    const before = provider.requests.length;
+    const pending = execute(t, cap, w.writeTool, { orderId: "1002" });
+    await provider.waitForRequests(before + 1);
+    const revoked = await request(routes.revoke, "/api/v1/capabilities/revoke", t.token, {
+      capabilityId: cap.id,
+      reason: "agent revokes mid-flight",
+    });
+    provider.mode = "succeed";
+    provider.releaseAll();
+    const result = await pending;
+    const again = await request(routes.authorize, "/api/v1/authorize", t.token, {
+      taskId: t.taskId,
+      tool: w.writeTool,
+      operation: w.writeTool.split(".")[1],
+      arguments: { orderId: "1002" },
+      idempotencyKey: `again-${Math.random()}`,
+    });
+    observed.agentRevokeInFlight = {
+      revoke: revoked.body.result,
+      execute: { http: result.http, result: result.body.result },
+      receipts: await receiptsFor(w, cap.id),
+      capability: await capabilityRow(w, cap.id),
+      reauthorize: again.body.status,
+    };
+    // The provider performed the write, so the step's single use is spent: a second authorization must be refused.
+    expect(revoked.body.result).toBe("revoked");
+    expect(provider.requests.length).toBe(before + 1);
+    expect(await receiptsFor(w, cap.id)).toEqual(["succeeded"]);
+    expect(again.body.status).toBe("deny");
+  });
+
   it("a capability authorized before a disconnect is never dispatched after it, and its use is not spent", async () => {
     const w = await world("race-predispatch");
     const t = await preparedTask(w, [writeNode(w, "2002")], "Refund order 2002");
