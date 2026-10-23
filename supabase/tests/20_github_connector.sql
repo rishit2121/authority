@@ -2,7 +2,7 @@
 -- capability state machine, receipts, installation constraints, runtime approvals, and the
 -- removal of the legacy authorization function — all against the real deployed schema.
 
-select plan(108);
+select plan(111);
 
 set local role postgres;
 
@@ -180,9 +180,15 @@ select t(throws_ok($$ select * from gateway.finish_execution(current_setting('t2
   'succeeded', null, null, 2::smallint, '{"schemaVersion":1}'::jsonb, null, null, now(), '{"schemaVersion":1}'::jsonb) $$, '55000', null, 'an execution that was never dispatched cannot be recorded as succeeded'));
 select public.t20_auth('a-3');
 select set_config('t20.exec3', (select exec::text from public.t20_reserve('r-6', 'a-3')), true);
+select set_config('t20.budget_a3', (select consumed_uses::text from public.capabilities
+  where contract_id = '20000000-0000-4000-8000-0000000000c1' and tool = 'github.get_issue'), true);
 select gateway.settle_reservation(current_setting('t20.exec3')::uuid, 'released', 'ARGUMENTS_INVALID', null, null, null, null, null, null, null);
 select t(is((select uses || '/' || reserved_uses from public.capability_tokens where token_hash = public.t20_tok('a-3')), '0/0', 'a release before dispatch refunds the use'));
-select t(is((select result from public.t20_reserve('r-7', 'a-3')), 'reserved', 'and the capability can be reserved again'));
+select t(is((select status || ':' || revoked_by from public.capability_tokens where token_hash = public.t20_tok('a-3')), 'revoked:system',
+  'a single-use GitHub capability released before dispatch is retired (#59, same as connectors since #57)'));
+select t(is((select reason from public.t20_reserve('r-7', 'a-3')), 'CAPABILITY_REVOKED', 'so it cannot be reserved again'));
+select t(is((select consumed_uses from public.capabilities where contract_id = '20000000-0000-4000-8000-0000000000c1' and tool = 'github.get_issue'),
+  current_setting('t20.budget_a3')::int - 1, 'and its one use is returned to the step''s budget'));
 
 select public.t20_auth('a-4');
 select set_config('t20.exec4', (select exec::text from public.t20_reserve('r-8', 'a-4')), true);
@@ -207,6 +213,8 @@ select gateway.reconcile_expired_reservations(50);
 select t(is((select status || ':' || reason_code from public.capability_reservations where id = current_setting('t20.exec5')::uuid), 'released:LEASE_EXPIRED_BEFORE_DISPATCH', 'an expired undispatched lease is released'));
 select t(is((select status || ':' || reason_code from public.capability_reservations where id = current_setting('t20.exec6')::uuid), 'indeterminate:LEASE_EXPIRED_AFTER_DISPATCH', 'an expired dispatched lease is indeterminate, never silently released'));
 select t(is((select uses || '/' || reserved_uses from public.capability_tokens where token_hash = public.t20_tok('a-5')), '0/0', 'the undispatched expiry refunded the use'));
+select t(is((select status || ':' || revoked_by from public.capability_tokens where token_hash = public.t20_tok('a-5')), 'revoked:system',
+  'a lease that expired before dispatch also retired its single-use GitHub capability'));
 
 -- reservation / receipt guards
 select t(throws_ok($$ update public.capability_reservations set status = 'reserved', finished_at = null where id = current_setting('t20.exec1')::uuid $$, '23514', null, 'a settled reservation cannot move back'));

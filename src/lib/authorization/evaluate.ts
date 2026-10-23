@@ -60,7 +60,7 @@ export interface EvaluateOptions {
   taskIntent?: string;
   priorPlanTools?: string[];
   thresholds?: Partial<EvaluationThresholds>;
-  /** Invocations already spent across the whole task. */
+  /** Invocations already spent under this contract version (budgets do not carry across versions). */
   usedInvocations?: number;
   now?: () => Date;
   idFactory?: () => string;
@@ -196,7 +196,7 @@ export async function evaluateToolRequest(options: EvaluateOptions): Promise<Eva
   if (usedInvocations >= contract.ephemeralLimits.maxToolInvocations) {
     reasons.push({
       code: "INVOCATION_LIMIT_REACHED",
-      detail: `Task exhausted its ${contract.ephemeralLimits.maxToolInvocations}-invocation budget.`,
+      detail: `This contract's ${contract.ephemeralLimits.maxToolInvocations}-invocation budget is exhausted.`,
       source: "limit",
     });
     return finalize("deny");

@@ -191,6 +191,13 @@ contractId, version, reviewPath, alignment }`.
 `excludedSteps`: every submitted step that is not in the contract, with the validator's status and reasons. The
 contract is compiled from the remaining steps, so a `ready` contract can lack a step you asked for.
 
+**Budgets are per contract version.** `maxInvocations` (per allowed action) and `maxToolInvocations` (all
+actions) count uses under one contract version. An allow reserves a use when it issues the capability; a denial
+spends nothing; an execution that was definitely never dispatched returns its use (generic connectors and GitHub
+alike). Re-preparing a task, which needs the backend credential, produces a new contract version with a fresh
+budget: nothing spent under the previous version carries over. If you need a ceiling across re-preparations,
+enforce it in your application; a task-wide cumulative budget is not implemented.
+
 **Closed-world arguments.** Each allowed action lists `openArguments`, the free-text fields its plan left unpinned
 (shown per tool in `GET /tasks/{taskId}/tools`). `/authorize` refuses, with `CONSTRAINT_VIOLATION`, any argument
 that the matched action neither pins nor lists there: an optional field the plan never set (another branch, a
