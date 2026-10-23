@@ -35,6 +35,12 @@ export async function runPostgresQuery(input: {
   values: Array<string | number | boolean>;
   timeoutMs: number;
   signal?: AbortSignal;
+  /**
+   * A published query declared as a read. It runs inside `BEGIN READ ONLY`, so Postgres itself refuses any write,
+   * including one made from inside a function the SELECT calls, which the keyword check in validate.ts cannot
+   * see. Defense in depth, not a proof that a query is harmless: use a database role with SELECT-only grants.
+   */
+  readOnly?: boolean;
 }): Promise<PostgresQueryOutcome> {
   // Connect to the address that was validated, not the hostname: resolving it again at connect time could return
   // a different (prohibited) address. TLS still verifies the certificate against the configured hostname.
@@ -61,8 +67,19 @@ export async function runPostgresQuery(input: {
   input.signal?.addEventListener("abort", onAbort, { once: true });
   try {
     await client.connect();
-    const result = await client.query({ text: input.sql, values: input.values });
-    return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount ?? 0 };
+    if (!input.readOnly) {
+      const result = await client.query({ text: input.sql, values: input.values });
+      return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount ?? 0 };
+    }
+    await client.query("BEGIN READ ONLY");
+    try {
+      const result = await client.query({ text: input.sql, values: input.values });
+      await client.query("COMMIT");
+      return { rows: result.rows as Array<Record<string, unknown>>, rowCount: result.rowCount ?? 0 };
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    }
   } finally {
     input.signal?.removeEventListener("abort", onAbort);
     await client.end().catch(() => undefined);

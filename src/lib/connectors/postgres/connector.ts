@@ -52,6 +52,8 @@ export interface PostgresConnectorDeps {
     values: Array<string | number | boolean>;
     timeoutMs: number;
     signal?: AbortSignal;
+    /** True for a query published as a read: run it in a read-only transaction. */
+    readOnly?: boolean;
   }) => Promise<PostgresQueryOutcome>;
 }
 
@@ -234,6 +236,7 @@ export function createPostgresConnector(
           values: built.values,
           timeoutMs: query.timeoutMs,
           signal: context.signal,
+          readOnly: !isWrite,
         });
       } catch {
         // Never surface a raw driver error (connection string, SQLSTATE

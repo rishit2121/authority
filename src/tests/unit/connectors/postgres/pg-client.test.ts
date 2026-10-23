@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const constructed: Array<Record<string, unknown>> = [];
+const executed: string[] = [];
+const failNext: string[] = [];
 
 vi.mock("pg", () => {
   class Client {
@@ -8,7 +10,13 @@ vi.mock("pg", () => {
       constructed.push(config);
     }
     async connect() {}
-    async query() {
+    async query(q: string | { text: string }) {
+      const text = typeof q === "string" ? q : q.text;
+      executed.push(text);
+      if (failNext[0] === text) {
+        failNext.shift();
+        throw new Error("forced");
+      }
       return { rows: [], rowCount: 0 };
     }
     async end() {}
@@ -29,6 +37,7 @@ const base = {
 describe("runPostgresQuery connects to the validated address", () => {
   afterEach(() => {
     constructed.length = 0;
+    executed.length = 0;
     vi.restoreAllMocks();
   });
 
@@ -65,5 +74,33 @@ describe("runPostgresQuery connects to the validated address", () => {
       }),
     ).rejects.toMatchObject({ code: "HOST_NOT_ALLOWED" });
     expect(constructed).toHaveLength(0);
+  });
+});
+
+describe("runPostgresQuery: declared reads run in a read-only transaction", () => {
+  afterEach(() => {
+    constructed.length = 0;
+    executed.length = 0;
+    vi.restoreAllMocks();
+  });
+
+  const literalConfig = { host: "10.0.0.9", port: 5432, database: "app", sslmode: "disable" } as never;
+
+  it("wraps a read in BEGIN READ ONLY ... COMMIT", async () => {
+    await runPostgresQuery({ ...base, config: literalConfig, readOnly: true });
+    expect(executed).toEqual(["BEGIN READ ONLY", "select 1", "COMMIT"]);
+  });
+
+  it("rolls back and rethrows when the read fails (for example a write attempted inside a function)", async () => {
+    failNext.push("select 1");
+    await expect(runPostgresQuery({ ...base, config: literalConfig, readOnly: true })).rejects.toThrow(
+      "forced",
+    );
+    expect(executed).toEqual(["BEGIN READ ONLY", "select 1", "ROLLBACK"]);
+  });
+
+  it("runs a write as a single statement, unchanged", async () => {
+    await runPostgresQuery({ ...base, config: literalConfig, sql: "update t set x = $1", readOnly: false });
+    expect(executed).toEqual(["update t set x = $1"]);
   });
 });
