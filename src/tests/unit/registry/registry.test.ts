@@ -10,7 +10,7 @@ import {
 describe("loadRegistry", () => {
   it("loads the audited demo registry without error", () => {
     const loaded = loadRegistry(githubDemoRegistry);
-    expect(loaded.registryVersion).toBe("github-demo-2026-10-07a");
+    expect(loaded.registryVersion).toBe("github-demo-2026-10-23a");
     expect(loaded.operations.size).toBe(25);
     expect(loaded.permissions.size).toBe(26);
   });

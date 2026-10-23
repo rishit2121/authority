@@ -169,6 +169,21 @@ function evaluateNode(node: CandidatePlanNode, options: PlanValidatorOptions): P
     }
   }
 
+  // A value taken from an earlier step's output is neither verified nor constrained at runtime, so only generated
+  // content (a registry `freeText` field) may come from one. A target or value -- recipient, channel, id, path,
+  // branch, amount -- must be a concrete value the compiler can pin.
+  for (const key of dataFlowArgumentKeys) {
+    const field = operation.argumentFields.find((f) => f.key === key);
+    if (!field) {
+      push("replan", `data-flow reference to argument "${key}", which ${node.tool} does not have`);
+    } else if (field.freeText !== true) {
+      push(
+        "replan",
+        `argument "${key}" of ${node.tool} must be a concrete value in the plan: only free-text fields may come from an earlier step's output, because Authority cannot enforce where a derived value came from`,
+      );
+    }
+  }
+
   for (const field of operation.argumentFields) {
     const hasConcrete = Object.hasOwn(node.arguments, field.key);
     const hasDataFlow = dataFlowArgumentKeys.has(field.key);

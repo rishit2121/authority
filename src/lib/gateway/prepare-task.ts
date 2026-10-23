@@ -77,12 +77,25 @@ export interface PrepareChecks {
   planReview: "ran" | "not_run";
 }
 
+/**
+ * A plan step that is not in the compiled contract, and why. The contract is built from the remaining steps, so
+ * an outcome can be "ready" while a step the caller submitted is absent; this says which, instead of leaving the
+ * caller to notice a tool missing from `tools`.
+ */
+export interface ExcludedStep {
+  nodeId: string;
+  tool: string;
+  status: "denied" | "clarify" | "replan";
+  reasons: string[];
+}
+
 export type PrepareTaskOutcome =
   | {
       status: "ready";
       contractId: string;
       version: number;
       tools: string[];
+      excludedSteps: ExcludedStep[];
       alignment?: PlanAlignmentSummary;
       checks?: PrepareChecks;
     }
@@ -91,6 +104,7 @@ export type PrepareTaskOutcome =
       contractId: string;
       version: number;
       approvalPath: string;
+      excludedSteps: ExcludedStep[];
       alignment?: PlanAlignmentSummary;
       checks?: PrepareChecks;
     }
@@ -104,6 +118,7 @@ export type PrepareTaskOutcome =
       contractId: string;
       version: number;
       reviewPath: string;
+      excludedSteps: ExcludedStep[];
       alignment: PlanAlignmentSummary;
       checks?: PrepareChecks;
     }
@@ -120,6 +135,22 @@ export interface PrepareTaskInput {
   plan?: unknown;
   generate?: boolean;
   idempotencyKey?: string | null;
+}
+
+/** Every step the validator did not include in the contract, with the validator's own reasons. */
+export function excludedStepsOf(
+  plan: CandidatePlan,
+  validation: ReturnType<typeof validateCandidatePlan>,
+): ExcludedStep[] {
+  const included = new Set(validation.includedNodeIds);
+  return validation.findings
+    .filter((f) => !included.has(f.nodeId))
+    .map((f) => ({
+      nodeId: f.nodeId,
+      tool: plan.nodes.find((n) => n.id === f.nodeId)?.tool ?? "",
+      status: f.status as ExcludedStep["status"],
+      reasons: f.reasons,
+    }));
 }
 
 function nodesFor(plan: CandidatePlan, validation: ReturnType<typeof validateCandidatePlan>) {
@@ -261,12 +292,14 @@ export async function prepareTask(
     }
     throw error;
   }
+  const excludedSteps = excludedStepsOf(plan, validation);
   if (validation.includedNodeIds.length === 0) {
     return {
       ok: true,
       outcome: {
         status: "clarification",
         reason: "No plan node was accepted or review-pending -- there is nothing to compile a contract from.",
+        details: { excludedSteps },
       },
     };
   }
@@ -393,6 +426,7 @@ export async function prepareTask(
           contractId: contractResult.contractId,
           version: contractResult.version,
           reviewPath: `/app/tasks/${input.taskId}`,
+          excludedSteps,
           alignment: alignmentSummary,
           checks: { planReview: "ran" },
         },
@@ -409,6 +443,7 @@ export async function prepareTask(
         contractId: contractResult.contractId,
         version: contractResult.version,
         tools: [...new Set(compiled.allowedActions.map((a) => a.tool))],
+        excludedSteps,
         ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
         checks: { planReview: alignmentSummary ? "ran" : "not_run" },
       },
@@ -422,6 +457,7 @@ export async function prepareTask(
       contractId: contractResult.contractId,
       version: contractResult.version,
       approvalPath: `/app/tasks/${input.taskId}`,
+      excludedSteps,
       ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
       checks: { planReview: alignmentSummary ? "ran" : "not_run" },
     },

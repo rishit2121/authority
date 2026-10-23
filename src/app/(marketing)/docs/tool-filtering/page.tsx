@@ -40,7 +40,7 @@ export default function ToolFilteringPage() {
           code={`{
   "taskId": "...",
   "contract": { "id": "c1a2...", "version": 3 },
-  "versions": { "registry": "github-demo-2026-10-07a", "compiler": "authority-compiler-2026-09-30-8" },
+  "versions": { "registry": "github-demo-2026-10-23a", "compiler": "authority-compiler-2026-09-30-8" },
   "manifestHash": "9f2c1e...",
   "tools": [
     {

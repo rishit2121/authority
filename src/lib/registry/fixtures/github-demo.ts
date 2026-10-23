@@ -100,10 +100,16 @@ import type { RegistryData } from "../types";
  * connector performs; both are plain `write_create` with no
  * `financialImpact`/`externalCommunication` flag, since creating an issue or
  * a page neither moves money nor leaves the organization.
+ *
+ * `freeText: true` marks generated content only -- `gmail.send_email` subject/body, `slack.post_message`
+ * text, `linear.create_issue` title/description, `notion.create_page` title. These are the only fields a
+ * plan may fill from an earlier step's output; Authority neither checks where such a value came from nor
+ * constrains it at runtime. Recipients, channels, ids, branches, paths and amounts are never free text, so a
+ * plan must pin them (`2026-10-23a`: added the flag, which changes what compiles, hence the version bump).
  */
 export const githubDemoRegistry: RegistryData = {
   schemaVersion: 1,
-  registryVersion: "github-demo-2026-10-07a",
+  registryVersion: "github-demo-2026-10-23a",
   operations: [
     {
       id: "github.get_issue",
@@ -280,8 +286,8 @@ export const githubDemoRegistry: RegistryData = {
       financialImpact: false,
       argumentFields: [
         { key: "to", type: "string", required: true, identifiesResource: true },
-        { key: "subject", type: "string", required: true, identifiesResource: false },
-        { key: "body", type: "string", required: false, identifiesResource: false },
+        { key: "subject", type: "string", required: true, identifiesResource: false, freeText: true },
+        { key: "body", type: "string", required: false, identifiesResource: false, freeText: true },
       ],
       preconditions: [
         "The recipient must be identifiable from the task's own intent or trusted inputs, never invented.",
@@ -407,7 +413,7 @@ export const githubDemoRegistry: RegistryData = {
       financialImpact: false,
       argumentFields: [
         { key: "channel", type: "string", required: true, identifiesResource: true },
-        { key: "text", type: "string", required: true, identifiesResource: false },
+        { key: "text", type: "string", required: true, identifiesResource: false, freeText: true },
       ],
       preconditions: ["The channel must be identifiable from the task's own intent or trusted inputs."],
       effects: ["Posts one message to the named channel in the connected workspace."],
@@ -466,8 +472,8 @@ export const githubDemoRegistry: RegistryData = {
       financialImpact: false,
       argumentFields: [
         { key: "team_id", type: "string", required: true, identifiesResource: true },
-        { key: "title", type: "string", required: true, identifiesResource: false },
-        { key: "description", type: "string", required: false, identifiesResource: false },
+        { key: "title", type: "string", required: true, identifiesResource: false, freeText: true },
+        { key: "description", type: "string", required: false, identifiesResource: false, freeText: true },
       ],
       preconditions: ["The team must already exist and be bound to the task."],
       effects: ["Creates one new issue on the named team; makes no other change."],
@@ -512,7 +518,7 @@ export const githubDemoRegistry: RegistryData = {
       financialImpact: false,
       argumentFields: [
         { key: "database_id", type: "string", required: true, identifiesResource: true },
-        { key: "title", type: "string", required: true, identifiesResource: false },
+        { key: "title", type: "string", required: true, identifiesResource: false, freeText: true },
       ],
       preconditions: ["The database must already exist and be bound to the task."],
       effects: ["Creates one new page in the named database; makes no other change."],

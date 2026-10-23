@@ -189,7 +189,10 @@ describe("validateCandidatePlan — per-node findings", () => {
     );
   });
 
-  it("accepts a resource-identifying argument bound via data-flow instead of a concrete value", () => {
+  // Formerly accepted. A data-flow-bound value is neither provenance-checked nor pinned at runtime, so a bound
+  // issue_number would let the agent read ANY issue; only free-text fields may be bound (see
+  // data-flow-provenance.test.ts).
+  it("refuses a resource-identifying argument bound via data-flow instead of a concrete value", () => {
     const plan = basePlan([
       node({
         id: "a",
@@ -207,7 +210,8 @@ describe("validateCandidatePlan — per-node findings", () => {
       }),
     ]);
     const result = validateCandidatePlan(plan, { registry, activePolicies: [] });
-    expect(result.findings.map((f) => f.status)).toEqual(["accepted", "accepted"]);
+    expect(result.findings.map((f) => f.status)).toEqual(["accepted", "replan"]);
+    expect(result.includedNodeIds).toEqual(["a"]);
   });
 
   it("denies a declared side-effect mismatch against the registry", () => {

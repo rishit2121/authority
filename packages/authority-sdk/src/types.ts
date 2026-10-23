@@ -44,12 +44,22 @@ export interface PlanAlignment {
   feedback: string | null;
 }
 
+/** A submitted plan step that is not in the compiled contract, with the validator's reasons. */
+export interface ExcludedStep {
+  nodeId: string;
+  tool: string;
+  status: "denied" | "clarify" | "replan";
+  reasons: string[];
+}
+
 export type PrepareTaskOutcome =
   | {
       status: "ready";
       contractId: string;
       version: number;
       tools: string[];
+      /** Steps left out of the contract. A "ready" contract can lack a step you submitted; check this. */
+      excludedSteps?: ExcludedStep[];
       alignment?: PlanAlignment;
       checks?: { planReview: "ran" | "not_run" };
     }
@@ -58,6 +68,7 @@ export type PrepareTaskOutcome =
       contractId: string;
       version: number;
       approvalPath: string;
+      excludedSteps?: ExcludedStep[];
       alignment?: PlanAlignment;
       checks?: { planReview: "ran" | "not_run" };
     }
@@ -68,6 +79,7 @@ export type PrepareTaskOutcome =
       contractId: string;
       version: number;
       reviewPath: string;
+      excludedSteps?: ExcludedStep[];
       alignment: PlanAlignment;
     }
   | { status: "clarification"; reason: string; details?: unknown }
@@ -91,6 +103,11 @@ export interface CandidatePlanNodeInput {
   resourceBinding?: string;
   dependencies?: string[];
   declaredOutputs?: string[];
+  /**
+   * Fill an argument from an earlier step's output. Allowed only for free-text fields (message text, subject,
+   * title); Authority neither verifies nor constrains such a value. A recipient, channel, id or amount must be a
+   * concrete value in `arguments`, or the step is excluded with status "replan".
+   */
   dataFlowRefs?: Array<{ argumentKey: string; fromNodeId: string; output: string }>;
   expectedSideEffect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
   maxInvocations?: number;

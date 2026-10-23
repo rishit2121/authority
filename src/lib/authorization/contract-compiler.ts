@@ -186,6 +186,19 @@ export function compileContract(input: CompileContractInput): CompiledContract {
     throw new CompilationError("no accepted or review-pending plan nodes to compile a contract from");
   }
 
+  // Defense in depth for the plan validator's rule: a data-flow-bound argument is left unconstrained here, which is
+  // acceptable only for free text. Refuse to compile anything else rather than emit an action accepting any value.
+  for (const node of included) {
+    for (const ref of node.dataFlowRefs) {
+      const field = registry.operations.get(node.tool)?.argumentFields.find((f) => f.key === ref.argumentKey);
+      if (field?.freeText !== true) {
+        throw new CompilationError(
+          `node ${node.id}: data-flow binding for "${ref.argumentKey}" of ${node.tool}, which is not a free-text field`,
+        );
+      }
+    }
+  }
+
   const deniedTools = [
     ...new Set(validation.findings.filter((f) => f.status === "denied").map((f) => f.nodeId)),
   ]

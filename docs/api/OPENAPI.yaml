@@ -1268,6 +1268,11 @@ components:
         declaredOutputs: { type: array, items: { type: string } }
         dataFlowRefs:
           type: array
+          description: >-
+            Fill an argument from an earlier step's declared output. Allowed only for free-text fields (message
+            text, subject, title, description); Authority neither verifies where the value came from nor constrains
+            it at runtime. A reference to any other field (recipient, channel, id, path, branch, amount) excludes the
+            step with status `replan`.
           items:
             type: object
             properties:
@@ -1310,6 +1315,20 @@ components:
           type: array
           items: { type: string }
           description: "Present for: ready — every tool the now-active contract allows."
+        excludedSteps:
+          type: array
+          description: >-
+            Present for: ready, awaiting_approval, alignment_review (and inside `details` of the clarification
+            "no plan node was accepted"). Submitted steps that are not in the contract, with the validator's reasons.
+            A contract can be `ready` while a step you submitted is missing; check this list.
+          items:
+            type: object
+            required: [nodeId, tool, status, reasons]
+            properties:
+              nodeId: { type: string }
+              tool: { type: string }
+              status: { type: string, enum: [denied, clarify, replan] }
+              reasons: { type: array, items: { type: string } }
         approvalPath:
           type: string
           description: "Present for: awaiting_approval — an approval rule matched; a person approves on the dashboard."
@@ -1325,7 +1344,10 @@ components:
           properties:
             planReview: { type: string, enum: [ran, not_run] }
         reason: { type: string, description: "Present for: clarification, rejected." }
-        details: { description: "Present for: clarification, only when the plan came from `generate: true`." }
+        details:
+          description: >-
+            Present for: clarification -- the generated plan when it came from `generate: true`, or
+            `{ excludedSteps }` when no submitted step could be compiled.
 
     AlignmentFinding:
       type: object

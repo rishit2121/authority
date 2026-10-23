@@ -187,7 +187,15 @@ contractId, version, reviewPath, alignment }`.
 - `rejected` — the solver or verifier refused outright. `{ reason }`.
 - `ai_unavailable` — `generate: true` was set but no model credentials are configured. Never a silent mock.
 
-`ready` / `awaiting_approval` / `alignment_review` also carry `checks.planReview` (`ran` | `not_run`).
+`ready` / `awaiting_approval` / `alignment_review` also carry `checks.planReview` (`ran` | `not_run`) and
+`excludedSteps`: every submitted step that is not in the contract, with the validator's status and reasons. The
+contract is compiled from the remaining steps, so a `ready` contract can lack a step you asked for.
+
+**Data flow is for free text only.** A step may fill an argument from an earlier step's output (`dataFlowRefs`)
+only when the registry marks that argument as free text (message text, subject, title, description). Authority does
+not verify where such a value came from and does not constrain it at runtime. A recipient, channel, id, path,
+branch or amount must be a concrete value in `arguments`, which the compiler pins exactly; a data-flow reference to
+one excludes the step with status `replan`.
 A contract activates automatically unless an approval rule matched or enforced task alignment holds it;
 neither ever widens what the compiler decided.
 

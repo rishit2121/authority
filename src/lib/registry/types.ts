@@ -37,6 +37,14 @@ export const argumentFieldSchema = z
     required: z.boolean(),
     /** True when this field's value identifies the operation's resource. */
     identifiesResource: z.boolean().default(false),
+    /**
+     * True only for generated content (a message body, a subject, a title): the one kind of field a plan may fill
+     * from an earlier step's output (`dataFlowRefs`). Authority does not verify where such a value came from and
+     * does not constrain it at runtime. Every other field -- a recipient, channel, id, path, branch or amount --
+     * must be a concrete value in the plan, which the compiler pins; a data-flow reference to it is refused.
+     * Absent means false (only an explicit `true` counts), so a field nobody classified fails closed.
+     */
+    freeText: z.boolean().optional(),
   })
   .strict();
 export type ArgumentField = z.infer<typeof argumentFieldSchema>;
