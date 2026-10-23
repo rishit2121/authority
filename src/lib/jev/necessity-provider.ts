@@ -49,7 +49,10 @@ export interface NecessityEvaluationInput {
   taskIntent: string;
   plan: NecessityPlanNodeSummary[];
   nodeId: string;
-  /** True when the mechanical backward slice (see `lib/authorization/backward-slice.ts`) already reaches this node from a terminal effect. */
+  /**
+   * Whether the structural backward slice reaches this node. True for every node of a validated plan (see
+   * `lib/authorization/backward-slice.ts`), so it carries no necessity information and is not sent to the model.
+   */
   inBackwardSlice: boolean;
   registryOperation: NecessityRegistryOperationSummary;
   activePolicySummaries: string[];

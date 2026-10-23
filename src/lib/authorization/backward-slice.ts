@@ -1,19 +1,16 @@
 import type { CandidatePlan, CandidatePlanNode } from "@/lib/domain";
 
 /**
- * Mechanical backward slice from a plan's own terminal effects.
+ * Backward slice from a plan's sinks: a structural utility, NOT a necessity check.
  *
- * Purely graph-theoretic, no model involved: a "terminal" node is one that nothing else in the accepted node set
- * declares as a dependency or a data-flow source — i.e. a sink in the induced subgraph over `includedNodeIds`. The
- * slice is every node reachable backward from a terminal node via `dependencies` and `dataFlowRefs`, restricted to
- * `includedNodeIds`. A node outside the slice is, by construction of the plan's own declared graph, not needed to
- * produce anything the plan claims to be its actual output — independent of and prior to any Jev necessity
- * evaluation (see `lib/jev/contract-pipeline.ts`, where this is an unconditional rejection, same tier as an unknown
- * registry operation).
- *
- * This is deliberately conservative: a node can only be ruled "outside the slice" by the plan's own dependency
- * declarations, never by inferring an implicit relationship the plan did not state. A plan that fails to declare a
- * real dependency will have that node correctly (if unhelpfully) judged terminal on its own.
+ * A "terminal" node is one that nothing else in `includedNodeIds` declares as a dependency or data-flow source (a
+ * sink of the induced subgraph); the slice is everything reachable backward from those sinks. Because the slice
+ * starts from every sink, and every node of a finite acyclic graph reaches some sink, every included node of a
+ * validated plan is in the slice and `outsideSliceNodeIds` is always empty. An unneeded step -- even a disconnected,
+ * unrelated write -- is simply its own sink. The slice therefore cannot show that any step is unnecessary, and no
+ * claim of "mechanical necessity" may rest on it. Deciding necessity would need effect anchors grounded outside the
+ * plan (outputs the trusted task or application policy declares), which Authority does not have today; a model
+ * choosing anchors would be probabilistic interpretation, not proof. See backward-slice.test.ts for the property.
  */
 export interface BackwardSliceResult {
   /** Node ids with no other included node depending on them (dependency or data-flow) — the plan's own declared outputs. */

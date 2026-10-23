@@ -64,9 +64,7 @@ latency-sensitive usage** — this table is a point-in-time record, not a guaran
 
 **Per-tool necessity** (`src/lib/jev/necessity-provider.ts`, `openrouter-necessity-provider.ts`,
 `necessity-runner.ts`, `contract-pipeline.ts`): for every plan node that mechanical validation already accepted (or
-flagged for review) _and_ that a purely graph-theoretic backward slice from the plan's own terminal effects
-(`src/lib/authorization/backward-slice.ts`, no LLM involved) confirms is reachable, Jev is asked one bundled Decisions
-API call with:
+flagged for review), Jev is asked one bundled Decisions API call with:
 
 - the classification question (`required | conditional | unjustified | ambiguous`),
 - a `noul` per candidate predecessor node (restricted to that node's own declared `dependencies` — Jev cannot name a
@@ -86,7 +84,6 @@ as fact.
 | ---------------------------------------------- | -------------------------------------------------- | -------------------------------- | -------------------------------------------------------------------------------------------- |
 | any                                            | (Jev unavailable / timeout / error / circuit-open) | unchanged, recorded              | mechanical `accepted` → `requires_review`; never silently kept as approved                   |
 | rejected already (`denied`/`clarify`/`replan`) | not consulted                                      | unchanged                        | unchanged — Jev is never consulted for a node mechanical validation already rejected         |
-| accepted, but outside the backward slice       | not consulted                                      | `replan`                         | `replan` — unreachable from any terminal effect, regardless of Jev                           |
 | accepted / requires_review                     | `unjustified`                                      | unchanged, disagreement recorded | → `replan`                                                                                   |
 | accepted / requires_review                     | `ambiguous`                                        | unchanged, disagreement recorded | → `clarify`                                                                                  |
 | accepted / requires_review                     | `conditional`                                      | unchanged, disagreement recorded | → `requires_review` (no machine-verifiable-condition mechanism exists yet — see Limitations) |
@@ -133,8 +130,9 @@ advisory only, never itself a decision, and recorded alongside, never gating any
 4. Registry resolution
 5. Hard policy checks
 6. Deterministic dependency / data-flow validation (`validateCandidatePlan`)
-7. Mechanical backward slice from terminal effects (`computeBackwardSlice`, no LLM)
-8. Role B necessity evaluation per in-slice, mechanically-accepted node
+7. Structural backward slice (`computeBackwardSlice`, no LLM). Not a necessity check: for a validated (acyclic)
+   plan every node is in the slice, so it never excludes a step. See `backward-slice.ts`.
+8. Role B necessity evaluation per mechanically-accepted node
 9. Disagreement / ambiguity handling per the combination-rule table above
 10. Accepted operation set → `adjustedValidation`
 11. Minimum-authority solver (`solveMinimumAuthority`, unmodified, authoritative)

@@ -13,7 +13,7 @@ import {
 import { JevProviderError, JevProviderUnavailableError, type ToolNecessityEvaluation } from "./types";
 
 export const OPENROUTER_JEV_NECESSITY_PROVIDER_VERSION =
-  "authority-openrouter-jev-necessity-provider-2026-09-29";
+  "authority-openrouter-jev-necessity-provider-2026-10-23";
 
 /** The trusted JSON context ("state") Jev evaluates — structure only, no raw argument values (see necessity-provider.ts). */
 function buildState(input: NecessityEvaluationInput) {
@@ -21,7 +21,8 @@ function buildState(input: NecessityEvaluationInput) {
     taskIntent: input.taskIntent,
     plan: input.plan,
     evaluatingNodeId: input.nodeId,
-    inMechanicalBackwardSlice: input.inBackwardSlice,
+    // No backward-slice flag: it is true for every node of a validated plan, so presenting it as "mechanical"
+    // evidence would tell the model something had checked necessity when nothing had.
     registryOperation: {
       id: input.registryOperation.id,
       provider: input.registryOperation.provider,

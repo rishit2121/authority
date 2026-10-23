@@ -76,6 +76,20 @@ describe("OpenRouterJevNecessityProvider", () => {
     expect(fetchMock.mock.calls[0][0]).toBe("https://openrouter.ai/api/alpha/decisions");
   });
 
+  it("does not present the structural backward slice to the model as necessity evidence", async () => {
+    const fetchMock = vi.fn((_url: string, _init: RequestInit) =>
+      decisionsResponse(200, {
+        answers: { classification: { type: "choice", choice: "required", confidence: 0.8 } },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await new OpenRouterJevNecessityProvider().evaluate(necessityInput, {
+      signal: new AbortController().signal,
+    });
+    const sent = String(fetchMock.mock.calls[0][1].body);
+    expect(sent).not.toMatch(/BackwardSlice/i);
+  });
+
   it("maps a 401 into a JevProviderError carrying the openrouter unauthorized category", async () => {
     vi.stubGlobal(
       "fetch",

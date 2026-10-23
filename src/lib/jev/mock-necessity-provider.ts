@@ -14,7 +14,8 @@ export const MOCK_NECESSITY_PROVIDER_VERSION = "authority-mock-jev-necessity-pro
  * Heuristics, all simple and inspectable (not a claim of accuracy — see `docs/jev/OVERVIEW.md`'s evaluation section):
  *  - A node whose tool+resourceType repeats one already in the plan, and that nothing depends on, is `unjustified`
  *    (`duplicate_operation`).
- *  - A node outside the mechanical backward slice with no dependents is `unjustified` (`unrelated_resource`).
+ *  - A node with `inBackwardSlice: false` and no dependents is `unjustified` (`unrelated_resource`). Only synthetic
+ *    inputs set that flag: the structural slice contains every node of a validated plan.
  *  - A node with a registry-curated alternative and a `read` side effect elsewhere available is `conditional`.
  *  - Everything else is `required` with low-to-moderate confidence — deliberately not confident, since this is a mock.
  */

@@ -23,7 +23,7 @@ import {
  * vocabulary and its safest-by-default posture:
  *
  *  - `off` (default): the pipeline behaves exactly as it did before this feature existed. No Jev call is made.
- *  - `shadow`: Jev necessity runs for every mechanically-included, in-slice node and is fully recorded (see
+ *  - `shadow`: Jev necessity runs for every mechanically-included node and is fully recorded (see
  *    `lib/domain` persistence types), but never changes which nodes reach the solver — useful for evaluating Jev's
  *    accuracy against real plans before trusting it with anything.
  *  - `enforce`: the combination rules below actually gate the plan (see docs/jev/OVERVIEW.md for the full rule
@@ -123,14 +123,15 @@ export async function runJevContractPipeline(
     }
 
     if (!inSlice) {
-      // Outside the plan's own mechanical backward slice — rejected regardless of Jev (section 3's combination rules).
+      // Structural safety net only: for a plan that passed validation (acyclic) the slice contains every included node,
+      // so this branch does not run. It is not a necessity check; see lib/authorization/backward-slice.ts.
       const status: PlanNodeFindingStatus = "replan";
       overlay.set(finding.nodeId, {
         nodeId: finding.nodeId,
         status,
         reasons: [
           ...finding.reasons,
-          "not reachable from any of the plan's own terminal effects (mechanical backward slice)",
+          "not reachable from any of the plan's own terminal effects (structural backward slice)",
         ],
       });
       nodeRecords.push({
