@@ -33,7 +33,7 @@ export class PlanStructureError extends Error {}
 
 export type PlanNodeFindingStatus = "accepted" | "requires_review" | "clarify" | "replan" | "denied";
 
-const SEVERITY: Record<PlanNodeFindingStatus, number> = {
+export const SEVERITY: Record<PlanNodeFindingStatus, number> = {
   denied: 4,
   replan: 3,
   clarify: 2,

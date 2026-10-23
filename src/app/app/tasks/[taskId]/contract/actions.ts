@@ -331,6 +331,8 @@ export async function proposeContractAction(
       registry,
       activePolicies,
       compiled,
+      // Compiled from Jev's adjusted validation; the verifier accepts it only as a narrowing of the mechanical one.
+      narrowedValidation: validation,
       tenantId: identity.tenant.tenantId,
       taskId,
       maxAllowedExpirySeconds: 24 * 3600,
@@ -767,6 +769,7 @@ export async function activateContractAction(taskId: string, contractId: string)
       registry,
       activePolicies,
       compiled: recompiled,
+      narrowedValidation: validation,
       tenantId: identity.tenant.tenantId,
       taskId,
       maxAllowedExpirySeconds: 24 * 3600,

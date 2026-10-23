@@ -3,7 +3,7 @@ import type { LoadedRegistry } from "@/lib/registry";
 
 import { canonicalHash } from "./canonicalize";
 import { compileContract, normalizedOutput, type CompiledContract } from "./contract-compiler";
-import { validateCandidatePlan } from "./plan-validator";
+import { SEVERITY, validateCandidatePlan, type PlanValidationResult } from "./plan-validator";
 import { solveMinimumAuthority } from "./solver";
 
 /**
@@ -37,6 +37,25 @@ export interface VerifyContractInput {
   maxAllowedExpirySeconds: number;
   supportedRegistryVersions: readonly string[];
   supportedCompilerVersions: readonly string[];
+  /**
+   * The validation the contract was compiled from, when an optional narrowing step (Jev necessity in enforce mode)
+   * adjusted the mechanical result. It is used for re-derivation only if it narrows the mechanical validation of the
+   * same plan: no step included that the mechanical result excluded, no step's finding made less severe, no extra
+   * required operation. Omit for a contract compiled from the mechanical validation.
+   */
+  narrowedValidation?: PlanValidationResult;
+}
+
+/** Whether `narrowed` only removes from or tightens `mechanical`, never adds or relaxes. */
+export function isNarrowingOf(mechanical: PlanValidationResult, narrowed: PlanValidationResult): boolean {
+  const mechanicalIncluded = new Set(mechanical.includedNodeIds);
+  const mechanicalOps = new Set(mechanical.requiredOperations);
+  const severityOf = new Map(narrowed.findings.map((f) => [f.nodeId, SEVERITY[f.status]] as const));
+  return (
+    narrowed.includedNodeIds.every((id) => mechanicalIncluded.has(id)) &&
+    narrowed.requiredOperations.every((op) => mechanicalOps.has(op)) &&
+    mechanical.findings.every((f) => (severityOf.get(f.nodeId) ?? -1) >= SEVERITY[f.status])
+  );
 }
 
 export interface VerificationResult {
@@ -106,7 +125,17 @@ export function verifyCompiledContract(input: VerifyContractInput): Verification
   // Independent re-derivation from the same trusted inputs.
   let rebuilt: ReturnType<typeof compileContract> | null = null;
   try {
-    const validation = validateCandidatePlan(candidatePlan, { registry, activePolicies });
+    const mechanical = validateCandidatePlan(candidatePlan, { registry, activePolicies });
+    let validation = mechanical;
+    if (input.narrowedValidation) {
+      const narrows = isNarrowingOf(mechanical, input.narrowedValidation);
+      add(
+        "narrowed_validation_only_narrows",
+        narrows,
+        "a supplied adjusted validation may only exclude steps or tighten findings relative to the mechanical one",
+      );
+      if (narrows) validation = input.narrowedValidation;
+    }
     // Policy-level node/operation denial already removed a denied node's
     // operation from `requiredOperations` entirely (see plan-validator.ts) —
     // the solver never needs to separately exclude a permission for that
