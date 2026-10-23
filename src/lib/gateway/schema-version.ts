@@ -1,2 +1,2 @@
 /** The newest migration this build expects. `gateway.schema_version()` must return the same value. */
-export const EXPECTED_SCHEMA_VERSION = "20261022000002";
+export const EXPECTED_SCHEMA_VERSION = "20261023000001";

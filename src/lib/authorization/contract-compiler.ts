@@ -39,7 +39,7 @@ import type { SolverOutcome } from "./solver";
  * excluded exactly as before, unconditionally, with no path to reconsideration.
  */
 
-export const COMPILER_VERSION = "authority-compiler-2026-09-30-8";
+export const COMPILER_VERSION = "authority-compiler-2026-10-23-9";
 export const DEFAULT_CONTRACT_EXPIRY_SECONDS = 3600;
 export const SPEC_VERSION = "v1";
 
@@ -89,11 +89,14 @@ function includedNodes(plan: CandidatePlan, validation: PlanValidationResult): C
  * Alice" and "email Bob" -- stay separate actions, each with its own budget.
  * (Merging them by tool alone once let the later step's values overwrite the
  * earlier step's while the budgets added up: Alice's email was refused and a
- * second email to Bob was allowed.) For a plan that uses each tool once, the
- * output is identical to the per-tool form, so existing contracts' hashes are
- * unchanged.
+ * second email to Bob was allowed.)
+ *
+ * Each action also lists `openArguments`: the operation's free-text fields that the action does not pin (left
+ * absent, or filled by data flow). At runtime a request may supply only pinned keys and these; any other key is a
+ * constraint violation. Without this, an optional field the plan never set (a pull request's head branch, a
+ * mailbox query) could be chosen freely by the agent.
  */
-function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction[] {
+function buildAllowedActions(nodes: readonly CandidatePlanNode[], registry: LoadedRegistry): AllowedAction[] {
   const byAction = new Map<
     string,
     { tool: string; maxInvocations: number; constraints: Array<[string, string]> }
@@ -126,11 +129,19 @@ function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction
   const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
   return [...byAction.values()]
     .sort((a, b) => cmp(a.tool, b.tool) || cmp(JSON.stringify(a.constraints), JSON.stringify(b.constraints)))
-    .map((entry) => ({
-      tool: entry.tool,
-      constraints: entry.constraints.map(([key, value]) => ({ key, equals: value })),
-      maxInvocations: entry.maxInvocations,
-    }));
+    .map((entry) => {
+      const pinned = new Set(entry.constraints.map(([key]) => key));
+      const openArguments = (registry.operations.get(entry.tool)?.argumentFields ?? [])
+        .filter((f) => f.freeText === true && !pinned.has(f.key))
+        .map((f) => f.key)
+        .sort();
+      return {
+        tool: entry.tool,
+        constraints: entry.constraints.map(([key, value]) => ({ key, equals: value })),
+        maxInvocations: entry.maxInvocations,
+        openArguments,
+      };
+    });
 }
 
 function normalizedInput(
@@ -234,7 +245,7 @@ export function compileContract(input: CompileContractInput): CompiledContract {
 
   const withoutHashes: Omit<CompiledContract, "inputHash" | "outputHash"> = {
     specVersion: SPEC_VERSION,
-    allowedActions: buildAllowedActions(included),
+    allowedActions: buildAllowedActions(included, registry),
     forbiddenResources: [],
     forbiddenOperations: [...new Set(deniedTools)].sort(),
     ephemeralLimits: {

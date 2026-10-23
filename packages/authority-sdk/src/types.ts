@@ -124,6 +124,11 @@ export interface ToolManifestEntry {
   inputSchema: Record<string, unknown>;
   resourceConstraints: unknown[];
   maxInvocations: number | null;
+  /**
+   * Unpinned arguments this action accepts (free text such as a message body). Any argument that is neither
+   * pinned in `resourceConstraints` nor listed here is refused. null on contracts compiled before this rule.
+   */
+  openArguments?: string[] | null;
   requiresApproval: boolean;
 }
 

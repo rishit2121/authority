@@ -104,6 +104,9 @@ export async function GET(
         inputSchema: jsonSchemaFor(t.operation.argumentFields),
         resourceConstraints: action?.constraints ?? [],
         maxInvocations: action?.maxInvocations ?? null,
+        // The only unpinned arguments this action accepts; any other key is refused. null: a contract compiled
+        // before closed-world arguments, which accepts extra keys.
+        openArguments: action?.openArguments ?? null,
         // Reflects this application's explicit automatic-execution opt-in for published Custom API writes.
         requiresApproval: t.operation.requiresApproval && !autoExecute.has(t.operation.id),
       })),

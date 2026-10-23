@@ -316,7 +316,12 @@ export interface ActiveContractSummary {
   contractId: string;
   version: number;
   /** Each item's shape matches src/lib/domain/task-authority-contract.ts's own allowedActionSchema. */
-  allowedActions: Array<{ tool: string; constraints: unknown[]; maxInvocations?: number }>;
+  allowedActions: Array<{
+    tool: string;
+    constraints: unknown[];
+    maxInvocations?: number;
+    openArguments?: string[];
+  }>;
 }
 
 /** Side-effect-free; returns null when the task has no currently active contract. See gateway.active_contract_for_task's own comment -- discovery only, grants nothing by itself. */

@@ -23,6 +23,13 @@ export const allowedActionSchema = z
     constraints: z.array(resourceConstraintSchema).default([]),
     /** Cap on how many times this specific action may run under the contract. */
     maxInvocations: z.number().int().positive().optional(),
+    /**
+     * Closed-world arguments. When present, a request may supply only the keys this action pins in `constraints`
+     * plus these keys (free-text fields the plan left open); any other key is a constraint violation, so an agent
+     * cannot add an optional field the plan never set (another branch, another query, another account). Absent
+     * only on contracts compiled before this field existed, which keep the old open behavior.
+     */
+    openArguments: z.array(z.string().min(1)).optional(),
   })
   .strict();
 

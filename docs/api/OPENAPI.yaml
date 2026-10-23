@@ -1471,6 +1471,14 @@ components:
           type: integer
           nullable: true
           description: The remaining-uses budget this contract set for the tool, if any.
+        openArguments:
+          type: array
+          nullable: true
+          items: { type: string }
+          description: >-
+            The unpinned arguments this action accepts (free text the plan left open). /authorize refuses any
+            argument that is neither pinned in resourceConstraints nor listed here. null for a contract compiled
+            before closed-world arguments, which accepts extra keys.
         requiresApproval: { type: boolean }
 
   responses:

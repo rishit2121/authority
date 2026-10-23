@@ -191,6 +191,12 @@ contractId, version, reviewPath, alignment }`.
 `excludedSteps`: every submitted step that is not in the contract, with the validator's status and reasons. The
 contract is compiled from the remaining steps, so a `ready` contract can lack a step you asked for.
 
+**Closed-world arguments.** Each allowed action lists `openArguments`, the free-text fields its plan left unpinned
+(shown per tool in `GET /tasks/{taskId}/tools`). `/authorize` refuses, with `CONSTRAINT_VIOLATION`, any argument
+that the matched action neither pins nor lists there: an optional field the plan never set (another branch, a
+mailbox query, an extra recipient field) cannot be added at call time. Contracts compiled before this rule have no
+`openArguments` and keep the old behavior until re-prepared.
+
 **Data flow is for free text only.** A step may fill an argument from an earlier step's output (`dataFlowRefs`)
 only when the registry marks that argument as free text (message text, subject, title, description). Authority does
 not verify where such a value came from and does not constrain it at runtime. A recipient, channel, id, path,

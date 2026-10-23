@@ -100,6 +100,17 @@ function unsatisfiedConstraints(action: AllowedAction, request: ToolRequest): Re
 }
 
 /**
+ * Keys the request supplies that the action neither pins nor declares open. Only actions compiled with
+ * `openArguments` are closed-world; older actions (no field) accept any extra key, as before. Mirrors
+ * gateway.evaluate_deterministic, where each such key counts as a failing (not missing) constraint.
+ */
+function undeclaredArguments(action: AllowedAction, request: ToolRequest): string[] {
+  if (!action.openArguments) return [];
+  const declared = new Set([...action.constraints.map((c) => c.key), ...action.openArguments]);
+  return Object.keys(request.arguments).filter((key) => !declared.has(key));
+}
+
+/**
  * Decide whether one tool request is authorized under its contract.
  * Pure aside from the injected clock, id factory and provider.
  */
@@ -140,7 +151,11 @@ export async function evaluateToolRequest(options: EvaluateOptions): Promise<Eva
   // it satisfies, or -- when it satisfies none -- the closest one.
   const candidates = contract.allowedActions.filter((candidate) => candidate.tool === request.tool);
   const action =
-    candidates.find((candidate) => unsatisfiedConstraints(candidate, request).length === 0) ??
+    candidates.find(
+      (candidate) =>
+        unsatisfiedConstraints(candidate, request).length === 0 &&
+        undeclaredArguments(candidate, request).length === 0,
+    ) ??
     candidates.find((candidate) => {
       const u = unsatisfiedConstraints(candidate, request);
       return u.every((c) => argumentValue(request.arguments, c.key) === undefined);
@@ -155,11 +170,12 @@ export async function evaluateToolRequest(options: EvaluateOptions): Promise<Eva
     return finalize("replan");
   }
 
-  // 3. Constraint satisfaction.
+  // 3. Constraint satisfaction, including closed-world arguments.
   const unsatisfied = unsatisfiedConstraints(action, request);
-  if (unsatisfied.length > 0) {
+  const undeclared = undeclaredArguments(action, request);
+  if (unsatisfied.length > 0 || undeclared.length > 0) {
     const missing = unsatisfied.filter((c) => argumentValue(request.arguments, c.key) === undefined);
-    if (missing.length === unsatisfied.length) {
+    if (undeclared.length === 0 && missing.length === unsatisfied.length) {
       // Nothing conflicted; the request is simply underspecified.
       reasons.push({
         code: "ARGUMENTS_UNDERSPECIFIED",
@@ -170,7 +186,7 @@ export async function evaluateToolRequest(options: EvaluateOptions): Promise<Eva
     }
     reasons.push({
       code: "CONSTRAINT_VIOLATION",
-      detail: `Arguments fall outside contract limits: ${unsatisfied.map((c) => c.key).join(", ")}.`,
+      detail: `Arguments fall outside contract limits: ${[...unsatisfied.map((c) => c.key), ...undeclared].join(", ")}.`,
       source: "contract",
     });
     return finalize("deny");
