@@ -4,12 +4,35 @@ Goal: see Authority contain attacks, then put one of your own agents behind it. 
 
 ## 0. Prerequisites (2 min)
 
-- Node 22, and a Supabase project with this repo's migrations applied (`npx supabase db push --linked`).
-- `.env.local` with `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `GATEWAY_DATABASE_URL`
-  (create the restricted login with `npm run gateway:provision`). Nothing else is needed. For local demos add
-  `GITHUB_EXECUTION_MODE=mock` so GitHub tools run against the in-memory mock, never the real GitHub.
-- `npm ci && npm run dev`, then open http://localhost:3000 and sign up. On Render, skip this and use your deployed URL
-  (`docs/deploy/RENDER.md`).
+**Local, no cloud account (recommended to start).** Node 22 and Docker. These are the steps CI runs on every pull
+request, against a throwaway database:
+
+```bash
+npm ci
+npx supabase start            # local Postgres + Auth; applies supabase/migrations and supabase/seed.sql
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -c "alter role authority_gateway with login password 'ci-only-gateway-password'"
+```
+
+`.env.local`:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<ANON_KEY from `npx supabase status -o env`>
+GATEWAY_DATABASE_URL=postgresql://authority_gateway:ci-only-gateway-password@127.0.0.1:54322/postgres
+GATEWAY_DATABASE_SSL=disable
+AUTHORITY_DEPLOYMENT=local
+GITHUB_EXECUTION_MODE=mock
+```
+
+`npm run dev`, then open http://localhost:3000 and sign in as `owner.a@authority.test` (the seeded fixture password
+is in `src/tests/local/local-env.ts`). No model key is needed; model-based features stay off without one. Stop with
+`npx supabase stop --no-backup`.
+
+**Hosted.** A Supabase project with this repo's migrations applied (`npx supabase db push --linked`), `.env.local`
+with `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and `GATEWAY_DATABASE_URL` (create the
+restricted login with `npm run gateway:provision`), and `GITHUB_EXECUTION_MODE=mock` for demos. On Render, use your
+deployed URL (`docs/deploy/RENDER.md`). Never run the test suites against a project that holds real data.
 
 ## 1. Attack your own controls (3 min, no agent needed)
 
@@ -40,8 +63,10 @@ data, real integrations, or the internet.
           "idempotencyKey":"first-call-1"}'
    ```
 
-   A `status` of `allow` returns a single-use capability token. Any argument outside the plan (a different recipient) returns
-   `deny` or `replan` plus `guidance` telling the agent what to do next, without revealing thresholds or policy text.
+   A `status` of `allow` returns a single-use capability token. Any argument outside the plan (a different recipient,
+   or an argument the plan never set) returns `deny` or `replan` plus `guidance` telling the agent what to do next,
+   without revealing thresholds or policy text. `gmail.send_email` communicates outside the organization, so its
+   contract needs a person's approval before it activates.
 
 5. Use the dependency-free client in `examples/agent/`:
 

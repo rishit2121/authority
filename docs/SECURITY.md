@@ -41,9 +41,12 @@ properties and limitations documented in depth elsewhere (`docs/gateway/TRUST_MO
 4. **Capabilities are opaque, single-purpose, short-lived tokens.** Only a SHA-256 hash is stored; a token is scoped to
    an exact tool/operation/resource/argument set, expires, and is consumed exactly once (idempotent replay returns the
    same result; a changed request is a conflict, not a reuse). See `docs/gateway/CAPABILITIES.md`.
-5. **No raw URL, method or path ever reaches an external service.** The GitHub connector exposes a fixed, typed route
-   table (`src/lib/github/routes.ts`); there is no code path that assembles a request from caller-supplied pieces, so
-   there is no SSRF surface through the connector.
+5. **No raw URL, method or path from the agent ever reaches an external service.** The GitHub connector exposes a
+   fixed, typed route table (`src/lib/github/routes.ts`). The Custom API and PostgreSQL connectors reach only an
+   administrator-configured destination; private, loopback, link-local and metadata addresses are refused for Custom
+   API (loopback, link-local and metadata for PostgreSQL) in every IPv4/IPv6 spelling, and the validated address is
+   the one connected to (`docs/connectors/CUSTOM_API.md`, `docs/connectors/POSTGRES.md`). Deployment egress filtering
+   remains a recommended second boundary.
 6. **Writes to a repository's default branch are refused** (`DEFAULT_BRANCH_WRITE_FORBIDDEN`); agent-created branches
    are confined to a deterministic per-task namespace.
 7. **Webhooks are authenticated before anything else happens.** HMAC-SHA256 signature verification (constant-time
@@ -64,6 +67,10 @@ properties and limitations documented in depth elsewhere (`docs/gateway/TRUST_MO
     shown once and stored only as a hash; the gateway credential and provider keys live only in server environment
     variables; error paths report an error _class_ or SQLSTATE, never a message or value. `npm run verify:bundle`
     scans every browser asset for gateway/driver/secret strings as part of CI.
+12. **Pinned values, closed arguments.** The compiler pins every concrete argument of a plan step exactly; at
+    authorization an argument the step does not pin is refused unless it is free text the plan left open. A value a
+    plan takes from an earlier step's output is allowed only for free-text fields, because its provenance is not
+    verified (`docs/api/RUNTIME_API.md`).
 
 ## Explicit non-guarantees
 
@@ -85,5 +92,6 @@ properties and limitations documented in depth elsewhere (`docs/gateway/TRUST_MO
 
 ## Reporting
 
-This is a pilot-stage project without a dedicated security contact yet; open a GitHub issue at
-`rishit2121/authority-next` for anything that isn't sensitive, or reach the maintainer directly for anything that is.
+Report vulnerabilities privately through GitHub's private vulnerability reporting; see the repository's
+[SECURITY.md](../SECURITY.md). Limitations Authority does not claim to cover are listed in
+[LIMITATIONS.md](LIMITATIONS.md).
