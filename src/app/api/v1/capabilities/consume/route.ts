@@ -15,6 +15,8 @@ import {
   newRequestId,
   readJsonBody,
 } from "@/lib/gateway/http";
+import { ensureConnectorsRegistered } from "@/lib/connectors/register";
+import { resolveConnectorForTool } from "@/lib/connectors/registry";
 import { consumeCapability } from "@/lib/gateway/rpc";
 import { failureContract } from "@/lib/gateway/response";
 
@@ -62,6 +64,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
   const input = parsed.data;
+
+  // A tool that a connector executes (Stripe, Slack, Gmail, Linear, Notion, Custom API, PostgreSQL) must go
+  // through /api/v1/execute. The database refuses GitHub tools itself (gateway.is_connector_tool); without this,
+  // a capability for any other connector tool could be "spent" here as simulated, recording a use that never ran.
+  ensureConnectorsRegistered();
+  if (resolveConnectorForTool(input.tool)) {
+    return jsonError(
+      {
+        http: 409,
+        code: "CONNECTOR_EXECUTION_REQUIRED",
+        message: "This tool is executed by Authority; use /api/v1/execute.",
+      },
+      requestId,
+      { simulated: true },
+    );
+  }
 
   try {
     const result = await consumeCapability({

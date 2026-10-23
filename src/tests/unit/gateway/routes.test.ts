@@ -189,6 +189,28 @@ describe("POST /api/v1/authorize", () => {
 });
 
 describe("POST /api/v1/capabilities/consume", () => {
+  it.each([
+    "stripe.issue_refund",
+    "slack.post_message",
+    "gmail.send_email",
+    "custom_0123456789abcdef0123456789abcdef.create_order",
+  ])("refuses to simulate a connector-executed tool (%s) without touching the capability", async (tool) => {
+    consumeCapability.mockReset();
+    const { POST } = await import("@/app/api/v1/capabilities/consume/route");
+    const res = await POST(
+      req("/api/v1/capabilities/consume", {
+        capability: CAP,
+        tool,
+        operation: "op",
+        idempotencyKey: "cx",
+        arguments: {},
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).error.code).toBe("CONNECTOR_EXECUTION_REQUIRED");
+    expect(consumeCapability).not.toHaveBeenCalled();
+  });
+
   const body = {
     capability: CAP,
     tool: "github.get_issue",
