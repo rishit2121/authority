@@ -7,21 +7,18 @@ import { validateCandidatePlan } from "./plan-validator";
 import { solveMinimumAuthority } from "./solver";
 
 /**
- * Independent deterministic verification.
+ * Deterministic consistency verification of a compiled contract.
  *
- * This does not merely re-run the compiler and trust it — every check below
- * is itemized so a failure names exactly which guarantee broke, and the
- * strongest check (re-deriving the entire pipeline from the same trusted
- * inputs and comparing output hashes) is one of several, not the only one.
+ * This re-runs the SAME validator, solver and compiler on the same trusted inputs and checks the result, item by
+ * item, so a failure names which guarantee broke. Because it shares their code, a mistake common to the compiler
+ * and this check passes both: it is a consistency check, not an independent proof of compiler correctness. The
+ * mutation tests and the separately specified contract-subset checker in contract-mutation.test.ts are the
+ * independent part.
  *
- * What this proves: that, given the same candidate plan, registry and active
- * policies, the compiled contract is byte-reproducible, internally
- * consistent, and narrower than or equal to the accepted plan on every
- * dimension that matters. What this does NOT prove: that the caller who
- * invoked compilation was running trusted code, or that a persisted
- * `proposed` row is safe to treat as authoritative — see the module doc in
- * `lib/persistence/rpc.ts` for why a `proposed` contract still grants zero
- * runtime authority regardless of a passing verification here.
+ * What a pass establishes: given the same plan, registry and policies, the contract's content is exactly the
+ * recompiled content (its `outputHash` matches both its own content and the recompilation), and each field-level
+ * check below holds. What it does NOT establish: that the caller ran trusted code, or that a persisted `proposed`
+ * row is authoritative -- see `lib/persistence/rpc.ts` for why a `proposed` contract grants no runtime authority.
  */
 
 export interface VerificationCheck {
@@ -91,6 +88,14 @@ export function verifyCompiledContract(input: VerifyContractInput): Verification
     HEX64.test(compiled.outputHash),
     "outputHash must be 64 lowercase hex characters",
   );
+  // Without this, a contract whose content was changed but whose outputHash was not still matched the
+  // recompilation below, and fields no itemized check covers (expiry, review-required operations, data-flow
+  // bindings) could change unnoticed.
+  add(
+    "output_hash_matches_content",
+    canonicalHash(normalizedOutput(compiled)) === compiled.outputHash,
+    "the claimed outputHash must equal the hash of the contract's own normalized content",
+  );
 
   add(
     "expiration_within_policy",
@@ -117,9 +122,9 @@ export function verifyCompiledContract(input: VerifyContractInput): Verification
     });
 
     add(
-      "acceptedOperations_nonEmpty_or_matches",
-      validation.requiredOperations.length >= 0,
-      "revalidation completed",
+      "accepted_steps_nonempty",
+      validation.includedNodeIds.length > 0,
+      "revalidating the plan must leave at least one step to compile",
     );
 
     if (solverOutcome.status !== "solved") {

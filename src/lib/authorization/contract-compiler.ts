@@ -113,6 +113,8 @@ function buildAllowedActions(nodes: readonly CandidatePlanNode[]): AllowedAction
       if (typeof value === "string") constraintKeys.set(key, value);
       else if (typeof value === "number" || typeof value === "boolean")
         constraintKeys.set(key, String(value));
+      // Anything else (a list) has no exact pinned form; the plan validator refuses it, and so does this.
+      else throw new CompilationError(`node ${node.id}: argument "${key}" of ${node.tool} cannot be pinned`);
     }
     const constraints = [...constraintKeys.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const actionKey = JSON.stringify([node.tool, constraints]);

@@ -193,6 +193,16 @@ function evaluateNode(node: CandidatePlanNode, options: PlanValidatorOptions): P
       continue;
     }
 
+    // The compiler pins strings, numbers and booleans exactly; it has no exact runtime form for a list. Refuse a
+    // pinned list rather than compile the field unconstrained.
+    if (hasConcrete && field.type === "stringArray") {
+      push(
+        "replan",
+        `argument "${field.key}" of ${node.tool} is a list, which a contract cannot pin exactly yet`,
+      );
+      continue;
+    }
+
     if (hasConcrete || hasDataFlow) continue;
 
     // Neither a concrete value nor a data-flow binding is present. A
