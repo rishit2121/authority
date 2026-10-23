@@ -79,7 +79,15 @@ A misaligned call returns `deny` with `TASK_ALIGNMENT_MISALIGNED` and the feedba
 returns `require_approval` with `TASK_ALIGNMENT_HELD` / `TASK_ALIGNMENT_UNREVIEWED`. Neither creates a decision,
 spends budget or issues a capability. An administrator approves the exact review on the task page; the agent then
 repeats the identical call with the same idempotency key, and the stored review (with its approval) is reused.
-Shadow mode runs the review after the decision, never awaited.
+Shadow mode runs the review after the decision, never awaited. Shadow evidence is **best effort**: it is written by
+work that continues after the response, so a process that stops first (a redeploy, a crash) loses it, and nothing
+retries it. A decision with no shadow review means "not reviewed", never "passed". Use enforce mode, or a durable
+queue (not implemented), if every call must have a review on record.
+
+The optional `ALIGNMENT_MAX_REVIEWER_CALLS` / `ALIGNMENT_MAX_REVIEWER_TOKENS` caps apply to one server process. The
+call cap is exact even with concurrent requests (each request reserves its worst case, one call plus its retry,
+before it starts); the token cap can be overrun by requests already in flight. Neither is an account-wide or
+per-tenant spending limit.
 
 ## Connector results: execution truth first
 

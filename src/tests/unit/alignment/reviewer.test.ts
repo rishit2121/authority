@@ -157,3 +157,53 @@ describe("configured reviewer", () => {
     expect(createAlignmentReviewer({})).toBeNull();
   });
 });
+
+describe("BudgetedReviewer under concurrency", () => {
+  /** An inner reviewer whose calls stay pending until released, so several can be in flight at once. */
+  function pendingInner(callsPerRequest: number) {
+    const releases: Array<() => void> = [];
+    let started = 0;
+    const inner = {
+      model: "m",
+      call: () => {
+        started++;
+        return new Promise((resolve) => {
+          releases.push(() =>
+            resolve({
+              ok: true,
+              data: { instructions: [] },
+              model: "m",
+              usage: { calls: callsPerRequest, inputTokens: 1, outputTokens: 1, latencyMs: 0 },
+            }),
+          );
+        });
+      },
+    };
+    return { inner, releases, started: () => started };
+  }
+
+  it("never starts more calls than the budget allows, however many requests are in flight", async () => {
+    const { inner, releases, started } = pendingInner(1);
+    const budgeted = new BudgetedReviewer(inner as never, { maxCalls: 3 });
+    const results = Array.from({ length: 5 }, () => budgeted.call(request));
+    expect(started()).toBe(3);
+    releases.forEach((release) => release());
+    const settled = await Promise.all(results);
+    expect(settled.filter((r) => r.ok)).toHaveLength(3);
+    expect(settled.filter((r) => !r.ok && r.reason === "budget_exhausted")).toHaveLength(2);
+    expect(budgeted.used.calls).toBe(3);
+  });
+
+  it("reserves a request's retries up front, so retries cannot overrun the cap", async () => {
+    const { inner, releases, started } = pendingInner(2);
+    const budgeted = new BudgetedReviewer(inner as never, { maxCalls: 3 }, { callsPerRequest: 2 });
+    const first = budgeted.call(request);
+    const second = budgeted.call(request);
+    expect(started()).toBe(1);
+    releases.forEach((release) => release());
+    expect((await first).ok).toBe(true);
+    expect(await second).toMatchObject({ ok: false, reason: "budget_exhausted" });
+    expect(await budgeted.call(request)).toMatchObject({ ok: false, reason: "budget_exhausted" });
+    expect(budgeted.used.calls).toBeLessThanOrEqual(3);
+  });
+});

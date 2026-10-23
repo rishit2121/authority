@@ -7,7 +7,7 @@
 | Mode      | Status                | Behaviour                                                                                                                                                                                         |
 | --------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `off`     | implemented (default) | No provider call, nothing recorded.                                                                                                                                                               |
-| `shadow`  | implemented           | Evaluate after the deterministic decision, record, return a separately-labeled observation. Never affects the decision.                                                                           |
+| `shadow`  | implemented           | Evaluate after the deterministic decision, record (best effort: lost if the process stops first), return a separately-labeled observation. Never affects the decision.                            |
 | `enforce` | **unavailable**       | Cannot be stored (a CHECK constraint on `semantic_settings`), refused by `set_semantic_settings()` (`0A000`), and resolves to "no semantic influence" in the runtime (`enforcement_unavailable`). |
 
 ## Why there is no enforcement

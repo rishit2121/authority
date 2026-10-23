@@ -186,28 +186,42 @@ export class OpenAiAlignmentReviewer implements AlignmentReviewer {
  * Caps calls (including retries) and tokens across a run. Once spent, every
  * further call fails with `budget_exhausted` -- and after a provider reports
  * its daily quota is gone, so does every later call, without sending it.
+ *
+ * The call cap is exact under concurrency: a request reserves its worst case
+ * (`callsPerRequest`, i.e. one call plus the inner reviewer's retries)
+ * synchronously before awaiting, so requests already in flight count against
+ * the cap, and releases the reservation once its real usage is recorded. The
+ * token cap is checked before each request and can be overrun by the usage of
+ * requests already in flight. Both are per process: this is not an
+ * account-wide or per-tenant spending limit.
  */
 export class BudgetedReviewer implements AlignmentReviewer {
   readonly model: string;
   used: ReviewerUsage = { ...EMPTY_USAGE };
   quotaExhausted = false;
 
+  private reservedCalls = 0;
+  private readonly callsPerRequest: number;
+
   constructor(
     private readonly inner: AlignmentReviewer,
     private readonly budget: { maxCalls: number; maxTokens?: number },
+    options: { callsPerRequest?: number } = {},
   ) {
     this.model = inner.model;
+    this.callsPerRequest = Math.max(1, options.callsPerRequest ?? 1);
   }
 
   get remainingCalls(): number {
-    return Math.max(0, this.budget.maxCalls - this.used.calls);
+    return Math.max(0, this.budget.maxCalls - this.used.calls - this.reservedCalls);
   }
 
   async call<T>(request: ReviewerRequest<T>): Promise<ReviewerResult<T>> {
     const tokensSpent = this.used.inputTokens + this.used.outputTokens;
+    // Check and reserve with no await in between, so concurrent requests cannot all pass the same check.
     if (
       this.quotaExhausted ||
-      this.used.calls >= this.budget.maxCalls ||
+      this.used.calls + this.reservedCalls + this.callsPerRequest > this.budget.maxCalls ||
       (this.budget.maxTokens !== undefined && tokensSpent >= this.budget.maxTokens)
     ) {
       return {
@@ -216,7 +230,13 @@ export class BudgetedReviewer implements AlignmentReviewer {
         usage: { ...EMPTY_USAGE },
       };
     }
-    const result = await this.inner.call(request);
+    this.reservedCalls += this.callsPerRequest;
+    let result: ReviewerResult<T>;
+    try {
+      result = await this.inner.call(request);
+    } finally {
+      this.reservedCalls -= this.callsPerRequest;
+    }
     this.used = addUsage(this.used, result.usage);
     if (!result.ok && result.reason === "quota_exhausted") this.quotaExhausted = true;
     // Accounting only (schema name, outcome, counts) -- never prompt or response content.
@@ -234,11 +254,12 @@ export function createAlignmentReviewer(
   const openAi = getOpenAiEnv(env);
   if (!openAi) return null;
   const timeoutMs = Number(env.ALIGNMENT_REVIEW_TIMEOUT_MS);
+  const retries = 1;
   const reviewer = new OpenAiAlignmentReviewer({
     apiKey: openAi.apiKey,
     model: openAi.model,
     timeoutMs: Number.isFinite(timeoutMs) && timeoutMs > 0 ? Math.min(timeoutMs, 60_000) : DEFAULT_TIMEOUT_MS,
-    retries: 1,
+    retries,
   });
   // Optional hard cap for this process (calls include retries), e.g. for a budgeted evaluation server.
   const maxCalls = Number(env.ALIGNMENT_MAX_REVIEWER_CALLS);
@@ -247,10 +268,11 @@ export function createAlignmentReviewer(
     // One budget per process: route bundles each get their own copy of this module, so the instance
     // lives on globalThis (found by the smoke run, where each route had counted separately).
     const holder = globalThis as { __authorityAlignmentBudget?: BudgetedReviewer };
-    holder.__authorityAlignmentBudget ??= new BudgetedReviewer(reviewer, {
-      maxCalls,
-      ...(Number.isFinite(maxTokens) && maxTokens > 0 ? { maxTokens } : {}),
-    });
+    holder.__authorityAlignmentBudget ??= new BudgetedReviewer(
+      reviewer,
+      { maxCalls, ...(Number.isFinite(maxTokens) && maxTokens > 0 ? { maxTokens } : {}) },
+      { callsPerRequest: 1 + retries },
+    );
     return holder.__authorityAlignmentBudget;
   }
   return reviewer;

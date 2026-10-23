@@ -108,7 +108,8 @@ at; it never adds, removes or reorders a plan node.
 `src/lib/gateway/pipeline.ts`'s `runShadowRiskEvaluation`. Fired **after** `commitAuthorization` has already
 succeeded, **never awaited** (`void runShadowRiskEvaluation(...)`) — a Jev outage, timeout, or the recording write
 itself failing can add no latency and can never affect the authorization decision, which is already final and
-persisted by that point. The entire function is wrapped in try/catch and never throws.
+persisted by that point. The entire function is wrapped in try/catch and never throws. The resulting record is
+best effort: if the process stops before the evaluation finishes, no record is written and nothing retries it.
 
 Gated by `jev_settings.risk_mode`, which is **structurally `off` or `shadow` only** — there is no `enforce` value the
 schema can represent yet (a `check` constraint on `jev_settings.risk_mode`), so enforcement is not merely
