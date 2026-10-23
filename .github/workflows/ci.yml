@@ -131,6 +131,10 @@ jobs:
           psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
             -v ON_ERROR_STOP=1 \
             -c "alter role authority_gateway with login password 'ci-only-gateway-password'"
+      - name: Database security suites (pgTAP) on the throwaway local database
+        run: |
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -c "create extension if not exists pgtap with schema extensions"
+          DB_TEST_URL="$DB_URL" npm run db:test
       - name: Pilot access through the authenticated API
         run: npm run test:local
       - run: npx playwright install --with-deps chromium

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Runs the pgTAP suites in `supabase/tests/` against the linked Supabase
- * project and reports TAP results.
+ * project, or against a throwaway local database when DB_TEST_URL is set
+ * (loopback hosts only; CI does this after `supabase start`), and reports
+ * TAP results.
  *
  * Why this exists rather than `supabase test db`: the CLI's own test runner
  * needs the local Docker stack, which is unavailable in this environment (no
@@ -171,14 +173,25 @@ async function runSuite({ client, file, sql }) {
 }
 
 async function main() {
-  const cliEnv = await loadEnvFile(path.join(root, ".supabase-cli.env"));
+  // DB_TEST_URL: run against a throwaway LOCAL database (CI's `supabase start`, or yours) instead of the linked
+  // project. Only loopback hosts are accepted, so it can never be pointed at shared or production data.
+  const localUrl = process.env.DB_TEST_URL;
+  if (localUrl) {
+    const host = new URL(localUrl).hostname;
+    if (!["127.0.0.1", "localhost", "::1", "[::1]"].includes(host)) {
+      console.error(`db-test: DB_TEST_URL must point at a local database, not ${host}.`);
+      process.exit(2);
+    }
+  }
+
+  const cliEnv = localUrl ? {} : await loadEnvFile(path.join(root, ".supabase-cli.env"));
   const ref = process.env.SUPABASE_PROJECT_REF ?? cliEnv.SUPABASE_PROJECT_REF;
   const password = process.env.SUPABASE_DB_PASSWORD ?? cliEnv.SUPABASE_DB_PASSWORD;
 
-  if (!ref || !password) {
+  if (!localUrl && (!ref || !password)) {
     console.error(
       "db-test: missing SUPABASE_PROJECT_REF or SUPABASE_DB_PASSWORD.\n" +
-        "Provide them in .supabase-cli.env or the environment. See .env.example.",
+        "Provide them in .supabase-cli.env or the environment (or DB_TEST_URL for a local database). See .env.example.",
     );
     process.exit(2);
   }
@@ -190,14 +203,16 @@ async function main() {
     process.exit(2);
   }
 
-  const client = new pg.Client({
-    host: `db.${ref}.supabase.co`,
-    port: 5432,
-    user: "postgres",
-    password,
-    database: "postgres",
-    ssl: { rejectUnauthorized: false },
-  });
+  const client = localUrl
+    ? new pg.Client({ connectionString: localUrl })
+    : new pg.Client({
+        host: `db.${ref}.supabase.co`,
+        port: 5432,
+        user: "postgres",
+        password,
+        database: "postgres",
+        ssl: { rejectUnauthorized: false },
+      });
   await client.connect();
 
   let passed = 0;
