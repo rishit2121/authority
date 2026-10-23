@@ -1,7 +1,8 @@
 import "server-only";
 
 import dns from "node:dns/promises";
-import net from "node:net";
+
+import { createIpMatcher, parseIpLiteral } from "../shared/ip-ranges";
 
 /**
  * A deliberately much narrower guard than Custom API's
@@ -18,12 +19,11 @@ import net from "node:net";
  * this connector at the gateway process's own host or its cloud instance's
  * credential-vending endpoint. Normal private ranges are allowed.
  *
- * This is a one-time check at connect time, not a per-call DNS-rebinding
- * guard the way `safeFetch` pins an IP for every single HTTP request:
- * the host here is admin-configured once, not supplied per-request by an
- * agent, and does not change between calls without the admin's own action --
- * a materially different trust level than Custom API's tenant-configured-but-
- * agent-triggered base URL.
+ * The host is admin-configured, not supplied per call by an agent, but its DNS answer can still change between
+ * validation and connection. `resolvePostgresHost` therefore returns the validated address, and the client
+ * connects to that address rather than re-resolving the hostname (the hostname is kept for TLS verification).
+ * Addresses are classified by binary value (../shared/ip-ranges.ts), so equivalent spellings such as
+ * `0:0:0:0:0:0:0:1` or `::ffff:7f00:1`, and transition addresses embedding a blocked IPv4, are refused too.
  */
 
 export class PostgresNetworkGuardError extends Error {
@@ -36,49 +36,61 @@ export class PostgresNetworkGuardError extends Error {
   }
 }
 
-function isBlockedIpv4(ip: string): boolean {
-  const [a, b] = ip.split(".").map(Number);
-  if (a === 127) return true; // loopback
-  if (a === 0) return true; // "this network"
-  if (a === 169 && b === 254) return true; // link-local, includes 169.254.169.254
-  return false;
-}
-
-function isBlockedIpv6(ip: string): boolean {
-  const normalized = ip.toLowerCase();
-  if (normalized === "::1" || normalized === "::") return true; // loopback / unspecified
-  if (normalized.startsWith("fe80:")) return true; // link-local
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(normalized);
-  if (mapped) return isBlockedIpv4(mapped[1]);
-  return false;
-}
+/** Loopback, "this network" and link-local (including 169.254.169.254), in every IPv4/IPv6 form. Private ranges stay allowed. */
+const isBlockedParsed = createIpMatcher(
+  [
+    { network: "0.0.0.0", prefix: 8 },
+    { network: "127.0.0.0", prefix: 8 },
+    { network: "169.254.0.0", prefix: 16 },
+  ],
+  [
+    { network: "::", prefix: 128 },
+    { network: "::1", prefix: 128 },
+    { network: "fe80::", prefix: 10 },
+  ],
+);
 
 export function isBlockedPostgresHost(ip: string): boolean {
-  const family = net.isIP(ip);
-  if (family === 4) return isBlockedIpv4(ip);
-  if (family === 6) return isBlockedIpv6(ip);
-  return true; // not a recognizable IP literal at all -- fail closed
+  const parsed = parseIpLiteral(ip);
+  if (!parsed) return true; // not a recognizable IP literal at all -- fail closed
+  return isBlockedParsed(parsed);
 }
 
-/** Resolves and validates a connection's configured host, once, at connection-configuration time. */
-export async function validatePostgresHost(host: string): Promise<void> {
+export interface ResolvedPostgresHost {
+  /** The validated address the client must connect to. */
+  address: string;
+  /** The configured hostname, for TLS certificate verification; null when the host is an IP literal. */
+  servername: string | null;
+}
+
+/**
+ * Validates a configured host and returns the address to connect to. A hostname is resolved once, every answer
+ * is checked, and the first answer is returned so the connection uses exactly the address that was validated.
+ */
+export async function resolvePostgresHost(host: string): Promise<ResolvedPostgresHost> {
   if (host.length === 0 || host.length > 255) {
     throw new PostgresNetworkGuardError("INVALID_HOST", "Host must be 1-255 characters.");
   }
-  const literalFamily = net.isIP(host);
-  if (literalFamily !== 0) {
-    if (isBlockedPostgresHost(host)) {
+  const literal = parseIpLiteral(host);
+  if (literal) {
+    if (isBlockedParsed(literal)) {
       throw new PostgresNetworkGuardError("HOST_NOT_ALLOWED", "This host is not allowed.");
     }
-    return;
+    return { address: literal.address, servername: null };
   }
   let addresses: string[];
   try {
-    addresses = (await dns.lookup(host, { all: true })).map((a) => a.address);
+    addresses = (await dns.lookup(host, { all: true, verbatim: true })).map((a) => a.address);
   } catch {
     throw new PostgresNetworkGuardError("HOST_NOT_RESOLVABLE", "This host could not be resolved.");
   }
   if (addresses.length === 0 || addresses.some(isBlockedPostgresHost)) {
     throw new PostgresNetworkGuardError("HOST_NOT_ALLOWED", "This host is not allowed.");
   }
+  return { address: addresses[0], servername: host };
+}
+
+/** Validates a connection's configured host at connection-configuration time. */
+export async function validatePostgresHost(host: string): Promise<void> {
+  await resolvePostgresHost(host);
 }

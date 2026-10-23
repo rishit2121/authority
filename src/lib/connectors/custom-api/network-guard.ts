@@ -4,6 +4,8 @@ import type { LookupAddress } from "node:dns";
 import dns from "node:dns/promises";
 import net from "node:net";
 
+import { createIpMatcher, parseIpLiteral } from "../shared/ip-ranges";
+
 /**
  * SSRF protections for the Custom API connector (Phase 5 of the
  * agent-integration roadmap). A tenant's registered base URL is validated at
@@ -28,58 +30,50 @@ const MAX_RESPONSE_BYTES = 1_048_576;
 const CONNECT_TIMEOUT_MS = 5_000;
 const RESPONSE_TIMEOUT_MS = 10_000;
 
-/** IPv4 ranges that may never be a Custom API destination, as (network, prefixLength) pairs. */
-const BLOCKED_IPV4_RANGES: Array<[string, number]> = [
-  ["0.0.0.0", 8],
-  ["10.0.0.0", 8],
-  ["100.64.0.0", 10],
-  ["127.0.0.0", 8],
-  ["169.254.0.0", 16], // includes the 169.254.169.254 cloud metadata endpoint
-  ["172.16.0.0", 12],
-  ["192.0.0.0", 24],
-  ["192.0.2.0", 24],
-  ["192.168.0.0", 16],
-  ["198.18.0.0", 15],
-  ["198.51.100.0", 24],
-  ["203.0.113.0", 24],
-  ["224.0.0.0", 4],
-  ["240.0.0.0", 4],
-  ["255.255.255.255", 32],
-];
-
-function ipv4ToInt(ip: string): number {
-  const parts = ip.split(".").map(Number);
-  return parts.reduce((acc, part) => acc * 256 + part, 0) >>> 0;
-}
-
-function isBlockedIpv4(ip: string): boolean {
-  const value = ipv4ToInt(ip);
-  return BLOCKED_IPV4_RANGES.some(([network, prefix]) => {
-    const mask = prefix === 0 ? 0 : (0xffffffff << (32 - prefix)) >>> 0;
-    return (value & mask) === (ipv4ToInt(network) & mask);
-  });
-}
-
-/** Blocked: loopback, unspecified, link-local, unique-local, multicast, documentation, NAT64. */
-function isBlockedIpv6(ip: string): boolean {
-  const normalized = ip.toLowerCase();
-  if (normalized === "::1" || normalized === "::") return true;
-  // IPv4-mapped (::ffff:a.b.c.d) -- check the embedded IPv4 address too.
-  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(normalized);
-  if (mapped) return isBlockedIpv4(mapped[1]);
-  if (normalized.startsWith("fe80:")) return true; // link-local
-  if (normalized.startsWith("fc") || normalized.startsWith("fd")) return true; // unique local (fc00::/7)
-  if (normalized.startsWith("ff")) return true; // multicast
-  if (normalized.startsWith("2001:db8:")) return true; // documentation
-  if (normalized.startsWith("64:ff9b:")) return true; // NAT64 (may embed an IPv4 destination)
-  return false;
-}
+/**
+ * Ranges that may never be a Custom API destination. Matched by binary value (shared/ip-ranges.ts), so every
+ * spelling of an address is classified the same way, and each IPv4 range is also refused when embedded in an
+ * IPv4-mapped, IPv4-compatible, NAT64 or 6to4 IPv6 address.
+ */
+const isBlockedParsed = createIpMatcher(
+  [
+    { network: "0.0.0.0", prefix: 8 },
+    { network: "10.0.0.0", prefix: 8 },
+    { network: "100.64.0.0", prefix: 10 },
+    { network: "127.0.0.0", prefix: 8 },
+    { network: "169.254.0.0", prefix: 16 }, // includes the 169.254.169.254 cloud metadata endpoint
+    { network: "172.16.0.0", prefix: 12 },
+    { network: "192.0.0.0", prefix: 24 },
+    { network: "192.0.2.0", prefix: 24 },
+    { network: "192.88.99.0", prefix: 24 }, // 6to4 relay anycast
+    { network: "192.168.0.0", prefix: 16 },
+    { network: "198.18.0.0", prefix: 15 },
+    { network: "198.51.100.0", prefix: 24 },
+    { network: "203.0.113.0", prefix: 24 },
+    { network: "224.0.0.0", prefix: 4 },
+    { network: "240.0.0.0", prefix: 4 },
+    { network: "255.255.255.255", prefix: 32 },
+  ],
+  [
+    { network: "::", prefix: 96 }, // unspecified, loopback and the deprecated IPv4-compatible block
+    { network: "64:ff9b::", prefix: 96 }, // NAT64 well-known prefix: can reach any embedded IPv4 destination
+    { network: "64:ff9b:1::", prefix: 48 }, // NAT64 local-use prefix
+    { network: "100::", prefix: 64 }, // discard-only
+    { network: "2001::", prefix: 32 }, // Teredo
+    { network: "2001:db8::", prefix: 32 }, // documentation
+    { network: "2002::", prefix: 16 }, // 6to4: can reach any embedded IPv4 destination
+    { network: "3fff::", prefix: 20 }, // documentation (RFC 9637)
+    { network: "fc00::", prefix: 7 }, // unique local
+    { network: "fe80::", prefix: 10 }, // link-local
+    { network: "fec0::", prefix: 10 }, // deprecated site-local
+    { network: "ff00::", prefix: 8 }, // multicast
+  ],
+);
 
 export function isBlockedIp(ip: string): boolean {
-  const family = net.isIP(ip);
-  if (family === 4) return isBlockedIpv4(ip);
-  if (family === 6) return isBlockedIpv6(ip);
-  return true; // not a recognizable IP literal at all -- fail closed
+  const parsed = parseIpLiteral(ip);
+  if (!parsed) return true; // not a recognizable IP literal at all -- fail closed
+  return isBlockedParsed(parsed);
 }
 
 /**
@@ -102,7 +96,8 @@ export function validateDestinationUrl(rawUrl: string): URL {
     throw new NetworkGuardError("USERINFO_NOT_ALLOWED", "URL userinfo is not allowed.");
   const port = url.port ? Number(url.port) : 443;
   if (!ALLOWED_PORTS.has(port)) throw new NetworkGuardError("PORT_NOT_ALLOWED", "Only port 443 is allowed.");
-  if (net.isIP(url.hostname) && isBlockedIp(url.hostname)) {
+  // `url.hostname` keeps the brackets of an IPv6 literal ("[::1]"); parseIpLiteral accepts them.
+  if (parseIpLiteral(url.hostname) && isBlockedIp(url.hostname)) {
     throw new NetworkGuardError(
       "DESTINATION_NOT_ALLOWED",
       "This destination is not reachable from a connector.",
@@ -119,13 +114,14 @@ export function validateDestinationUrl(rawUrl: string): URL {
  * hostname that resolved safely a minute ago is re-checked, not trusted.
  */
 export async function resolveAndValidateHost(hostname: string): Promise<string> {
-  if (net.isIP(hostname)) {
-    if (isBlockedIp(hostname))
+  const literal = parseIpLiteral(hostname);
+  if (literal) {
+    if (isBlockedIp(literal.address))
       throw new NetworkGuardError(
         "DESTINATION_NOT_ALLOWED",
         "This destination is not reachable from a connector.",
       );
-    return hostname;
+    return literal.address;
   }
   let addresses: LookupAddress[];
   try {

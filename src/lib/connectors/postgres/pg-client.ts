@@ -2,7 +2,7 @@ import "server-only";
 
 import pg from "pg";
 
-import { validatePostgresHost } from "./network-guard";
+import { resolvePostgresHost } from "./network-guard";
 import type { PostgresConnectionConfig } from "./types";
 
 /**
@@ -36,15 +36,20 @@ export async function runPostgresQuery(input: {
   timeoutMs: number;
   signal?: AbortSignal;
 }): Promise<PostgresQueryOutcome> {
-  await validatePostgresHost(input.config.host);
+  // Connect to the address that was validated, not the hostname: resolving it again at connect time could return
+  // a different (prohibited) address. TLS still verifies the certificate against the configured hostname.
+  const target = await resolvePostgresHost(input.config.host);
 
   const client = new pg.Client({
-    host: input.config.host,
+    host: target.address,
     port: input.config.port,
     database: input.config.database,
     user: input.username,
     password: input.password,
-    ssl: input.config.sslmode === "require" ? { rejectUnauthorized: true } : false,
+    ssl:
+      input.config.sslmode === "require"
+        ? { rejectUnauthorized: true, ...(target.servername ? { servername: target.servername } : {}) }
+        : false,
     connectionTimeoutMillis: 10_000,
     query_timeout: input.timeoutMs,
     statement_timeout: input.timeoutMs,
