@@ -13,9 +13,10 @@ These four points most often lead to wrong assumptions. Each is described in mor
    enforce it in your backend.
 2. **Unresolved security-relevant derived values are unsupported.** A recipient, channel, id, path, branch or amount
    that would come from an earlier step's output cannot be authorized. Authority does not defer it or check it at
-   runtime. Prepare excludes the step (`excludedSteps`, status `clarify`). Resolve the value in your trusted
+   runtime. Prepare excludes the step (`excludedSteps`, status `replan`). Resolve the value in your trusted
    backend, then prepare with it pinned. Only free text (a body, subject, title or description) may come from an
-   earlier step, and Authority does not check where that text came from.
+   earlier step, and Authority does not check where that text came from. The agent can still write a message after
+   reading data. See [QUICKSTART.md, section 3](QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data).
 3. **Backend prepare skips Jev checks.** `POST /api/v1/tasks/{taskId}/prepare` never runs Jev necessity or
    completeness, whatever the tenant's `jev_settings` say. Only plans proposed in the dashboard go through Jev. A
    contract prepared from your backend has passed the deterministic validator, solver, compiler and verifier, and
@@ -54,9 +55,13 @@ These four points most often lead to wrong assumptions. Each is described in mor
   ([proposals/PROVENANCE_AND_BOUNDED_REPLANNING.md](proposals/PROVENANCE_AND_BOUNDED_REPLANNING.md)).
 - **Free text is unconstrained.** A body or title the plan left open can say anything. Content screening may flag
   it; nothing deterministic limits it.
-- **Only optional free-text fields can be left for the agent to write.** A required field (Slack's `text`, an
-  email `subject`, an issue `title`) must be pinned in the plan or taken from an earlier step by data flow; a plan
-  that leaves it open has that step excluded (`excludedSteps`, status `clarify`).
+- **A required free-text field must be pinned or bound by data flow.** An optional free-text field the plan leaves
+  out is open for the agent to write. A required one (Slack's `text`, an email `subject`, an issue `title`) is open
+  only when the plan binds it to an earlier step's output with `dataFlowRefs`. Left out without that, the step is
+  excluded (`excludedSteps`, status `clarify`). The supported workflow is in
+  [QUICKSTART.md, section 3](QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data). That workflow needs an
+  earlier step in the plan to reference. A message written purely from the agent's own context, with no earlier
+  step, must leave the field out if it is optional, or the plan must pin it.
 - **Contracts compiled before closed-world arguments** (compiler versions before `authority-compiler-2026-10-23-9`)
   accept extra argument keys until re-prepared. A deploy of the current compiler retires them.
 

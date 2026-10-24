@@ -80,7 +80,60 @@ data, real integrations, or the internet.
 
 6. **Runtime** shows every decision (deterministic, semantic and final) and the capability lifecycle.
 
-## 3. Gate your pull requests (optional, 2 min)
+## 3. Let the agent write a message after it reads data
+
+**Short answer.** Yes, an agent can compose a Slack message after reading data. Your backend does not pin the text.
+It pins **where** the message goes and declares that the text comes from an earlier step. Authority then leaves the
+text open and checks everything else.
+
+Your backend creates the task (`POST /api/v1/customers/{customerId}/tasks`), then prepares it with its backend key
+(`authority_dk_...`). This plan reads one Linear issue, then posts a summary that the agent writes:
+
+```bash
+curl -sS -X POST "$AUTHORITY_URL/api/v1/tasks/$TASK_ID/prepare" \
+  -H "authorization: Bearer $AUTHORITY_BACKEND_KEY" -H "content-type: application/json" \
+  -d '{"plan":{"schemaVersion":1,"taskId":"'$TASK_ID'","nodes":[
+        {"id":"read-issue","sequence":1,"tool":"linear.get_issue",
+         "arguments":{"issue_id":"ENG-42"},"declaredOutputs":["issue"],"expectedSideEffect":"read"},
+        {"id":"post-summary","sequence":2,"tool":"slack.post_message",
+         "arguments":{"channel":"C-eng-updates"},
+         "dataFlowRefs":[{"argumentKey":"text","fromNodeId":"read-issue","output":"issue"}],
+         "expectedSideEffect":"write_create"}]}}'
+```
+
+The response has `"status":"ready"`. The agent reads the issue, writes its own summary and asks to post it. It uses
+a task session token from `POST /api/v1/sessions`, or its runtime key if your application does not require sessions:
+
+```bash
+curl -sS -X POST "$AUTHORITY_URL/api/v1/authorize" \
+  -H "authorization: Bearer $AUTHORITY_SESSION_TOKEN" -H "content-type: application/json" \
+  -d '{"taskId":"'$TASK_ID'","tool":"slack.post_message","operation":"post_message",
+       "arguments":{"channel":"C-eng-updates","text":"ENG-42 is in review; fix expected Thursday."},
+       "idempotencyKey":"summary-1"}'
+```
+
+That call is allowed, whatever text the agent wrote. The same call to `C-general` is denied, and so is a second post
+once the step's budget (`maxInvocations`, default 1) is spent. `src/tests/local/real-api-evaluation.test.ts` runs
+exactly this plan.
+
+What each field may do:
+
+| In the plan                                                                 | At runtime                                                       |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| A free-text field (message text, email subject or body, issue title) pinned | Must match exactly                                               |
+| A free-text field bound by `dataFlowRefs` to an earlier step's output       | Open: the agent writes it                                        |
+| An optional free-text field left out (Gmail `body`, Linear `description`)   | Open: the agent writes it                                        |
+| A required free-text field left out with no `dataFlowRefs` (Slack `text`)   | Not allowed: prepare excludes the step (`clarify`)               |
+| A target or value (channel, recipient, id, path, branch, amount)            | Must be pinned. `dataFlowRefs` here excludes the step (`replan`) |
+
+Two limits apply:
+
+- **Authority does not check that the text came from that step.** The reference makes the open field explicit in the
+  contract; it is not provenance. Open text can say anything, so use content screening if that matters to you.
+- **The channel must be known before you prepare.** "Reply in whichever channel the message came from" is not
+  supported. Resolve the channel in your backend, then prepare with it pinned.
+
+## 4. Gate your pull requests (optional, 2 min)
 
 Copy `.github/workflows/ci.yml`'s `scenario-packs` job. It starts a throwaway local Supabase, runs the starter pack, and fails the
 PR if any attack that was contained in `validation/baseline.starter.json` is no longer contained. See `docs/validation/CI.md`.

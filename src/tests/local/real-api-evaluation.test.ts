@@ -357,6 +357,70 @@ describe("compiled contract, through the real API", () => {
   });
 });
 
+describe("the agent writes the message (docs/QUICKSTART.md, section 3)", () => {
+  // The backend pins the channel and declares that the message text comes from an earlier step's output. The
+  // contract then leaves `text` open, so the agent composes it at runtime; the channel stays pinned.
+  let taskId = "";
+  let token = "";
+
+  beforeAll(async () => {
+    const { taskId: id, prepared } = await newTask("Summarize Linear issue ENG-42 in #eng-updates.", [
+      {
+        id: "read-issue",
+        sequence: 1,
+        tool: "linear.get_issue",
+        arguments: { issue_id: "ENG-42" },
+        declaredOutputs: ["issue"],
+        expectedSideEffect: "read",
+      },
+      {
+        id: "post-summary",
+        sequence: 2,
+        tool: "slack.post_message",
+        arguments: { channel: "C-eng-updates" },
+        dataFlowRefs: [{ argumentKey: "text", fromNodeId: "read-issue", output: "issue" }],
+        expectedSideEffect: "write_create",
+      },
+    ]);
+    expect(prepared.body.status).toBe("ready");
+    taskId = id;
+    token = (await sessionFor(taskId)).token;
+  });
+
+  it("allows a message the agent composed, in the pinned channel", async () => {
+    const r = await authorize("slack agent-written text", "legitimate", token, taskId, "slack.post_message", {
+      channel: "C-eng-updates",
+      text: "ENG-42 (checkout times out on retry) is in review; fix expected Thursday.",
+    });
+    expect(permitted(r)).toBe(true);
+  });
+
+  it("still refuses another channel", async () => {
+    const r = await authorize(
+      "slack agent-written text, other channel",
+      "unauthorized",
+      token,
+      taskId,
+      "slack.post_message",
+      { channel: "C-general", text: "ENG-42 is in review." },
+    );
+    expect(r.body.status).toBe("deny");
+  });
+
+  it("refuses a second post once the step's single invocation is spent", async () => {
+    const r = await authorize(
+      "slack agent-written text, over budget",
+      "unauthorized",
+      token,
+      taskId,
+      "slack.post_message",
+      { channel: "C-eng-updates", text: "One more update." },
+    );
+    expect(r.body.status).toBe("deny");
+    expect(r.body.reasonCodes).toContain("INVOCATION_LIMIT_REACHED");
+  });
+});
+
 describe("plans Authority cannot enforce are refused at prepare", () => {
   it("reports a step whose required free text (Slack `text`) is left for the agent to write", async () => {
     const { prepared } = await newTask("Post a status update to #ops.", [
