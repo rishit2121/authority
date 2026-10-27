@@ -7,15 +7,26 @@ Authority compiles that into a contract (which tools, which recipients and resou
 short-lived session to the task, decides every call against the contract in the database before anything runs, and
 can execute provider actions itself so the agent never holds provider credentials. Every decision is recorded.
 
-> **Status: experimental security tool (v0.x).** The deterministic core is tested (unit tests, pgTAP suites on a
-> throwaway database, a real-API evaluation), but it is not production-proven, has had no third-party audit, and is
-> not a guarantee against every misuse. Read [docs/LIMITATIONS.md](docs/LIMITATIONS.md) before relying on it,
-> starting with its four "Read these first" points:
+> **Experimental release (v0.x). Not production-proven, not audited.** The deterministic core is tested: unit tests,
+> pgTAP suites on a throwaway database, and a real-API evaluation with no model or provider calls. It has had no
+> third-party audit, and it does not guarantee against every misuse. Know these limits before relying on it:
 >
-> - budgets reset with each contract version
-> - security-relevant values derived from earlier steps are unsupported
-> - backend prepare skips Jev checks
-> - simulated execution is not provider execution
+> - **Open free text.** A message body, subject or title that the plan leaves open, or binds to an earlier step, can
+>   say anything. Authority pins targets and values, not content.
+> - **Budgets are per contract version.** `maxInvocations` resets each time a task is re-prepared. There is no
+>   task-wide ceiling.
+> - **Model review is optional and probabilistic.** Task alignment, content screening and risk review can only
+>   narrow a decision, and they are off unless you turn them on. Backend prepare skips Jev checks but can run
+>   task-alignment plan review. If you ask for an AI-drafted plan (`generate: true`), a model chooses the task's
+>   scope.
+> - **Security-relevant values derived from earlier steps are unsupported.** A recipient, channel, id or amount must
+>   be concrete in the plan.
+> - **Simulated execution is not provider execution.** `/capabilities/consume` calls no provider.
+> - **Browser agents are not covered by this release.** A separate experiment confined a browser agent's navigation
+>   URLs: Authority denied 4 of 4 injected navigations in a small matched run. It did not govern form submissions or
+>   scripts on an already-permitted page, and the integration is not part of this repository.
+>
+> Details: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 
 ## What it enforces
 
@@ -29,8 +40,10 @@ can execute provider actions itself so the agent never holds provider credential
 - **Credential-holding execution.** For connector tools (GitHub, Gmail, Slack, Stripe, Linear, Notion, PostgreSQL,
   your own HTTPS API) Authority performs the call with exactly the authorized arguments; the agent never sees the
   provider credential, URL or method. Outcomes are recorded as receipts; an uncertain write is never retried.
-- **AI cannot widen authority.** Optional model-based checks (task alignment, content screening, risk review) can
-  only narrow a deterministic decision, never grant one.
+- **Model checks cannot widen authority.** Optional model-based checks (task alignment, content screening, risk
+  review) can only narrow a deterministic decision, never grant one. The optional AI plan drafter is different: with
+  `generate: true` its plan becomes the contract after the same deterministic validation, so use it only where a
+  model choosing the task's scope is acceptable.
 
 ## What it does not do
 
@@ -122,13 +135,13 @@ More: [packages/authority-sdk](packages/authority-sdk), [examples/](examples), [
 
 ## Tests
 
-| Command                                                                               | What it runs                                                   | Needs                                                                             |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `npm test`                                                                            | unit tests (authorization, compiler, connectors, routes, ...)  | nothing                                                                           |
-| `DB_TEST_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run db:test` | pgTAP database security suites                                 | `supabase start`, then `create extension pgtap with schema extensions`            |
-| `npm run test:local`                                                                  | local-database suites, including the real-API evaluation       | `supabase start`, the gateway login above, `eval "$(npx supabase status -o env)"` |
-| `npm run test:e2e:local`                                                              | dashboard end to end                                           | the same, plus Playwright                                                         |
-| `npm run verify`                                                                      | format, lint, typecheck, unit tests, build, bundle secret scan | nothing                                                                           |
+| Command                                                                               | What it runs                                                   | Needs                                                                                                       |
+| ------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `npm test`                                                                            | unit tests (authorization, compiler, connectors, routes, ...)  | nothing                                                                                                     |
+| `DB_TEST_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres npm run db:test` | pgTAP database security suites                                 | `supabase start`, then `create extension pgtap with schema extensions`                                      |
+| `npm run test:local`                                                                  | local-database suites, including the real-API evaluation       | `supabase start`, the gateway login above, `eval "$(npx supabase status -o env)"`                           |
+| `npm run test:e2e:local`                                                              | dashboard end to end                                           | the same, plus Playwright                                                                                   |
+| `npm run verify`                                                                      | format, lint, typecheck, unit tests, build, bundle secret scan | `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` set (placeholders are fine, as in CI) |
 
 CI runs all of these on every pull request against a throwaway local Supabase (`.github/workflows/ci.yml`). Without
 `DB_TEST_URL`, `npm run db:test` targets a linked hosted project; never point it at production.

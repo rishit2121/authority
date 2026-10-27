@@ -1,5 +1,8 @@
 # Authority v0.1.0 — pilot release notes
 
+> Historical (September 2026, private pilot). Superseded by [RELEASE_NOTES_v0.2.md](RELEASE_NOTES_v0.2.md); statements
+> below about licensing, disclosure and limitations describe v0.1.0 only.
+
 ## What Authority does
 
 Authority is a runtime authorization and least-privilege control plane for AI agents. An agent proposes a task; Authority

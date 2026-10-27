@@ -18,9 +18,15 @@ These four points most often lead to wrong assumptions. Each is described in mor
    earlier step, and Authority does not check where that text came from. The agent can still write a message after
    reading data. See [QUICKSTART.md, section 3](QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data).
 3. **Backend prepare skips Jev checks.** `POST /api/v1/tasks/{taskId}/prepare` never runs Jev necessity or
-   completeness, whatever the tenant's `jev_settings` say. Only plans proposed in the dashboard go through Jev. A
-   contract prepared from your backend has passed the deterministic validator, solver, compiler and verifier, and
-   nothing model-based.
+   completeness, whatever the tenant's `jev_settings` say. Only plans proposed in the dashboard go through Jev.
+   Backend prepare always runs the deterministic validator, solver, compiler and verifier, plus admin approval rules.
+   It can also run two optional model-based steps:
+   - **Task-alignment plan review**, when the application's alignment mode is `shadow` or `enforce` with plan checks
+     on. In `enforce` mode, a plan that is not cleared leaves the contract inactive (status `alignment_review`). In
+     `shadow` mode the review is only recorded.
+   - **AI plan drafting**, when the request sets `generate: true` instead of sending a plan. The drafted plan is
+     compiled without a person reviewing it, so a model chooses the task's scope, within the same deterministic
+     checks.
 4. **Simulated execution is not provider execution.** `POST /api/v1/capabilities/consume` spends a capability and
    records the step as `simulated`. It calls no provider, sends nothing and changes nothing outside Authority. Its
    success does not show that a provider would accept the call. Connector tools are refused there
@@ -30,6 +36,12 @@ These four points most often lead to wrong assumptions. Each is described in mor
    provider behaves.
 
 ## Scope of enforcement
+
+- **Browser agents are not covered by this release.** A separate experiment (not in this repository) registered a
+  `browser.navigate {url}` tool and pinned each permitted page. In a small matched run, Authority denied 4 of 4
+  injected navigations. The same experiment showed the limit: an unwanted form submission on an already-permitted
+  page went through with no denial, because the submission is not a tool argument Authority sees. Governing a
+  browser agent's real effects needs control at the network or execution layer.
 
 - **Only calls routed through Authority are governed.** An agent that holds other credentials, or an execution
   environment that acts directly (a browser following a link or submitting a form, a shell, page scripts), is outside
