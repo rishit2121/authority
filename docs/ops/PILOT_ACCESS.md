@@ -5,7 +5,8 @@ submit `/request-access`; only approved developers (and the owner) can onboard a
 
 ## Who manages it
 
-The owner is `pilot_settings.owner_email` (seeded as `owner@example.invalid`). Owner checks
+The owner is `pilot_settings.owner_email` (seeded as the placeholder `owner@example.invalid`, which no account can verify, so nobody is
+the owner until you set it: `update public.pilot_settings set owner_email = 'you@your-domain' where id;`). Owner checks
 use the caller's **verified** email from `auth.users` (`email_confirmed_at` set), in the database,
 on every page load, server action and RPC. A submitted email, URL parameter, JWT claim or user
 metadata is never trusted. Everyone else gets a 404 at `/app/pilot`, and the `pilot_admin_*`
