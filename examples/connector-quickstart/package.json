@@ -1,6 +1,7 @@
 {
   "name": "connector-quickstart-example",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "gmail": "node run.mjs --connector=gmail",

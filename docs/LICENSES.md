@@ -1,12 +1,11 @@
 # License and dependency review
 
-## Project license: MIT, pending ownership confirmation
+## Project license: MIT
 
-The intended license is MIT. It is proposed in the `release/mit-license` pull request (`LICENSE`, the `license` field
-in every package, and `THIRD_PARTY_NOTICES.md`). That pull request stays unmerged until the maintainer confirms who
-owns the copyright and fills in the holder. Until it merges, the code is not licensed for reuse.
-`THIRD_PARTY_NOTICES.md` lists what MIT does not cover: the vendored fonts, the provider logos (trademarks) and
-the dependencies that carry notice obligations.
+This repository's own code is released under the MIT license ([LICENSE](../LICENSE),
+`Copyright (c) 2026 Rishit Agrawal`), and so is the SDK (`packages/authority-sdk/LICENSE`, included in its tarball).
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) lists what MIT does not cover: the vendored fonts (OFL-1.1, with
+their license text next to them), the provider logos (trademarks) and the dependencies that carry notice obligations.
 
 ## Production dependencies (reviewed 2026-10-23)
 

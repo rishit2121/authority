@@ -2,6 +2,7 @@
   "name": "@authority/sdk",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "TypeScript client for the Authority developer API. Install from your Authority deployment: npm install https://<your-authority-url>/sdk/authority-sdk.tgz",
   "type": "module",
   "main": "./dist/index.js",

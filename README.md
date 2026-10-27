@@ -149,5 +149,5 @@ Report vulnerabilities privately: see [SECURITY.md](SECURITY.md).
 
 ## License
 
-No license has been chosen yet, so the code is not yet licensed for reuse. See [docs/LICENSES.md](docs/LICENSES.md)
-for the dependency license review.
+MIT. See [LICENSE](LICENSE). The vendored fonts, the provider logos and some dependencies keep their own terms; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the dependency review in [docs/LICENSES.md](docs/LICENSES.md).
