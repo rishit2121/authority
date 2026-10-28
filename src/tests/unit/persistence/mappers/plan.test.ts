@@ -35,6 +35,7 @@ function nodeRow(overrides: Partial<Tables<"plan_nodes">> = {}): Tables<"plan_no
     resource: "payments-api#991",
     normalized_arguments: { schemaVersion: 1, values: { issue: "991" } },
     dependencies: [],
+    agent_generated: [],
     expected_effect: null,
     execution_order: null,
     status: "executed",

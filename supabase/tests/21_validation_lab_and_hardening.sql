@@ -138,4 +138,4 @@ select t(throws_ok($$ insert into public.github_webhook_retries (delivery_id, ev
 -- application checks against at startup) -- it is not meant to pin one
 -- specific migration forever, just to prove the probe reports whatever the
 -- newest one actually set.
-select t(is(gateway.schema_version(), '20261027000001', 'the schema-version probe reports the newest migration'));
+select t(is(gateway.schema_version(), '20261028000001', 'the schema-version probe reports the newest migration'));
