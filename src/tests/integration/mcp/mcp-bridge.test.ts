@@ -86,7 +86,7 @@ describe("MCP bridge (real database, fixture Stripe connector)", () => {
     const catalog = await buildMcpToolCatalog(fx.taskId);
     expect(catalog.status).toBe("ok");
     expect(catalog.tools.map((t) => t.name)).toEqual(["stripe.retrieve_payment"]);
-    expect(catalog.tools[0].inputSchema.payment_id).toBeDefined();
+    expect(catalog.tools[0].inputSchema.shape.payment_id).toBeDefined();
   });
 
   it("returns task_not_found for an unknown task id", async () => {

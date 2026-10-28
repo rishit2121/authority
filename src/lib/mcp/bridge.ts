@@ -38,10 +38,18 @@ import { screenExecutionResult } from "@/lib/alignment/screen-execution";
 export interface McpToolDefinition {
   name: string;
   description: string;
-  /** A Zod raw shape -- `@modelcontextprotocol/sdk`'s own `registerTool` converts this to the wire JSON Schema. */
-  inputSchema: Record<string, z.ZodTypeAny>;
+  /**
+   * The operation's declared fields, plus any other key with an argument-shaped value. `@modelcontextprotocol/sdk`
+   * converts it to the wire JSON Schema and validates calls against it. Extra keys are deliberately passed through
+   * rather than stripped, so authorization refuses them (CONSTRAINT_VIOLATION) exactly as REST /authorize does,
+   * instead of the call silently running without them.
+   */
+  inputSchema: z.ZodObject;
   operation: ToolOperation;
 }
+
+/** The value types REST /authorize accepts for an argument (toolArgumentsSchema), for keys a tool does not declare. */
+const ARGUMENT_VALUE = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]);
 
 function zodFieldFor(field: ToolOperation["argumentFields"][number]): z.ZodTypeAny {
   let base: z.ZodTypeAny;
@@ -96,8 +104,9 @@ export async function buildMcpToolCatalog(taskId: string): Promise<McpToolCatalo
     // shape; simply omit it from the catalog. A direct tools/call for it
     // would still be independently rejected by the real pipeline below.
     if (!operation) continue;
-    const inputSchema: Record<string, z.ZodTypeAny> = {};
-    for (const field of operation.argumentFields) inputSchema[field.key] = zodFieldFor(field);
+    const shape: Record<string, z.ZodTypeAny> = {};
+    for (const field of operation.argumentFields) shape[field.key] = zodFieldFor(field);
+    const inputSchema = z.object(shape).catchall(ARGUMENT_VALUE);
     tools.push({ name: operation.id, description: describeOperation(operation), inputSchema, operation });
   }
   return { status: "ok", tenantId, tools };

@@ -82,26 +82,26 @@ data, real integrations, or the internet.
 
 ## 3. Let the agent write a message after it reads data
 
-**Short answer.** Yes, an agent can compose a Slack message after reading data. Your backend does not pin the text.
-It pins **where** the message goes and declares that the text comes from an earlier step. Authority then leaves the
-text open and checks everything else.
+**Short answer.** Yes, an agent can write a Slack message, including after reading data. Your backend does not pin
+the text. It pins **where** the message goes and marks the text as written by the agent (`agentGenerated`).
+Authority then leaves the text open and checks everything else.
 
 Your backend creates the task (`POST /api/v1/customers/{customerId}/tasks`), then prepares it with its backend key
-(`authority_dk_...`). This plan reads one Linear issue, then posts a summary that the agent writes:
+(`authority_dk_...`):
 
 ```bash
 curl -sS -X POST "$AUTHORITY_URL/api/v1/tasks/$TASK_ID/prepare" \
   -H "authorization: Bearer $AUTHORITY_BACKEND_KEY" -H "content-type: application/json" \
   -d '{"plan":{"schemaVersion":1,"taskId":"'$TASK_ID'","nodes":[
-        {"id":"read-issue","sequence":1,"tool":"linear.get_issue",
-         "arguments":{"issue_id":"ENG-42"},"declaredOutputs":["issue"],"expectedSideEffect":"read"},
-        {"id":"post-summary","sequence":2,"tool":"slack.post_message",
-         "arguments":{"channel":"C-eng-updates"},
-         "dataFlowRefs":[{"argumentKey":"text","fromNodeId":"read-issue","output":"issue"}],
+        {"id":"post-summary","sequence":1,"tool":"slack.post_message",
+         "arguments":{"channel":"C-eng-updates"},"agentGenerated":["text"],
          "expectedSideEffect":"write_create"}]}}'
 ```
 
-The response has `"status":"ready"`. The agent reads the issue, writes its own summary and asks to post it. It uses
+If the agent should also read through Authority (a Linear issue, say), add that step to the plan as usual. The
+message step does not need to reference it.
+
+The response has `"status":"ready"`. The agent writes its summary and asks to post it. It uses
 a task session token from `POST /api/v1/sessions`, or its runtime key if your application does not require sessions:
 
 ```bash
@@ -119,18 +119,22 @@ exactly this plan.
 
 What each field may do:
 
-| In the plan                                                                 | At runtime                                                       |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| A free-text field (message text, email subject or body, issue title) pinned | Must match exactly                                               |
-| A free-text field bound by `dataFlowRefs` to an earlier step's output       | Open: the agent writes it                                        |
-| An optional free-text field left out (Gmail `body`, Linear `description`)   | Open: the agent writes it                                        |
-| A required free-text field left out with no `dataFlowRefs` (Slack `text`)   | Not allowed: prepare excludes the step (`clarify`)               |
-| A target or value (channel, recipient, id, path, branch, amount)            | Must be pinned. `dataFlowRefs` here excludes the step (`replan`) |
+| In the plan                                                                 | At runtime                                                          |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| A free-text field (message text, email subject or body, issue title) pinned | Must match exactly                                                  |
+| A free-text field listed in `agentGenerated`                                | Open: the agent writes it                                           |
+| An optional free-text field left out (Gmail `body`, Linear `description`)   | Open: the agent writes it                                           |
+| A required free-text field neither pinned nor listed (Slack `text`)         | Not allowed: prepare excludes the step (`clarify`)                  |
+| A target or value (channel, recipient, id, path, branch, amount)            | Must be pinned. In `agentGenerated` it excludes the step (`replan`) |
+
+A free-text field can also be bound to an earlier step's declared output with `dataFlowRefs`; it is then open in
+the same way. That form still works, but Authority does not check where the text came from, so `agentGenerated`
+says the same thing more honestly.
 
 Two limits apply:
 
-- **Authority does not check that the text came from that step.** The reference makes the open field explicit in the
-  contract; it is not provenance. Open text can say anything, so use content screening if that matters to you.
+- **The text is not checked.** Open text can say anything; Authority pins targets and values, not content. Use
+  content screening or task alignment if that matters to you; both are probabilistic.
 - **The channel must be known before you prepare.** "Reply in whichever channel the message came from" is not
   supported. Resolve the channel in your backend, then prepare with it pinned.
 

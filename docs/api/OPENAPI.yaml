@@ -1284,6 +1284,15 @@ components:
               argumentKey: { type: string }
               fromNodeId: { type: string }
               output: { type: string }
+        agentGenerated:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items: { type: string }
+          description: >-
+            Free-text arguments (message text, subject, title, description) the agent writes at run time. The
+            contract leaves them open and lists them per action as generatedArguments. A key that is not a
+            free-text field, or that the step also pins or takes from an earlier step, excludes the step (replan).
         expectedSideEffect: { type: string, enum: [read, write_create, write_update, write_delete, admin] }
         maxInvocations: { type: integer, minimum: 1, maximum: 20 }
 
@@ -1497,6 +1506,10 @@ components:
             The unpinned arguments this action accepts (free text the plan left open). /authorize refuses any
             argument that is neither pinned in resourceConstraints nor listed here. null for a contract compiled
             before closed-world arguments, which accepts extra keys.
+        generatedArguments:
+          type: array
+          items: { type: string }
+          description: The open arguments the plan declared as written by the agent (generated content).
         requiresApproval: { type: boolean }
 
   responses:

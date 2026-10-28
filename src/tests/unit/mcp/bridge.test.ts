@@ -73,7 +73,7 @@ describe("buildMcpToolCatalog", () => {
     expect(result.status).toBe("ok");
     expect(result.tools).toHaveLength(1);
     expect(result.tools[0].name).toBe("stripe.retrieve_payment");
-    expect(result.tools[0].inputSchema.payment_id).toBeDefined();
+    expect(result.tools[0].inputSchema.shape.payment_id).toBeDefined();
   });
 
   it("skips an allowed tool the current registry no longer defines, never guessing its shape", async () => {
@@ -104,8 +104,8 @@ describe("buildMcpToolCatalog", () => {
     buildTenantRegistry.mockResolvedValue({ operations: new Map([["gmail.send_email", gmailOp]]) });
     const result = await buildMcpToolCatalog("task-1");
     const tool = result.tools[0];
-    expect(tool.inputSchema.to.isOptional()).toBe(false);
-    expect(tool.inputSchema.body.isOptional()).toBe(true);
+    expect(tool.inputSchema.shape.to.isOptional()).toBe(false);
+    expect(tool.inputSchema.shape.body.isOptional()).toBe(true);
   });
 
   it("describes a tool's approval/external-communication/financial-impact flags in its description", async () => {
