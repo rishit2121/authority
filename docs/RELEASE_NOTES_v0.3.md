@@ -41,6 +41,11 @@ values derived from earlier steps, and alignment review labels it as agent-writt
 MCP `tools/call` used to drop argument keys a tool doesn't declare, then run the call without them. Those keys now
 reach authorization, which refuses them with `CONSTRAINT_VIOLATION`, as `/authorize` does.
 
+## Removing disconnected connections
+
+Admins and owners can remove a disconnected Custom API or PostgreSQL connection from its page. It is archived, not
+deleted: receipts and other history that reference it are kept.
+
 ### Upgrading
 
 1. **Apply migration `20261027000001`, then deploy.** `/ready` reports `mismatch` until both are done. The rollback
@@ -56,3 +61,5 @@ reach authorization, which refuses them with `CONSTRAINT_VIOLATION`, as `/author
 6. **The compiler version is now `authority-compiler-2026-10-28-10`.** Active contracts compiled earlier get
    `UNSUPPORTED_CONTRACT_VERSION` until re-prepared. Task-wide budgets carry over, so re-preparing doesn't reset them.
 7. **MCP clients that sent extra argument keys** now get a refusal instead of a silently trimmed call.
+8. **Apply migration `20261028000002` (removing disconnected connections).** The rollback script is
+   `supabase/rollback/20261028_rollback_to_20261028000001_connections.sql`.

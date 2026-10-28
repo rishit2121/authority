@@ -21,7 +21,7 @@ Under the OFL, the fonts may be bundled with software under any license, but the
 `public/logos/` holds the logos of GitHub, Gmail, Linear, Notion, PostgreSQL, Slack and Stripe. They are used only
 to identify the service a connector talks to. Each is a trademark of its owner. The MIT license grants no rights to
 them, and their use here implies no endorsement. If you fork the project, check each owner's brand guidelines, or
-remove the logos. `public/logos/custom-api.svg` and `src/assets/authority-logo.png` are this project's own.
+remove the logos. `public/logos/custom-api.svg`, `src/assets/authority-logo.png`, `src/app/icon.png` and `docs/assets/authority-logo.png` are this project's own.
 
 ## npm dependencies (installed, not vendored)
 
