@@ -7,6 +7,7 @@ import {
   createPostgresQueryAction,
   deletePostgresQueryDraftAction,
   disconnectPostgresConnectionAction,
+  removePostgresConnectionAction,
   publishPostgresQueryAction,
   retirePostgresQueryAction,
   setPostgresCredentialsAction,
@@ -449,6 +450,20 @@ export function ConnectionCard({
               onClick={() => run(() => disconnectPostgresConnectionAction(connection.id))}
             >
               Disconnect
+            </button>
+          ) : null}
+          {canAdmin && connection.status === "disconnected" ? (
+            <button
+              disabled={pending}
+              className={BTN}
+              data-testid={`postgres-remove-${connection.connectorId}`}
+              onClick={() => {
+                if (window.confirm(`Remove "${connection.name}" from this page? Its history is kept.`)) {
+                  run(() => removePostgresConnectionAction(connection.id));
+                }
+              }}
+            >
+              Remove
             </button>
           ) : null}
         </div>

@@ -1715,6 +1715,7 @@ export type Database = {
       };
       connector_connections: {
         Row: {
+          archived_at: string | null;
           auth_mode: string;
           broker_connection_ref: string | null;
           broker_id: string | null;
@@ -1740,6 +1741,7 @@ export type Database = {
           verified_account_ref: string | null;
         };
         Insert: {
+          archived_at?: string | null;
           auth_mode?: string;
           broker_connection_ref?: string | null;
           broker_id?: string | null;
@@ -1765,6 +1767,7 @@ export type Database = {
           verified_account_ref?: string | null;
         };
         Update: {
+          archived_at?: string | null;
           auth_mode?: string;
           broker_connection_ref?: string | null;
           broker_id?: string | null;
@@ -6062,6 +6065,7 @@ export type Database = {
         Args: { p_contract_id: string; p_reason: string };
         Returns: undefined;
       };
+      remove_connector_connection: { Args: { p_connection_id: string }; Returns: string };
       reset_demo_workspace: {
         Args: { p_tenant_id: string };
         Returns: undefined;

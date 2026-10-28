@@ -47,6 +47,7 @@ export default async function PostgresIntegrationPage() {
     context.supabase
       .from("connector_connections")
       .select("id, connector_id, name, status, config")
+      .is("archived_at", null)
       .like("connector_id", "postgres\\_%")
       .order("created_at", { ascending: false }),
     context.supabase

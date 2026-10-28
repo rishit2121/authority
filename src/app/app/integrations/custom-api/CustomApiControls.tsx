@@ -9,6 +9,7 @@ import {
   createCustomOperationAction,
   deleteCustomOperationDraftAction,
   disconnectCustomApiConnectionAction,
+  removeCustomApiConnectionAction,
   previewCustomOperationAction,
   publishCustomOperationAction,
   retireCustomOperationAction,
@@ -860,6 +861,20 @@ export function ConnectionCard({
               onClick={() => run(() => disconnectCustomApiConnectionAction(connection.id))}
             >
               Disconnect
+            </button>
+          ) : null}
+          {canAdmin && connection.status === "disconnected" ? (
+            <button
+              disabled={pending}
+              className={BTN}
+              data-testid={`custom-api-remove-${connection.connectorId}`}
+              onClick={() => {
+                if (window.confirm(`Remove "${connection.name}" from this page? Its history is kept.`)) {
+                  run(() => removeCustomApiConnectionAction(connection.id));
+                }
+              }}
+            >
+              Remove
             </button>
           ) : null}
         </div>
