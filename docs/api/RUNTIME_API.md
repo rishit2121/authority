@@ -215,11 +215,18 @@ that the matched action neither pins nor lists there: an optional field the plan
 mailbox query, an extra recipient field) cannot be added at call time. Contracts compiled before this rule have no
 `openArguments` and keep the old behavior until re-prepared.
 
-**Data flow is for free text only.** A step may fill an argument from an earlier step's output (`dataFlowRefs`)
-only when the registry marks that argument as free text (message text, subject, title, description). Authority does
-not verify where such a value came from and does not constrain it at runtime. A recipient, channel, id, path,
-branch or amount must be a concrete value in `arguments`, which the compiler pins exactly; a data-flow reference to
-one excludes the step with status `replan`.
+**Agent-written text.** A plan step may list `agentGenerated`: free-text arguments (message text, subject, title,
+description) that the agent writes at run time. The contract leaves them open and records them per action as
+`generatedArguments` (shown in `GET /tasks/{taskId}/tools`). A key in `agentGenerated` that is not a free-text field,
+or that the step also pins or takes from an earlier step, excludes the step with status `replan`.
+
+**Data flow is for free text only.** A step may instead fill a free-text argument from an earlier step's output
+(`dataFlowRefs`). Authority does not verify where such a value came from and does not constrain it at runtime. A
+recipient, channel, id, path, branch or amount must be a concrete value in `arguments`, which the compiler pins
+exactly; a data-flow reference to one excludes the step with status `replan`.
+
+**MCP and REST refuse the same arguments.** `tools/call` passes undeclared argument keys through to authorization,
+which refuses them (`CONSTRAINT_VIOLATION`) as `/authorize` does.
 A contract activates automatically unless an approval rule matched or enforced task alignment holds it;
 neither ever widens what the compiler decided.
 

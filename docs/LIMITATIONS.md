@@ -68,13 +68,12 @@ These four points most often lead to wrong assumptions. Each is described in mor
   ([proposals/PROVENANCE_AND_BOUNDED_REPLANNING.md](proposals/PROVENANCE_AND_BOUNDED_REPLANNING.md)).
 - **Free text is unconstrained.** A body or title the plan left open can say anything. Content screening may flag
   it; nothing deterministic limits it.
-- **A required free-text field must be pinned or bound by data flow.** An optional free-text field the plan leaves
-  out is open for the agent to write. A required one (Slack's `text`, an email `subject`, an issue `title`) is open
-  only when the plan binds it to an earlier step's output with `dataFlowRefs`. Left out without that, the step is
-  excluded (`excludedSteps`, status `clarify`). The supported workflow is in
-  [QUICKSTART.md, section 3](QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data). That workflow needs an
-  earlier step in the plan to reference. A message written purely from the agent's own context, with no earlier
-  step, must leave the field out if it is optional, or the plan must pin it.
+- **A required free-text field must be pinned or marked as agent-written.** An optional free-text field the plan
+  leaves out is open for the agent to write. A required one (Slack's `text`, an email `subject`, an issue `title`) is
+  open when the plan lists it in `agentGenerated` (or binds it to an earlier step with `dataFlowRefs`). Otherwise the
+  step is excluded (`excludedSteps`, status `clarify`). See
+  [QUICKSTART.md, section 3](QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data). Only free-text fields
+  can be agent-written; a recipient, channel, id, path, branch or amount must be pinned.
 - **Contracts compiled before closed-world arguments** (compiler versions before `authority-compiler-2026-10-23-9`)
   accept extra argument keys until re-prepared. A deploy of the current compiler retires them.
 
@@ -121,10 +120,10 @@ These four points most often lead to wrong assumptions. Each is described in mor
   it is not a proof a query is harmless. Use a database role with only the grants the queries need.
 - **No general reconciliation for uncertain writes.** A connector write whose outcome is unknown is recorded as
   indeterminate and never retried automatically.
-- **MCP drops undeclared argument keys instead of refusing them.** The MCP bridge validates arguments against each
-  tool's declared schema, which removes keys the schema does not declare before Authority sees the call. The call is
-  then authorized and run without them. The REST API refuses the same call (`CONSTRAINT_VIOLATION`). A key the
-  schema declares but the plan did not pin is refused on both.
+- **MCP and REST differ only before authorization.** Both refuse an argument the contract neither pins nor leaves
+  open (`CONSTRAINT_VIOLATION`). MCP's schema validation rejects some calls earlier, as a tool error result
+  ("Input validation error") before Authority sees them: a missing required field, or a value that is not a string,
+  number, boolean or list of strings. REST answers the first with `clarify` and the second with `400`.
 - **MCP `tools/call` does not de-duplicate retries.** MCP has no idempotency field, so each call gets a new key; a
   client that retries a timed-out write may execute it twice. The REST API and SDK take caller-supplied keys.
 

@@ -175,15 +175,25 @@ describe("extra arguments, on every entrypoint", () => {
     );
   });
 
-  it("MCP removes an argument the operation does not have before authorization; it never reaches the provider", async () => {
+  it("MCP refuses an argument the operation does not have, like REST, and it never reaches the provider", async () => {
     const before = provider.requests.length;
     const r = await mcp(a.taskId, a.token, "tools/call", {
       name: world.readTool,
       arguments: { orderId: "4821", admin: "true" },
     });
-    expect(mcpCallRefused(r)).toBe(false);
-    expect(provider.requests.length).toBe(before + 1);
-    expect(JSON.stringify(provider.requests.at(-1))).not.toContain("admin");
+    expect(mcpCallRefused(r)).toBe(true);
+    expect(JSON.stringify(r.body)).toContain("CONSTRAINT_VIOLATION");
+    expect(provider.requests.length).toBe(before);
+  });
+
+  it("MCP refuses an extra key whose value is not an argument value (an object) before authorization", async () => {
+    const before = provider.requests.length;
+    const r = await mcp(a.taskId, a.token, "tools/call", {
+      name: world.readTool,
+      arguments: { orderId: "4821", admin: { role: "owner" } },
+    });
+    expect(mcpCallRefused(r)).toBe(true);
+    expect(provider.requests.length).toBe(before);
   });
 });
 
