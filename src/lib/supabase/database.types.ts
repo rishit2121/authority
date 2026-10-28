@@ -213,6 +213,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      task_action_allowances: {
+        Row: {
+          allowance: number;
+          created_at: string;
+          id: string;
+          resource_constraints: NonNullable<Json>;
+          seeded_by_contract_id: string | null;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+          updated_at: string;
+        };
+        Insert: {
+          allowance: number;
+          created_at?: string;
+          id?: string;
+          resource_constraints: NonNullable<Json>;
+          seeded_by_contract_id?: string | null;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+          updated_at?: string;
+        };
+        Update: {
+          allowance?: number;
+          created_at?: string;
+          id?: string;
+          resource_constraints?: NonNullable<Json>;
+          seeded_by_contract_id?: string | null;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_action_allowances_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_action_allowances_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       task_alignment_state: {
         Row: {
           task_id: string;
@@ -2017,6 +2068,55 @@ export type Database = {
           },
           {
             foreignKeyName: "connector_reservations_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      contract_budget_raise_requests: {
+        Row: {
+          contract_id: string;
+          created_at: string;
+          requested_by_application_id: string;
+          requested_by_kind: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Insert: {
+          contract_id: string;
+          created_at?: string;
+          requested_by_application_id: string;
+          requested_by_kind: string;
+          task_id: string;
+          tenant_id: string;
+        };
+        Update: {
+          contract_id?: string;
+          created_at?: string;
+          requested_by_application_id?: string;
+          requested_by_kind?: string;
+          task_id?: string;
+          tenant_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "contract_budget_raise_requests_contract_id_fkey";
+            columns: ["contract_id"];
+            isOneToOne: true;
+            referencedRelation: "task_authority_contracts";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "contract_budget_raise_requests_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "contract_budget_raise_requests_tenant_id_fkey";
             columns: ["tenant_id"];
             isOneToOne: false;
             referencedRelation: "tenants";
@@ -4560,6 +4660,75 @@ export type Database = {
           },
         ];
       };
+      task_budget_changes: {
+        Row: {
+          actor_application_id: string | null;
+          actor_kind: string;
+          actor_user_id: string | null;
+          change: string;
+          contract_id: string | null;
+          created_at: string;
+          id: string;
+          new_allowance: number;
+          note: string | null;
+          previous_allowance: number | null;
+          resource_constraints: NonNullable<Json>;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+          used_at_change: number;
+        };
+        Insert: {
+          actor_application_id?: string | null;
+          actor_kind: string;
+          actor_user_id?: string | null;
+          change: string;
+          contract_id?: string | null;
+          created_at?: string;
+          id?: string;
+          new_allowance: number;
+          note?: string | null;
+          previous_allowance?: number | null;
+          resource_constraints: NonNullable<Json>;
+          task_id: string;
+          tenant_id: string;
+          tool: string;
+          used_at_change: number;
+        };
+        Update: {
+          actor_application_id?: string | null;
+          actor_kind?: string;
+          actor_user_id?: string | null;
+          change?: string;
+          contract_id?: string | null;
+          created_at?: string;
+          id?: string;
+          new_allowance?: number;
+          note?: string | null;
+          previous_allowance?: number | null;
+          resource_constraints?: NonNullable<Json>;
+          task_id?: string;
+          tenant_id?: string;
+          tool?: string;
+          used_at_change?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "task_budget_changes_task_id_tenant_id_fkey";
+            columns: ["task_id", "tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tasks";
+            referencedColumns: ["id", "tenant_id"];
+          },
+          {
+            foreignKeyName: "task_budget_changes_tenant_id_fkey";
+            columns: ["tenant_id"];
+            isOneToOne: false;
+            referencedRelation: "tenants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       task_connector_bindings: {
         Row: {
           bound_by: string;
@@ -5849,6 +6018,7 @@ export type Database = {
           was_created: boolean;
         }[];
       };
+      raise_task_budgets: { Args: { p_note: string; p_task_id: string }; Returns: string };
       reconcile_expired_contracts: { Args: never; Returns: number };
       record_agent_auth_failure: {
         Args: { p_credential_secret: string };
