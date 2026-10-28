@@ -30,6 +30,11 @@ export const allowedActionSchema = z
      * only on contracts compiled before this field existed, which keep the old open behavior.
      */
     openArguments: z.array(z.string().min(1)).optional(),
+    /**
+     * The open arguments the plan declared as written by the agent (a subset of openArguments). Generated content,
+     * as opposed to a value taken from an earlier step. Absent when none were declared.
+     */
+    generatedArguments: z.array(z.string().min(1)).optional(),
   })
   .strict();
 

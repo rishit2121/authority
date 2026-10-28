@@ -180,6 +180,7 @@ export function planStepsFrom(
       sideEffect: n.expectedSideEffect,
       dependencies: n.dependencies ?? [],
       derivedKeys: (n.dataFlowRefs ?? []).map((r) => r.argumentKey),
+      generatedKeys: n.agentGenerated ?? [],
       resourceKeys: (registry.operations.get(n.tool)?.argumentFields ?? [])
         .filter((f) => f.identifiesResource)
         .map((f) => f.key),

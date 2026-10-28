@@ -132,6 +132,7 @@ export interface BackendCandidatePlanNodeInput {
   dependencies: string[];
   declaredOutputs: unknown;
   dataFlowRefs: unknown;
+  agentGenerated?: string[];
   maxInvocations: number | null;
   validationStatus: string;
   expectedSideEffect: string | null;
@@ -160,6 +161,7 @@ export async function createCandidatePlanForBackend(input: {
     dependencies: n.dependencies,
     declared_outputs: n.declaredOutputs,
     data_flow_refs: n.dataFlowRefs,
+    agent_generated: n.agentGenerated ?? [],
     max_invocations: n.maxInvocations,
     validation_status: n.validationStatus,
     expected_effect: n.expectedSideEffect,

@@ -105,6 +105,7 @@ export interface CreateCandidatePlanNodeInput {
   dependencies: string[];
   declaredOutputs: string[];
   dataFlowRefs: { argumentKey: string; fromNodeId: string; output: string }[];
+  agentGenerated?: string[];
   maxInvocations: number;
   validationStatus: "pending" | "accepted" | "requires_review" | "clarify" | "replan" | "denied";
   expectedSideEffect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
@@ -136,6 +137,7 @@ export async function callCreateCandidatePlan(
     dependencies: n.dependencies,
     declared_outputs: n.declaredOutputs,
     data_flow_refs: n.dataFlowRefs,
+    agent_generated: n.agentGenerated ?? [],
     max_invocations: n.maxInvocations,
     validation_status: n.validationStatus,
     expected_effect: n.expectedSideEffect,

@@ -116,6 +116,18 @@ export function verifyCompiledContract(input: VerifyContractInput): Verification
     "the claimed outputHash must equal the hash of the contract's own normalized content",
   );
 
+  // Generated content stays content: every argument an action declares as agent-written must be one of its open
+  // (free-text, unpinned) arguments.
+  add(
+    "generated_arguments_are_free_text",
+    compiled.allowedActions.every((a) =>
+      (a.generatedArguments ?? []).every(
+        (key) => (a.openArguments ?? []).includes(key) && !a.constraints.some((c) => c.key === key),
+      ),
+    ),
+    "every generatedArguments key must be an open, unpinned free-text argument of its action",
+  );
+
   add(
     "expiration_within_policy",
     compiled.ephemeralLimits.expiresInSeconds <= maxAllowedExpirySeconds,

@@ -208,6 +208,7 @@ beforeAll(async () => {
   routes.revoke = (await import("@/app/api/v1/sessions/revoke/route")).POST as unknown as Handler;
   routes.authorize = (await import("@/app/api/v1/authorize/route")).POST as unknown as Handler;
   routes.mcp = (await import("@/app/api/mcp/tasks/[taskId]/route")).POST as unknown as Handler;
+  routes.tools = (await import("@/app/api/v1/tasks/[taskId]/tools/route")).GET as unknown as Handler;
 
   const customer = await call("customers", "/api/v1/customers", keys.backend, {
     externalId: `cust-${stamp}`,
@@ -418,6 +419,139 @@ describe("the agent writes the message (docs/QUICKSTART.md, section 3)", () => {
     );
     expect(r.body.status).toBe("deny");
     expect(r.body.reasonCodes).toContain("INVOCATION_LIMIT_REACHED");
+  });
+});
+
+describe("agent-generated text (docs/QUICKSTART.md, section 3)", () => {
+  // The plan states that the agent writes the message text; no stand-in earlier step is needed. The channel is
+  // pinned; the text is open and recorded as generated content.
+  let taskId = "";
+  let token = "";
+  const SLACK_AGENT_TEXT = {
+    id: "post",
+    sequence: 1,
+    tool: "slack.post_message",
+    arguments: { channel: "C-eng-updates" },
+    agentGenerated: ["text"],
+    expectedSideEffect: "write_create",
+  };
+
+  beforeAll(async () => {
+    const { taskId: id, prepared } = await newTask("Post a status summary to #eng-updates.", [
+      SLACK_AGENT_TEXT,
+    ]);
+    expect(prepared.body.status).toBe("ready");
+    taskId = id;
+    token = (await sessionFor(taskId)).token;
+  });
+
+  it("allows any text the agent wrote, in the pinned channel, and the manifest says the text is agent-written", async () => {
+    const r = await authorize(
+      "slack agentGenerated text",
+      "legitimate",
+      token,
+      taskId,
+      "slack.post_message",
+      {
+        channel: "C-eng-updates",
+        text: "Deploy finished; error rate back to baseline.",
+      },
+    );
+    expect(permitted(r)).toBe(true);
+    const tools = await call("tools", `/api/v1/tasks/${taskId}/tools`, token, undefined, { taskId });
+    const entry = (tools.body.tools as Array<{ tool: string; generatedArguments: string[] }>).find(
+      (t) => t.tool === "slack.post_message",
+    );
+    expect(entry?.generatedArguments).toEqual(["text"]);
+  });
+
+  it("refuses another channel, an extra argument, and a second post", async () => {
+    const other = await authorize(
+      "slack agentGenerated, other channel",
+      "unauthorized",
+      token,
+      taskId,
+      "slack.post_message",
+      { channel: "C-general", text: "x" },
+    );
+    expect(other.body.status).toBe("deny");
+    const extra = await authorize(
+      "slack agentGenerated, extra argument",
+      "unauthorized",
+      token,
+      taskId,
+      "slack.post_message",
+      { channel: "C-eng-updates", text: "x", thread_ts: "1.2" },
+    );
+    expect(extra.body.reasonCodes).toContain("CONSTRAINT_VIOLATION");
+    const again = await authorize(
+      "slack agentGenerated, over budget",
+      "unauthorized",
+      token,
+      taskId,
+      "slack.post_message",
+      { channel: "C-eng-updates", text: "one more" },
+    );
+    expect(again.body.reasonCodes).toContain("INVOCATION_LIMIT_REACHED");
+  });
+
+  it("the stored plan reloads and recompiles to the same contract (what dashboard activation re-verifies)", async () => {
+    const { reconstructCandidatePlan } =
+      await import("@/lib/persistence/mappers/candidate-plan-reconstruction");
+    const { listActivePoliciesForBackend } = await import("@/lib/gateway/rpc-tasks-lifecycle");
+    const { buildTenantRegistry } = await import("@/lib/registry");
+    const { validateCandidatePlan } = await import("@/lib/authorization/plan-validator");
+    const { solveMinimumAuthority } = await import("@/lib/authorization/solver");
+    const { compileContract } = await import("@/lib/authorization/contract-compiler");
+    const contract = (
+      await db.query(
+        `select plan_id, input_hash, output_hash from public.task_authority_contracts
+          where task_id = $1 and contract_status = 'active'`,
+        [taskId],
+      )
+    ).rows[0];
+    const nodeRows = (
+      await db.query(`select * from public.plan_nodes where plan_id = $1`, [contract.plan_id])
+    ).rows;
+    expect(nodeRows[0].agent_generated).toEqual(["text"]);
+    const plan = reconstructCandidatePlan(taskId, nodeRows);
+    const registry = await buildTenantRegistry(ids.tenant);
+    const policies = await listActivePoliciesForBackend(keys.backend, ids.tenant);
+    expect(policies.status).toBe("ok");
+    const validation = validateCandidatePlan(plan, { registry, activePolicies: policies.policies });
+    const solverOutcome = solveMinimumAuthority({
+      requiredOperations: validation.requiredOperations,
+      registry,
+      forbiddenPermissionIds: new Set(),
+    });
+    if (solverOutcome.status !== "solved") throw new Error(solverOutcome.status);
+    const recompiled = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
+    expect(recompiled.inputHash).toBe(contract.input_hash);
+    expect(recompiled.outputHash).toBe(contract.output_hash);
+  });
+
+  it.each([
+    [
+      "the channel",
+      { ...SLACK_AGENT_TEXT, arguments: {}, resourceBinding: "C-eng-updates", agentGenerated: ["channel"] },
+    ],
+    ["a pinned text", { ...SLACK_AGENT_TEXT, arguments: { channel: "C-eng-updates", text: "Hi" } }],
+    [
+      "an email recipient",
+      {
+        id: "post",
+        sequence: 1,
+        tool: "gmail.send_email",
+        arguments: { subject: "Status" },
+        agentGenerated: ["to"],
+        expectedSideEffect: "write_create",
+      },
+    ],
+  ])("prepare excludes a step that makes %s agent-generated", async (_label, node) => {
+    const { prepared } = await newTask("Post a status summary.", [node]);
+    const excluded = (prepared.body.excludedSteps ??
+      (prepared.body.details as { excludedSteps?: unknown[] })?.excludedSteps) as Array<{ status: string }>;
+    expect(excluded).toEqual([expect.objectContaining({ status: "replan" })]);
   });
 });
 

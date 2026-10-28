@@ -85,6 +85,15 @@ export function defaultActionCheckDeps(): ActionCheckDeps {
 interface ContractAction {
   tool: string;
   constraints?: { key: string; equals: unknown }[];
+  generatedArguments?: string[];
+}
+
+/** Argument keys the contract declares as written by the agent for this tool (generated content). */
+export function generatedKeys(allowedActions: unknown, tool: string): Set<string> {
+  const items = ((allowedActions as { items?: ContractAction[] } | null)?.items ?? []).filter(
+    (a) => a.tool === tool,
+  );
+  return new Set(items.flatMap((a) => a.generatedArguments ?? []));
 }
 
 /** Argument keys whose value is pinned, verbatim, by a matching action in the active contract. */
@@ -135,6 +144,9 @@ async function review(
 ): Promise<Reviewed> {
   const pinned = pinnedKeys(ctx.allowedActions, input.tool, input.args);
   const unpinned = Object.keys(input.args).filter((k) => !pinned.has(k));
+  const declaredGenerated = generatedKeys(ctx.allowedActions, input.tool);
+  const written = unpinned.filter((k) => declaredGenerated.has(k));
+  const otherUnpinned = unpinned.filter((k) => !declaredGenerated.has(k));
 
   // Production: only explicit conflicts with values in the request are decided deterministically here; an
   // undetermined value may legitimately come from an earlier step's output, so it goes to the reviewer.
@@ -176,7 +188,10 @@ async function review(
 
   const related = [
     `Authorized by the task's contract${pinned.size ? ` with pinned values for: ${[...pinned].join(", ")}` : ""}.`,
-    unpinned.length ? `Values chosen at run time (not fixed by the plan): ${unpinned.join(", ")}.` : "",
+    written.length ? `Text the plan declared the agent writes: ${written.join(", ")}.` : "",
+    otherUnpinned.length
+      ? `${written.length ? "Other values" : "Values"} chosen at run time (not fixed by the plan): ${otherUnpinned.join(", ")}.`
+      : "",
     ctx.policy === "production" && objectives.prohibitions.length
       ? `The user forbids: ${objectives.prohibitions.join("; ")}.`
       : "",

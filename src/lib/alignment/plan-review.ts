@@ -67,6 +67,8 @@ export interface PlanStep {
   dependencies: string[];
   /** Argument keys bound to an earlier step's output. */
   derivedKeys: string[];
+  /** Argument keys the plan declares the agent writes at run time (generated content, not derived values). */
+  generatedKeys?: string[];
   /** Registry: argument keys that identify the resource. */
   resourceKeys: string[];
 }
@@ -169,7 +171,9 @@ async function productionReview(input: {
       (s) =>
         `step_id=${s.id} sequence=${s.sequence} tool=${s.tool} side_effect=${s.sideEffect}${
           s.dependencies.length ? ` depends_on=${s.dependencies.join(",")}` : ""
-        }${s.derivedKeys.length ? ` values_from_earlier_steps=${s.derivedKeys.join(",")}` : ""} arguments=${argsText(s.args)}`,
+        }${s.derivedKeys.length ? ` values_from_earlier_steps=${s.derivedKeys.join(",")}` : ""}${
+          s.generatedKeys?.length ? ` written_by_agent=${s.generatedKeys.join(",")}` : ""
+        } arguments=${argsText(s.args)}`,
     )
     .join("\n");
   const user = [
