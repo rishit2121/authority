@@ -40,6 +40,7 @@ import {
   callCreateCandidatePlan,
   callDecideContractApproval,
   callProposeTaskContract,
+  callRaiseTaskBudgets,
   callRejectContract,
   callRevokeTaskContract,
   callSubmitContractForApproval,
@@ -799,6 +800,32 @@ export async function revokeContractAction(
   try {
     const { context } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
     await callRevokeTaskContract(context, contractId, reason);
+    revalidatePath(`/app/tasks/${taskId}`);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: presentActionError(error) };
+  }
+}
+
+const RAISE_BUDGET_MESSAGES: Record<string, string> = {
+  forbidden: "Only admins and owners can renew a task's budgets.",
+  not_found: "Task not found.",
+  no_active_contract: "This task has no active contract to renew budgets for.",
+  invalid_request: "The note must be at most 500 characters.",
+};
+
+/**
+ * Renews the task-wide budgets for the task's active contract: each action's task-wide allowance becomes what the task
+ * has used plus that contract's maxInvocations. The contract's own per-version limits still apply, so a contract that
+ * has spent them needs a re-prepare to use the raise. Recorded with the person and note. The database checks the
+ * role; this is only the trigger.
+ */
+export async function raiseTaskBudgetsAction(taskId: string, note: string): Promise<ActionResult> {
+  try {
+    const { context } = await createRepositoriesForCurrentTenant(`/app/tasks/${taskId}`);
+    const status = await callRaiseTaskBudgets(context, taskId, note.trim());
+    if (status !== "ok")
+      return { ok: false, error: RAISE_BUDGET_MESSAGES[status] ?? "Could not renew budgets." };
     revalidatePath(`/app/tasks/${taskId}`);
     return { ok: true };
   } catch (error) {

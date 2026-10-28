@@ -283,6 +283,18 @@ export async function getContractForBackend(
  * for the ordinary "not eligible yet" case, since that is an expected,
  * common outcome (most contracts require a human), not an error.
  */
+/**
+ * The trusted backend asks for this contract's activation to renew the task-wide budgets (20261027000001).
+ * "ok", "not_eligible" (the contract is already active), "not_found", or a credential status.
+ */
+export async function requestBudgetRaiseForBackend(secret: string, contractId: string): Promise<string> {
+  const rows = await gatewayQuery<{ request_budget_raise_for_backend: string }>(
+    `select gateway.request_budget_raise_for_backend($1, $2::uuid) as request_budget_raise_for_backend`,
+    [secret, contractId],
+  );
+  return rows[0].request_budget_raise_for_backend;
+}
+
 export async function activateTaskContractForBackend(secret: string, contractId: string): Promise<string> {
   const rows = await gatewayQuery<{ activate_task_contract_for_backend: string }>(
     `select gateway.activate_task_contract_for_backend($1, $2::uuid) as activate_task_contract_for_backend`,

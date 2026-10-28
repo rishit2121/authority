@@ -6,7 +6,8 @@ import { z } from "zod";
 
 import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
 import { UNAUTHENTICATED, extractBearer, jsonError, jsonOk, newRequestId } from "@/lib/gateway/http";
-import { activeContractForTask, autoExecuteToolsForTask } from "@/lib/gateway/rpc";
+import { activeContractForTask, autoExecuteToolsForTask, taskActionBudgets } from "@/lib/gateway/rpc";
+import { constraintsKey, remainingInvocations } from "@/lib/authorization/task-budget";
 import { failureContract } from "@/lib/gateway/response";
 import { checkTaskReadAccess } from "@/lib/gateway/task-access";
 import { buildMcpToolCatalog } from "@/lib/mcp/bridge";
@@ -84,10 +85,12 @@ export async function GET(
   }
 
   const contract = await activeContractForTask(taskId);
-  const [registry, autoExecute] = await Promise.all([
+  const [registry, autoExecute, budgets] = await Promise.all([
     buildTenantRegistry(resolved.tenantId!),
     autoExecuteToolsForTask(taskId),
+    taskActionBudgets(taskId),
   ]);
+  const budgetByAction = new Map(budgets.map((b) => [`${b.tool} ${constraintsKey(b.constraints)}`, b]));
 
   // One entry per allowed action: a tool the plan uses with two different sets
   // of pinned arguments (e.g. two recipients) appears twice, each entry with its
@@ -104,6 +107,12 @@ export async function GET(
         inputSchema: jsonSchemaFor(t.operation.argumentFields),
         resourceConstraints: action?.constraints ?? [],
         maxInvocations: action?.maxInvocations ?? null,
+        // What is left to spend now: the lower of this contract version's remainder and the task-wide remainder,
+        // which counts use under earlier versions of the task too (20261027000001).
+        remainingInvocations: (() => {
+          const budget = action && budgetByAction.get(`${action.tool} ${constraintsKey(action.constraints)}`);
+          return budget ? remainingInvocations(budget) : null;
+        })(),
         // The only unpinned arguments this action accepts; any other key is refused. null: a contract compiled
         // before closed-world arguments, which accepts extra keys.
         openArguments: action?.openArguments ?? null,

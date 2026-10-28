@@ -268,6 +268,23 @@ export async function callActivateTaskContract(
   if (error) throwDatabaseError("activate task contract", error);
 }
 
+/**
+ * A person renews the task-wide budgets of the task's active contract (20261027000001). Admins and owners only; the
+ * database enforces the role. Returns "ok", "forbidden", "not_found", "no_active_contract" or "invalid_request".
+ */
+export async function callRaiseTaskBudgets(
+  context: RepositoryContext,
+  taskId: string,
+  note: string,
+): Promise<string> {
+  const { data, error } = await context.supabase.rpc("raise_task_budgets", {
+    p_task_id: taskId,
+    p_note: note,
+  });
+  if (error) throwDatabaseError("raise task budgets", error);
+  return data as string;
+}
+
 export async function callRevokeTaskContract(
   context: RepositoryContext,
   contractId: string,

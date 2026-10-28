@@ -29,6 +29,7 @@ import type { Json } from "@/lib/supabase/database.types";
 import { buildTenantRegistry } from "@/lib/registry";
 import {
   activateTaskContractForBackend,
+  requestBudgetRaiseForBackend,
   createCandidatePlanForBackend,
   getTaskForBackend,
   listActivePoliciesForBackend,
@@ -89,6 +90,13 @@ export interface ExcludedStep {
   reasons: string[];
 }
 
+/**
+ * Task-wide budgets (20261027000001): "inherited" -- this contract draws on what earlier versions of the task already
+ * used; "raised" -- the backend asked for a raise and it was applied at activation; "raise_on_activation" -- asked
+ * for, applied when a person activates the contract.
+ */
+export type PrepareBudgets = "inherited" | "raised" | "raise_on_activation";
+
 export type PrepareTaskOutcome =
   | {
       status: "ready";
@@ -98,6 +106,7 @@ export type PrepareTaskOutcome =
       excludedSteps: ExcludedStep[];
       alignment?: PlanAlignmentSummary;
       checks?: PrepareChecks;
+      budgets: PrepareBudgets;
     }
   | {
       status: "awaiting_approval";
@@ -107,6 +116,7 @@ export type PrepareTaskOutcome =
       excludedSteps: ExcludedStep[];
       alignment?: PlanAlignmentSummary;
       checks?: PrepareChecks;
+      budgets: PrepareBudgets;
     }
   /**
    * Enforced task-alignment review did not clear the plan. "revise": submit a different plan (or have the
@@ -121,6 +131,7 @@ export type PrepareTaskOutcome =
       excludedSteps: ExcludedStep[];
       alignment: PlanAlignmentSummary;
       checks?: PrepareChecks;
+      budgets: PrepareBudgets;
     }
   | { status: "clarification"; reason: string; details?: unknown }
   | { status: "rejected"; reason: string }
@@ -135,6 +146,8 @@ export interface PrepareTaskInput {
   plan?: unknown;
   generate?: boolean;
   idempotencyKey?: string | null;
+  /** Renew the task-wide budgets of this contract's actions when it activates. Backend credential only. */
+  raiseBudgets?: boolean;
 }
 
 /** Every step the validator did not include in the contract, with the validator's own reasons. */
@@ -409,6 +422,17 @@ export async function prepareTask(
     return { ok: false, status: contractResult.status };
   }
 
+  // An explicit raise is recorded before activation and applied by it, so it also holds when a person activates a
+  // contract that waits for approval. "not_eligible" means the contract is already active (a replayed prepare):
+  // nothing is raised.
+  let raiseRequested = false;
+  if (input.raiseBudgets) {
+    const raise = await requestBudgetRaiseForBackend(input.credentialSecret, contractResult.contractId);
+    if (raise !== "ok" && raise !== "not_eligible") return { ok: false, status: raise };
+    raiseRequested = raise === "ok";
+  }
+  const pendingBudgets: PrepareBudgets = raiseRequested ? "raise_on_activation" : "inherited";
+
   let alignmentSummary: PlanAlignmentSummary | undefined;
   if (alignment) {
     const reviewId =
@@ -429,6 +453,7 @@ export async function prepareTask(
           excludedSteps,
           alignment: alignmentSummary,
           checks: { planReview: "ran" },
+          budgets: pendingBudgets,
         },
       };
     }
@@ -446,6 +471,7 @@ export async function prepareTask(
         excludedSteps,
         ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
         checks: { planReview: alignmentSummary ? "ran" : "not_run" },
+        budgets: raiseRequested ? "raised" : "inherited",
       },
     };
   }
@@ -460,6 +486,7 @@ export async function prepareTask(
       excludedSteps,
       ...(alignmentSummary ? { alignment: alignmentSummary } : {}),
       checks: { planReview: alignmentSummary ? "ran" : "not_run" },
+      budgets: pendingBudgets,
     },
   };
 }
