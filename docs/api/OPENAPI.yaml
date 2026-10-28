@@ -719,6 +719,11 @@ paths:
                 plan: { $ref: "#/components/schemas/CandidatePlan" }
                 generate: { type: boolean, description: "Mutually exclusive with `plan`." }
                 idempotencyKey: { type: string, minLength: 1, maxLength: 200 }
+                raiseBudgets:
+                  type: boolean
+                  description: >-
+                    Renew the task-wide budgets of this contract's actions when it activates: each becomes the task's
+                    use so far plus the action's maxInvocations. Otherwise they are inherited from earlier versions.
       responses:
         "200":
           description: A typed outcome — see the five variants below.
@@ -1343,6 +1348,13 @@ components:
           description: Which optional checks ran. `not_run` is never a pass.
           properties:
             planReview: { type: string, enum: [ran, not_run] }
+        budgets:
+          type: string
+          enum: [inherited, raised, raise_on_activation]
+          description: >-
+            Present for: ready, awaiting_approval, alignment_review. Task-wide budgets: `inherited` (this contract
+            draws on what earlier versions of the task used), `raised` (raiseBudgets was applied at activation),
+            `raise_on_activation` (applied when a person activates the contract).
         reason: { type: string, description: "Present for: clarification, rejected." }
         details:
           description: >-
@@ -1470,7 +1482,13 @@ components:
         maxInvocations:
           type: integer
           nullable: true
-          description: The remaining-uses budget this contract set for the tool, if any.
+          description: The budget this contract version set for the action, if any. See remainingInvocations.
+        remainingInvocations:
+          type: integer
+          nullable: true
+          description: >-
+            Uses left now: the lower of this contract version's remainder and the task-wide remainder, which also
+            counts use under earlier versions of the task. null when the action has no budget yet.
         openArguments:
           type: array
           nullable: true

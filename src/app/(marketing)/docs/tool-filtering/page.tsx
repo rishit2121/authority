@@ -48,7 +48,8 @@ export default function ToolFilteringPage() {
       "description": "read on issue.",
       "inputSchema": { "type": "object", "properties": { "issue_number": { "type": "string" } }, "required": ["issue_number"] },
       "resourceConstraints": [{ "key": "issue_number", "equals": "1" }],
-      "maxInvocations": null,
+      "maxInvocations": 2,
+      "remainingInvocations": 1,
       "requiresApproval": false
     }
   ]
@@ -67,7 +68,11 @@ export default function ToolFilteringPage() {
               "resourceConstraints",
               "This contract's own constraints on the operation, e.g. pinned to one resource. A tool the plan uses with different arguments (two recipients, two channels) appears once per argument set.",
             ],
-            ["maxInvocations", "The uses this contract allows for this entry, if limited."],
+            ["maxInvocations", "The uses this contract version allows for this entry, if limited."],
+            [
+              "remainingInvocations",
+              "Uses left now: the lower of this version's remainder and the task-wide remainder, which counts earlier versions too.",
+            ],
             [
               "requiresApproval",
               "Whether this operation needs human approval regardless of arguments — see Approvals.",

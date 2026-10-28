@@ -73,7 +73,10 @@ export default function ErrorsPage() {
               "CONSTRAINT_VIOLATION",
               "The arguments fall outside what the contract authorizes for this tool.",
             ],
-            ["INVOCATION_LIMIT_REACHED", "The use budget for this task or action is exhausted."],
+            [
+              "INVOCATION_LIMIT_REACHED",
+              "The use budget for this action or contract is exhausted. An action's budget spans every contract version of the task, so re-preparing does not reset it; the backend can prepare with raiseBudgets.",
+            ],
           ]}
         />
       </DocsSection>

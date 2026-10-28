@@ -191,12 +191,23 @@ contractId, version, reviewPath, alignment }`.
 `excludedSteps`: every submitted step that is not in the contract, with the validator's status and reasons. The
 contract is compiled from the remaining steps, so a `ready` contract can lack a step you asked for.
 
-**Budgets are per contract version.** `maxInvocations` (per allowed action) and `maxToolInvocations` (all
-actions) count uses under one contract version. An allow reserves a use when it issues the capability; a denial
-spends nothing; an execution that was definitely never dispatched returns its use (generic connectors and GitHub
-alike). Re-preparing a task, which needs the backend credential, produces a new contract version with a fresh
-budget: nothing spent under the previous version carries over. If you need a ceiling across re-preparations,
-enforce it in your application; a task-wide cumulative budget is not implemented.
+**Budgets.** An allow reserves a use when it issues the capability. A denial spends nothing, and an execution that
+was definitely never dispatched returns its use (generic connectors and GitHub alike). Two limits apply to every call:
+
+- **Per contract version.** `maxInvocations` per allowed action, and `maxToolInvocations` across all actions.
+- **Task-wide, per action** (since migration `20261027000001`). An action is a tool with its exact pinned values.
+  Its use is counted across every contract version of the task. The allowance is set when the action first appears,
+  and re-preparing inherits it: a new version with a higher `maxInvocations` is still capped. The denial is
+  `INVOCATION_LIMIT_REACHED`, with the detail "task-wide budget is exhausted".
+
+To renew, prepare with `raiseBudgets: true` (backend credential only). The new contract's activation sets each of
+its actions' allowance to the task's use so far plus `maxInvocations`. The outcome reports
+`budgets: "inherited" | "raised" | "raise_on_activation"`; the last means a person still has to activate the
+contract. A replayed prepare raises nothing. An admin can also renew from the task page in the dashboard. Every
+seed and raise is recorded in `task_budget_changes`.
+
+`GET /tasks/{taskId}/tools` gives each action `remainingInvocations`: the lower of the version's and the task's
+remainder. After a re-prepare the agent needs a new task session; the old one gets `409 SESSION_CONTRACT_STALE`.
 
 **Closed-world arguments.** Each allowed action lists `openArguments`, the free-text fields its plan left unpinned
 (shown per tool in `GET /tasks/{taskId}/tools`). `/authorize` refuses, with `CONSTRAINT_VIOLATION`, any argument

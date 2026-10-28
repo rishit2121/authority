@@ -7,10 +7,11 @@ to do about it. The guarantees Authority does make are in [SECURITY.md](SECURITY
 
 These four points most often lead to wrong assumptions. Each is described in more detail further down.
 
-1. **Budgets reset with every contract version.** `maxInvocations` limits calls within one contract version, not
-   across a task's lifetime. Re-preparing a task creates a new version with full budgets, so a backend that
-   re-prepares three times allows three times the calls. Authority has no cross-version ceiling. If you need one,
-   enforce it in your backend.
+1. **Budgets are task-wide per action, not per task.** An action's budget (a tool with its exact pinned values)
+   counts across every contract version of the task, so re-preparing does not reset it. Only the trusted backend
+   (`raiseBudgets: true` on prepare) or an admin raises it. Two gaps remain. A step with a different pinned value
+   is a different action, with its own budget. And there is no cap across all of a task's actions: the contract
+   total (`maxToolInvocations`) is still per version.
 2. **Unresolved security-relevant derived values are unsupported.** A recipient, channel, id, path, branch or amount
    that would come from an earlier step's output cannot be authorized. Authority does not defer it or check it at
    runtime. Prepare excludes the step (`excludedSteps`, status `replan`). Resolve the value in your trusted
@@ -79,9 +80,13 @@ These four points most often lead to wrong assumptions. Each is described in mor
 
 ## Budgets and replanning
 
-- **Budgets belong to a contract version.** Re-preparing a task (backend credential only) produces a new version
-  with a fresh budget; nothing carries over. A task-wide ceiling across versions is not implemented; enforce one in
-  your application if you need it.
+- **Task-wide budgets carry over only for the identical action.** The identity is the tool plus its exact pinned
+  values. A new pinned value, or a glob pattern, is a separate action with its own budget. The contract-wide total
+  (`maxToolInvocations`) stays per version, so a backend that re-prepares with new actions can still grant more
+  calls in total. Each new action is explicit in a plan that only the trusted backend can submit.
+- **An admin's renewal raises the allowance, not the contract's own limits.** Contracts are immutable. Renewing lets
+  a re-prepared contract that was blocked by an inherited budget continue. A contract that has spent its own limits
+  needs a re-prepare.
 - **Changing a task's scope means re-preparing.** There is no bounded "child authorization" inside an envelope yet;
   a new recipient or a higher amount needs a new plan from the trusted backend (or a person). Proposed, not built.
 
