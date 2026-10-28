@@ -3484,6 +3484,7 @@ export type Database = {
       };
       plan_nodes: {
         Row: {
+          agent_generated: string[];
           created_at: string;
           data_flow_refs: Json | null;
           declared_outputs: Json | null;
@@ -3506,6 +3507,7 @@ export type Database = {
           validation_status: Database["public"]["Enums"]["plan_node_validation_status"] | null;
         };
         Insert: {
+          agent_generated?: string[];
           created_at?: string;
           data_flow_refs?: Json | null;
           declared_outputs?: Json | null;
@@ -3528,6 +3530,7 @@ export type Database = {
           validation_status?: Database["public"]["Enums"]["plan_node_validation_status"] | null;
         };
         Update: {
+          agent_generated?: string[];
           created_at?: string;
           data_flow_refs?: Json | null;
           declared_outputs?: Json | null;
