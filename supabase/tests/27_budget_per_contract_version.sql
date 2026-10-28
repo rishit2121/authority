@@ -1,9 +1,10 @@
--- Invocation budgets belong to a contract version, not to the task. A new contract for the same task (what
--- re-preparing a task produces, which needs the trusted backend credential, never the agent's) starts with a
--- fresh budget; nothing spent under the previous version carries over. This suite pins that behavior so the
--- documentation cannot drift from it. A task-wide ceiling across versions is not implemented.
+-- An action's invocation budget belongs to the task, not to one contract version (20261027000001). A new contract
+-- for the same task (what re-preparing produces) inherits what the previous versions already used for the same
+-- action, and a higher maxInvocations in the new version does not raise it; only an explicit raise does (see suite 28).
+-- Contracts here are inserted already active, as earlier suites do: the allowance is then seeded by the first
+-- reservation, which is the path every reservation takes.
 
-select plan(4);
+select plan(5);
 
 set local role postgres;
 
@@ -53,10 +54,17 @@ select t(ok((select fin::text from public.t27('k1')) in ('allow', 'allow_constra
 select t(ok((select fin::text from public.t27('k2')) in ('allow', 'allow_constrained'), 'second call under version 1 is allowed'));
 select t(is((select reasons from public.t27('k3')), array['INVOCATION_LIMIT_REACHED'], 'a third call exhausts version 1''s budget'));
 
--- Version 2 for the same task (as re-preparing would produce): a fresh budget.
+-- Version 2 for the same task (as re-preparing would produce): it inherits the task-wide budget.
 update public.task_authority_contracts set contract_status = 'revoked', revoked_at = now(), revocation_reason = 'test27: replaced'
   where id = '27000000-0000-4000-8000-0000000000a1';
 select public.t27_activate('27000000-0000-4000-8000-0000000000a2', 2, 2);
-select t(ok((select fin::text from public.t27('k4')) in ('allow', 'allow_constrained'),
-  'a new contract version starts with a fresh budget: nothing spent under version 1 carries over'));
+select t(is((select reasons from public.t27('k4')), array['INVOCATION_LIMIT_REACHED'],
+  'a new contract version inherits the task-wide budget: what version 1 spent still counts'));
+
+-- Version 3 asks for more (maxInvocations 5) without an explicit raise: still capped by the task's allowance.
+update public.task_authority_contracts set contract_status = 'revoked', revoked_at = now(), revocation_reason = 'test27: replaced'
+  where id = '27000000-0000-4000-8000-0000000000a2';
+select public.t27_activate('27000000-0000-4000-8000-0000000000a3', 3, 5);
+select t(is((select reasons from public.t27('k5')), array['INVOCATION_LIMIT_REACHED'],
+  'a later version with a higher maxInvocations does not raise the task-wide budget implicitly'));
 select * from finish();
