@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SemanticEvidence } from "@/lib/domain";
 
-import { gatewayQuery } from "./db";
+import { GatewayDatabaseError, gatewayQuery } from "./db";
 import type { TaskActionBudget } from "@/lib/authorization/task-budget";
 
 /**
@@ -313,7 +313,22 @@ export async function autoExecuteToolsForTask(taskId: string): Promise<ReadonlyS
   return new Set(rows[0]?.tools ?? []);
 }
 
+/**
+ * Per-action budgets of the task's active contract. Empty when the database predates migration 20261027000001
+ * (gateway.task_action_budgets does not exist yet), so deploying this code before the migration only omits
+ * remainingInvocations instead of failing the manifest.
+ */
 export async function taskActionBudgets(taskId: string): Promise<TaskActionBudget[]> {
+  try {
+    return await readTaskActionBudgets(taskId);
+  } catch (error) {
+    // 42883: undefined_function.
+    if (error instanceof GatewayDatabaseError && error.sqlstate === "42883") return [];
+    throw error;
+  }
+}
+
+async function readTaskActionBudgets(taskId: string): Promise<TaskActionBudget[]> {
   const rows = await gatewayQuery<{
     tab_tool: string;
     tab_resource_constraints: { items?: TaskActionBudget["constraints"] } | null;
