@@ -12,7 +12,8 @@ Two things agents legitimately need are unsafe or impossible today:
    unsafe: nothing checked that the value at call time came from step 1, so it was effectively any value (fixed by
    restricting data flow to free text).
 2. **Adapting mid-task without widening authority.** Today a different recipient or a higher amount needs a new
-   plan from the trusted backend, which also resets the budget silently (budgets belong to a contract version).
+   plan from the trusted backend. (Re-preparing no longer resets an action's budget: task-wide budgets per action
+   are built, migration 20261027000001.)
 
 ## 2. Receipt-derived values (provenance)
 
@@ -37,7 +38,8 @@ reports utility costs under its own assumptions; those numbers do not transfer t
 ## 3. Bounded replanning
 
 Idea: a **trusted envelope** set by the backend or a person, inside which an agent can obtain **child authorizations**
-without a new plan, plus **cumulative task budgets** that no new contract version can reset.
+without a new plan, plus **cumulative task budgets** that no new contract version can reset. (Built for invocation
+counts per action: `task_action_allowances`. Cumulative numeric sums, such as a refund total, are not built.)
 
 - **Envelope.** Typed limits per operation, e.g. "refunds only for this customer's payments, total at most $20, no
   email", or "messages only to channels in this list". Expressed as constraint sets the evaluator already understands

@@ -13,8 +13,9 @@ can execute provider actions itself so the agent never holds provider credential
 >
 > - **Open free text.** A message body, subject or title that the plan leaves open, or binds to an earlier step, can
 >   say anything. Authority pins targets and values, not content.
-> - **Budgets are per contract version.** `maxInvocations` resets each time a task is re-prepared. There is no
->   task-wide ceiling.
+> - **Budgets carry across re-preparation only for the same action.** An action's `maxInvocations` (tool plus its
+>   exact pinned values) counts over every contract version of the task, and only the backend or an admin can raise
+>   it. A step with a new pinned value is a new action with its own budget, and there is no total across all actions.
 > - **Model review is optional and probabilistic.** Task alignment, content screening and risk review can only
 >   narrow a decision, and they are off unless you turn them on. Backend prepare skips Jev checks but can run
 >   task-alignment plan review. If you ask for an AI-drafted plan (`generate: true`), a model chooses the task's

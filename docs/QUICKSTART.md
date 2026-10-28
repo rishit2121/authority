@@ -113,7 +113,8 @@ curl -sS -X POST "$AUTHORITY_URL/api/v1/authorize" \
 ```
 
 That call is allowed, whatever text the agent wrote. The same call to `C-general` is denied, and so is a second post
-once the step's budget (`maxInvocations`, default 1) is spent. `src/tests/local/real-api-evaluation.test.ts` runs
+once the step's budget (`maxInvocations`, default 1) is spent. Re-preparing the same plan does not reset that budget;
+prepare with `raiseBudgets: true` when you mean to allow another post. `src/tests/local/real-api-evaluation.test.ts` runs
 exactly this plan.
 
 What each field may do:
