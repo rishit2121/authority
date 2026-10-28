@@ -13,6 +13,8 @@ import { reconcileExpiredReservations } from "@/lib/gateway/rpc-github";
 import { loadRuntimeApprovals, loadTaskGithub } from "@/lib/github/read-model";
 import { SemanticShadowPanel, type SemanticPanelRow } from "@/components/semantic/SemanticShadowPanel";
 import { ConnectAgentTaskPanel } from "@/components/task/ConnectAgentTaskPanel";
+import { TaskBudgetsPanel, type TaskBudgetRow } from "@/components/task/TaskBudgetsPanel";
+import { constraintsKey } from "@/lib/authorization/task-budget";
 import { TaskInvestigationView } from "@/components/task/TaskInvestigationView";
 import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
 import { loadTaskInvestigation } from "@/lib/data/task";
@@ -198,6 +200,39 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
     retained: Boolean(i.vault_secret_id && i.retained_until && Date.parse(i.retained_until) > Date.now()),
     createdAt: i.created_at,
   }));
+  // Task-wide budgets, read through the caller's own RLS scope: the allowance per action and what every contract
+  // version of the task has used of it (20261027000001).
+  const [{ data: allowanceRows }, { data: usageRows }] = await Promise.all([
+    context.supabase
+      .from("task_action_allowances")
+      .select("tool, resource_constraints, allowance")
+      .eq("task_id", taskId)
+      .order("created_at", { ascending: true }),
+    context.supabase
+      .from("capabilities")
+      .select("tool, resource_constraints, consumed_uses")
+      .eq("task_id", taskId),
+  ]);
+  const itemsOf = (rc: unknown) => ((rc ?? {}) as { items?: unknown[] }).items ?? [];
+  const usedByAction = new Map<string, number>();
+  for (const u of usageRows ?? []) {
+    const key = `${u.tool} ${constraintsKey(itemsOf(u.resource_constraints))}`;
+    usedByAction.set(key, (usedByAction.get(key) ?? 0) + u.consumed_uses);
+  }
+  const budgetRows: TaskBudgetRow[] = (allowanceRows ?? []).map((a) => {
+    const items = itemsOf(a.resource_constraints) as Array<{
+      key?: string;
+      equals?: string;
+      matches?: string;
+    }>;
+    return {
+      tool: a.tool,
+      constraintsLabel: items.map((c) => `${c.key} = ${c.equals ?? c.matches ?? ""}`).join(", "),
+      allowance: a.allowance,
+      used: usedByAction.get(`${a.tool} ${constraintsKey(items)}`) ?? 0,
+    };
+  });
+
   const showAlignment =
     Boolean(alignmentObjectives) || alignmentReviews.length > 0 || contentItems.length > 0;
 
@@ -219,6 +254,11 @@ export default async function TaskInvestigationPage({ params }: { params: Promis
           canDecide={["security_admin", "admin", "owner"].includes(identity.role)}
         />
       ) : null}
+      <TaskBudgetsPanel
+        taskId={taskId}
+        rows={budgetRows}
+        canRenew={["admin", "owner"].includes(identity.role)}
+      />
       <GithubTaskPanel data={githubData} />
       <SemanticShadowPanel rows={panelRows} />
     </div>

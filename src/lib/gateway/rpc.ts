@@ -3,6 +3,7 @@ import "server-only";
 import type { SemanticEvidence } from "@/lib/domain";
 
 import { gatewayQuery } from "./db";
+import type { TaskActionBudget } from "@/lib/authorization/task-budget";
 
 /**
  * Typed wrappers over the `gateway.*` functions. Every function here maps 1:1
@@ -310,6 +311,25 @@ export async function autoExecuteToolsForTask(taskId: string): Promise<ReadonlyS
     [taskId],
   );
   return new Set(rows[0]?.tools ?? []);
+}
+
+export async function taskActionBudgets(taskId: string): Promise<TaskActionBudget[]> {
+  const rows = await gatewayQuery<{
+    tab_tool: string;
+    tab_resource_constraints: { items?: TaskActionBudget["constraints"] } | null;
+    tab_allowance: number | null;
+    tab_task_used: number;
+    tab_version_max: number | null;
+    tab_version_used: number;
+  }>(`select * from gateway.task_action_budgets($1::uuid)`, [taskId]);
+  return rows.map((r) => ({
+    tool: r.tab_tool,
+    constraints: r.tab_resource_constraints?.items ?? [],
+    allowance: r.tab_allowance,
+    taskUsed: Number(r.tab_task_used),
+    versionMax: r.tab_version_max,
+    versionUsed: Number(r.tab_version_used),
+  }));
 }
 
 export interface ActiveContractSummary {

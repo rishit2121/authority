@@ -40,6 +40,8 @@ const requestSchema = z
     plan: z.unknown().optional(),
     generate: z.boolean().optional(),
     idempotencyKey: z.string().min(1).max(200).optional(),
+    /** Renew the task-wide budgets of this contract's actions when it activates (otherwise they are inherited). */
+    raiseBudgets: z.boolean().optional(),
   })
   .strict()
   .refine((v) => (v.generate ? v.plan === undefined : v.plan !== undefined), {
@@ -89,6 +91,7 @@ export async function POST(
       plan: parsed.data.plan,
       generate: parsed.data.generate,
       idempotencyKey: parsed.data.idempotencyKey ?? null,
+      raiseBudgets: parsed.data.raiseBudgets === true,
     });
     if (!result.ok) {
       return jsonError(developerApiFailureContract(result.status), requestId);

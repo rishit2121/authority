@@ -60,7 +60,11 @@ export interface EvaluateOptions {
   taskIntent?: string;
   priorPlanTools?: string[];
   thresholds?: Partial<EvaluationThresholds>;
-  /** Invocations already spent under this contract version (budgets do not carry across versions). */
+  /**
+   * Invocations already spent under this contract version. This in-memory evaluator models only the contract-wide
+   * total; per-action and task-wide budgets (which span contract versions, 20261027000001) are enforced in SQL by
+   * gateway.evaluate_deterministic.
+   */
   usedInvocations?: number;
   now?: () => Date;
   idFactory?: () => string;
