@@ -59,6 +59,16 @@ export const candidatePlanNodeSchema = z
     /** Named outputs this node claims to produce, referenceable by later nodes' `dataFlowRefs`. */
     declaredOutputs: z.array(z.string().min(1).max(100)).max(10).default([]),
     dataFlowRefs: z.array(dataFlowRefSchema).max(20).default([]),
+    /**
+     * Free-text argument keys the agent writes at run time (a message body, subject or title). Each must be a
+     * registry `freeText` field that this node neither pins nor takes from an earlier step. This is how a required
+     * free-text field is left to the agent; recipients, channels, ids and amounts are never agent-generated.
+     */
+    agentGenerated: z
+      .array(z.string().min(1).max(100))
+      .max(20)
+      .refine((keys) => new Set(keys).size === keys.length, { message: "agentGenerated keys must be unique" })
+      .optional(),
     expectedSideEffect: candidateSideEffectSchema,
     maxInvocations: z.number().int().positive().max(20).default(1),
   })
@@ -75,3 +85,20 @@ export const candidatePlanSchema = z
   })
   .strict();
 export type CandidatePlan = z.infer<typeof candidatePlanSchema>;
+
+/**
+ * An empty `agentGenerated` list means the same as none. Dropping it right after parsing makes a plan hash
+ * identically however it was submitted and however it is reloaded from storage (the dashboard re-verifies by hash).
+ * Kept out of the schema itself: the AI planners derive a JSON Schema from it, which cannot express a transform.
+ */
+export function normalizeCandidatePlan(plan: CandidatePlan): CandidatePlan {
+  return {
+    ...plan,
+    nodes: plan.nodes.map((node) => {
+      if (node.agentGenerated && node.agentGenerated.length > 0) return node;
+      const { agentGenerated: _empty, ...rest } = node;
+      void _empty;
+      return rest;
+    }),
+  };
+}

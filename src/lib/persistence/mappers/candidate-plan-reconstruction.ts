@@ -1,4 +1,4 @@
-import { candidatePlanSchema, type CandidatePlan } from "@/lib/domain";
+import { candidatePlanSchema, normalizeCandidatePlan, type CandidatePlan } from "@/lib/domain";
 
 import { throwInvalidRow } from "../errors";
 import type { Tables } from "../db-types";
@@ -51,6 +51,8 @@ export function reconstructCandidatePlan(
         dependencies: row.dependencies ?? [],
         declaredOutputs: declaredOutputsPayload?.outputs ?? [],
         dataFlowRefs: dataFlowRefsPayload?.refs ?? [],
+        agentGenerated:
+          row.agent_generated && row.agent_generated.length > 0 ? row.agent_generated : undefined,
         expectedSideEffect: row.expected_effect ?? undefined,
         maxInvocations: row.max_invocations ?? undefined,
       };
@@ -60,5 +62,5 @@ export function reconstructCandidatePlan(
   if (!result.success) {
     throwInvalidRow("reconstructed_candidate_plan", taskId, result.error);
   }
-  return result.data;
+  return normalizeCandidatePlan(result.data);
 }

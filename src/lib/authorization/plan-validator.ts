@@ -184,9 +184,37 @@ function evaluateNode(node: CandidatePlanNode, options: PlanValidatorOptions): P
     }
   }
 
+  // Agent-generated arguments: content the agent writes at run time (a message body, subject or title). Only a
+  // registry `freeText` field qualifies, and only when this node neither pins it nor takes it from an earlier step.
+  // A recipient, channel, id, path, branch or amount is never agent-generated.
+  const generatedArgumentKeys = new Set(node.agentGenerated ?? []);
+  for (const key of generatedArgumentKeys) {
+    const field = operation.argumentFields.find((f) => f.key === key);
+    if (!field) {
+      push("replan", `agentGenerated names argument "${key}", which ${node.tool} does not have`);
+    } else if (field.freeText !== true || field.identifiesResource) {
+      push(
+        "replan",
+        `argument "${key}" of ${node.tool} cannot be written by the agent: only free-text fields can; a recipient, channel, id, path, branch or amount must be pinned in the plan`,
+      );
+    } else if (boundArgumentKeys.has(key)) {
+      push(
+        "replan",
+        `argument "${key}" of ${node.tool} is both pinned and marked agentGenerated; choose one`,
+      );
+    } else if (dataFlowArgumentKeys.has(key)) {
+      push(
+        "replan",
+        `argument "${key}" of ${node.tool} is both taken from an earlier step and marked agentGenerated; choose one`,
+      );
+    }
+  }
+
   for (const field of operation.argumentFields) {
     const hasConcrete = Object.hasOwn(node.arguments, field.key);
     const hasDataFlow = dataFlowArgumentKeys.has(field.key);
+    const hasGenerated =
+      generatedArgumentKeys.has(field.key) && field.freeText === true && !field.identifiesResource;
 
     if (hasConcrete && !argumentTypeMatches(field, node.arguments[field.key])) {
       push("replan", `argument "${field.key}" must be of type ${field.type} for ${node.tool}`);
@@ -203,7 +231,7 @@ function evaluateNode(node: CandidatePlanNode, options: PlanValidatorOptions): P
       continue;
     }
 
-    if (hasConcrete || hasDataFlow) continue;
+    if (hasConcrete || hasDataFlow || hasGenerated) continue;
 
     // Neither a concrete value nor a data-flow binding is present. A
     // resource-identifying field must always be bound regardless of its own

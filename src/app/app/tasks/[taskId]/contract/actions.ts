@@ -34,7 +34,12 @@ import {
   type PlanValidationResult,
 } from "@/lib/authorization/plan-validator";
 import { solveMinimumAuthority } from "@/lib/authorization/solver";
-import { candidatePlanSchema, type ApprovalRequirement, type CandidatePlan } from "@/lib/domain";
+import {
+  candidatePlanSchema,
+  normalizeCandidatePlan,
+  type ApprovalRequirement,
+  type CandidatePlan,
+} from "@/lib/domain";
 import {
   callActivateTaskContract,
   callCreateCandidatePlan,
@@ -258,7 +263,7 @@ export async function proposeContractAction(
         error: `The candidate plan does not match the expected structure: ${parsed.error.issues[0]?.message ?? "invalid shape"}`,
       };
     }
-    const plan: CandidatePlan = parsed.data;
+    const plan: CandidatePlan = normalizeCandidatePlan(parsed.data);
     if (plan.taskId !== taskId) {
       return { ok: false, error: "The candidate plan's taskId does not match this task." };
     }
@@ -360,6 +365,7 @@ export async function proposeContractAction(
         dependencies: n.dependencies,
         declaredOutputs: n.declaredOutputs,
         dataFlowRefs: n.dataFlowRefs,
+        agentGenerated: n.agentGenerated,
         maxInvocations: n.maxInvocations,
         validationStatus,
         expectedSideEffect: n.expectedSideEffect,

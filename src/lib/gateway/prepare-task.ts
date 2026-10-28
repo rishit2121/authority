@@ -24,7 +24,7 @@ import { compileContract } from "@/lib/authorization/contract-compiler";
 import { verifyCompiledContract } from "@/lib/authorization/contract-verifier";
 import { PlanStructureError, validateCandidatePlan } from "@/lib/authorization/plan-validator";
 import { solveMinimumAuthority } from "@/lib/authorization/solver";
-import { candidatePlanSchema, type CandidatePlan } from "@/lib/domain";
+import { candidatePlanSchema, normalizeCandidatePlan, type CandidatePlan } from "@/lib/domain";
 import type { Json } from "@/lib/supabase/database.types";
 import { buildTenantRegistry } from "@/lib/registry";
 import {
@@ -178,6 +178,7 @@ function nodesFor(plan: CandidatePlan, validation: ReturnType<typeof validateCan
       dependencies: n.dependencies,
       declaredOutputs: n.declaredOutputs,
       dataFlowRefs: n.dataFlowRefs,
+      agentGenerated: n.agentGenerated,
       maxInvocations: n.maxInvocations,
       validationStatus: finding?.status ?? "pending",
       expectedSideEffect: n.expectedSideEffect,
@@ -281,7 +282,7 @@ export async function prepareTask(
       },
     };
   }
-  const plan: CandidatePlan = parsed.data;
+  const plan: CandidatePlan = normalizeCandidatePlan(parsed.data);
   if (plan.taskId !== input.taskId) {
     return {
       ok: true,

@@ -39,7 +39,7 @@ import type { SolverOutcome } from "./solver";
  * excluded exactly as before, unconditionally, with no path to reconsideration.
  */
 
-export const COMPILER_VERSION = "authority-compiler-2026-10-23-9";
+export const COMPILER_VERSION = "authority-compiler-2026-10-28-10";
 export const DEFAULT_CONTRACT_EXPIRY_SECONDS = 3600;
 export const SPEC_VERSION = "v1";
 
@@ -99,7 +99,7 @@ function includedNodes(plan: CandidatePlan, validation: PlanValidationResult): C
 function buildAllowedActions(nodes: readonly CandidatePlanNode[], registry: LoadedRegistry): AllowedAction[] {
   const byAction = new Map<
     string,
-    { tool: string; maxInvocations: number; constraints: Array<[string, string]> }
+    { tool: string; maxInvocations: number; constraints: Array<[string, string]>; generated: Set<string> }
   >();
 
   for (const node of nodes) {
@@ -121,8 +121,14 @@ function buildAllowedActions(nodes: readonly CandidatePlanNode[], registry: Load
     }
     const constraints = [...constraintKeys.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const actionKey = JSON.stringify([node.tool, constraints]);
-    const entry = byAction.get(actionKey) ?? { tool: node.tool, maxInvocations: 0, constraints };
+    const entry = byAction.get(actionKey) ?? {
+      tool: node.tool,
+      maxInvocations: 0,
+      constraints,
+      generated: new Set<string>(),
+    };
     entry.maxInvocations += node.maxInvocations;
+    for (const key of node.agentGenerated ?? []) entry.generated.add(key);
     byAction.set(actionKey, entry);
   }
 
@@ -135,11 +141,15 @@ function buildAllowedActions(nodes: readonly CandidatePlanNode[], registry: Load
         .filter((f) => f.freeText === true && !pinned.has(f.key))
         .map((f) => f.key)
         .sort();
+      // The open arguments the plan explicitly declared as written by the agent (always a subset of
+      // openArguments), so generated content is told apart from values taken from earlier steps.
+      const generatedArguments = [...entry.generated].filter((key) => openArguments.includes(key)).sort();
       return {
         tool: entry.tool,
         constraints: entry.constraints.map(([key, value]) => ({ key, equals: value })),
         maxInvocations: entry.maxInvocations,
         openArguments,
+        ...(generatedArguments.length > 0 ? { generatedArguments } : {}),
       };
     });
 }
@@ -161,6 +171,9 @@ function normalizedInput(
       dependencies: [...n.dependencies].sort(),
       declaredOutputs: [...n.declaredOutputs].sort(),
       dataFlowRefs: n.dataFlowRefs,
+      ...(n.agentGenerated && n.agentGenerated.length > 0
+        ? { agentGenerated: [...n.agentGenerated].sort() }
+        : {}),
       expectedSideEffect: n.expectedSideEffect,
       maxInvocations: n.maxInvocations,
     })),
@@ -207,6 +220,15 @@ export function compileContract(input: CompileContractInput): CompiledContract {
       if (field?.freeText !== true) {
         throw new CompilationError(
           `node ${node.id}: data-flow binding for "${ref.argumentKey}" of ${node.tool}, which is not a free-text field`,
+        );
+      }
+    }
+    // The same rule for arguments the agent writes: free text only, and never also pinned.
+    for (const key of node.agentGenerated ?? []) {
+      const field = registry.operations.get(node.tool)?.argumentFields.find((f) => f.key === key);
+      if (field?.freeText !== true || field.identifiesResource || Object.hasOwn(node.arguments, key)) {
+        throw new CompilationError(
+          `node ${node.id}: "${key}" of ${node.tool} cannot be agent-generated: not an unpinned free-text field`,
         );
       }
     }

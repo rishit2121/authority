@@ -356,6 +356,7 @@ export interface ActiveContractSummary {
     constraints: unknown[];
     maxInvocations?: number;
     openArguments?: string[];
+    generatedArguments?: string[];
   }>;
 }
 
