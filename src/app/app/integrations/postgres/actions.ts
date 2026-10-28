@@ -22,6 +22,7 @@ import {
   type PostgresQueryEffect,
 } from "@/lib/gateway/rpc-postgres-queries";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { removeConnection } from "@/lib/persistence/remove-connection";
 
 export interface PostgresActionResult {
   ok: boolean;
@@ -255,4 +256,12 @@ export async function updatePostgresConnectionConfigAction(
   return result === "ok"
     ? { ok: true, message: "Connection settings updated." }
     : { ok: false, error: friendly(result) };
+}
+
+/** Removes a disconnected connection from this page (archived; its history is kept). Admins and owners only. */
+export async function removePostgresConnectionAction(connectionId: string): Promise<PostgresActionResult> {
+  const { context } = await createRepositoriesForCurrentTenant(PAGE);
+  const result = await removeConnection(context, connectionId);
+  revalidatePath(PAGE);
+  return result;
 }

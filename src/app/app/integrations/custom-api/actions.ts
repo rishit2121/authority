@@ -27,6 +27,7 @@ import {
   validateCustomOperation,
 } from "@/lib/gateway/rpc-custom-operations";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { removeConnection } from "@/lib/persistence/remove-connection";
 
 export interface CustomApiActionResult {
   ok: boolean;
@@ -326,4 +327,12 @@ export async function deleteCustomOperationDraftAction(operationId: string): Pro
   revalidatePath(PAGE);
   if (result !== "ok") return { ok: false, error: friendly(result) };
   return { ok: true, message: "Draft deleted." };
+}
+
+/** Removes a disconnected connection from this page (archived; its history is kept). Admins and owners only. */
+export async function removeCustomApiConnectionAction(connectionId: string): Promise<CustomApiActionResult> {
+  const { context } = await createRepositoriesForCurrentTenant(PAGE);
+  const result = await removeConnection(context, connectionId);
+  revalidatePath(PAGE);
+  return result;
 }
