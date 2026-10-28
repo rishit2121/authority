@@ -18,12 +18,9 @@ import {
 } from "@/lib/alignment/service";
 import type { AlignmentFinding } from "@/lib/alignment/types";
 import { getOpenRouterEnv } from "@/lib/openrouter/env";
-import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
-import { compileContract } from "@/lib/authorization/contract-compiler";
-import { verifyCompiledContract } from "@/lib/authorization/contract-verifier";
 import { PlanStructureError, validateCandidatePlan } from "@/lib/authorization/plan-validator";
-import { solveMinimumAuthority } from "@/lib/authorization/solver";
+import { compileVerifiedContract } from "@/lib/authorization/prepare-pipeline";
 import { candidatePlanSchema, normalizeCandidatePlan, type CandidatePlan } from "@/lib/domain";
 import type { Json } from "@/lib/supabase/database.types";
 import { buildTenantRegistry } from "@/lib/registry";
@@ -318,51 +315,27 @@ export async function prepareTask(
     };
   }
 
-  const solverOutcome = solveMinimumAuthority({
-    requiredOperations: validation.requiredOperations,
-    registry,
-    forbiddenPermissionIds: new Set(),
-  });
-  if (solverOutcome.status !== "solved") {
-    return {
-      ok: true,
-      outcome: {
-        status: "rejected",
-        reason: `The minimum-authority solver could not produce a contract (${solverOutcome.status}).`,
-      },
-    };
-  }
-
-  const compiled = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
-  const requiredApprovalsSpec = deriveRequiredApprovals({
-    candidatePlan: plan,
+  // The deterministic core shared with the dashboard (src/lib/authorization/prepare-pipeline.ts). Backend prepare
+  // compiles from the mechanical validation: it runs no Jev narrowing (see the module doc above).
+  const core = compileVerifiedContract({
+    plan,
     validation,
-    solverOutcome,
+    narrowed: false,
     registry,
     activePolicies,
-  });
-
-  const verification = verifyCompiledContract({
-    candidatePlan: plan,
-    registry,
-    activePolicies,
-    compiled,
     tenantId: task.tenantId,
     taskId: input.taskId,
-    maxAllowedExpirySeconds: 24 * 3600,
-    supportedRegistryVersions: [registry.registryVersion],
-    supportedCompilerVersions: [compiled.compilerVersion],
   });
-  if (!verification.ok) {
-    const firstFailure = verification.checks.find((c) => !c.passed);
+  if (!core.ok) {
     return {
       ok: true,
       outcome: {
         status: "rejected",
-        reason: `Independent verification failed: ${firstFailure?.detail ?? "unknown check"}`,
+        reason: core.stage === "solver" ? core.reason : `Independent verification failed: ${core.reason}`,
       },
     };
   }
+  const { solverOutcome, compiled, requiredApprovalsSpec, verification } = core;
 
   const inputHash = canonicalHash({
     schemaVersion: plan.schemaVersion,

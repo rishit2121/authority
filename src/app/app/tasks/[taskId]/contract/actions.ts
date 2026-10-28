@@ -24,16 +24,14 @@ import {
   persistCompletenessCheck,
   persistNecessityRecords,
 } from "@/lib/jev/propose-integration";
-import { deriveRequiredApprovals } from "@/lib/authorization/approval-rules";
 import { canonicalHash } from "@/lib/authorization/canonicalize";
-import { COMPILER_VERSION, compileContract } from "@/lib/authorization/contract-compiler";
-import { verifyCompiledContract } from "@/lib/authorization/contract-verifier";
+import { COMPILER_VERSION } from "@/lib/authorization/contract-compiler";
 import {
   PlanStructureError,
   validateCandidatePlan,
   type PlanValidationResult,
 } from "@/lib/authorization/plan-validator";
-import { solveMinimumAuthority } from "@/lib/authorization/solver";
+import { compileVerifiedContract, reproduceStoredContract } from "@/lib/authorization/prepare-pipeline";
 import {
   candidatePlanSchema,
   normalizeCandidatePlan,
@@ -310,48 +308,24 @@ export async function proposeContractAction(
       };
     }
 
-    const solverOutcome = solveMinimumAuthority({
-      requiredOperations: validation.requiredOperations,
-      registry,
-      forbiddenPermissionIds: new Set(),
-    });
-    if (solverOutcome.status !== "solved") {
-      return {
-        ok: false,
-        error: `The minimum-authority solver could not produce a contract (${solverOutcome.status}).`,
-      };
-    }
-
-    const compiled = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
-
-    const requiredApprovalsSpec = deriveRequiredApprovals({
-      candidatePlan: plan,
+    // The deterministic core shared with backend prepare (src/lib/authorization/prepare-pipeline.ts), compiled from
+    // Jev's adjusted validation; the verifier accepts it only as a narrowing of the mechanical one.
+    const core = compileVerifiedContract({
+      plan,
       validation,
-      solverOutcome,
+      narrowed: true,
       registry,
       activePolicies,
-    });
-
-    const verification = verifyCompiledContract({
-      candidatePlan: plan,
-      registry,
-      activePolicies,
-      compiled,
-      // Compiled from Jev's adjusted validation; the verifier accepts it only as a narrowing of the mechanical one.
-      narrowedValidation: validation,
       tenantId: identity.tenant.tenantId,
       taskId,
-      maxAllowedExpirySeconds: 24 * 3600,
-      supportedRegistryVersions: [registry.registryVersion],
-      supportedCompilerVersions: [compiled.compilerVersion],
     });
-    if (!verification.ok) {
-      const firstFailure = verification.checks.find((c) => !c.passed);
+    if (!core.ok) {
       return {
         ok: false,
-        error: `Independent verification failed: ${firstFailure?.detail ?? "unknown check"}`,
+        error: core.stage === "solver" ? core.reason : `Independent verification failed: ${core.reason}`,
       };
     }
+    const { solverOutcome, compiled, requiredApprovalsSpec, verification } = core;
 
     const planNodesInput: CreateCandidatePlanNodeInput[] = plan.nodes.map((n) => {
       const finding = validation.findings.find((f) => f.nodeId === n.id);
@@ -712,56 +686,53 @@ export async function activateContractAction(taskId: string, contractId: string)
       return { ok: false, error: "Re-validation found nothing left to authorize; this proposal is stale." };
     }
 
-    const activationTask = await repositories.tasks.findById(taskId);
-    if (!activationTask) return { ok: false, error: "That task could not be found." };
-    // Re-runs the SAME Jev necessity pipeline used at proposal time, under the tenant's CURRENT setting. In "shadow"
-    // mode (or when Jev is off/unconfigured) this reproduces the mechanical result exactly, so it never affects
-    // activation. In "enforce" mode it must be re-run here because the persisted contract's hash was computed from
-    // the *Jev-adjusted* plan, not the raw mechanical one — but because this calls a live model again rather than
-    // replaying the exact propose-time decision, a classification that comes back even slightly differently this
-    // time (Jev is not guaranteed byte-stable across calls) will correctly be treated as "this would compile
-    // differently now" below, the same conservative failure this check already gives for a registry/policy change.
-    // See docs/jev/OVERVIEW.md's limitations.
-    const { result: activationJevResult } = await loadModeAndRunPipeline({
-      context,
-      tenantId: identity.tenant.tenantId,
-      candidatePlan: plan,
-      taskIntent: activationTask.intent,
-      validation: mechanicalValidation,
+    // Re-derive the stored contract under the current registry and policies (src/lib/authorization/prepare-pipeline.ts).
+    // A contract equal to the mechanical compilation -- e.g. one prepared by the backend, which never runs Jev -- is
+    // accepted without re-running Jev; otherwise the SAME Jev necessity pipeline is re-run under the tenant's CURRENT
+    // setting. Because that calls a live model again rather than replaying the propose-time decision, a classification
+    // that comes back even slightly differently (Jev is not byte-stable) is treated as "this would compile differently
+    // now", the same conservative failure as a registry or policy change. See docs/jev/OVERVIEW.md's limitations.
+    const core = await reproduceStoredContract({
+      plan,
+      mechanicalValidation,
       registry,
       activePolicies,
+      tenantId: identity.tenant.tenantId,
+      taskId,
+      supportedCompilerVersions,
+      stored: { inputHash: contract.inputHash ?? "", outputHash: contract.outputHash ?? "" },
+      narrow: async () => {
+        const activationTask = await repositories.tasks.findById(taskId);
+        if (!activationTask) return { ...mechanicalValidation, includedNodeIds: [], requiredOperations: [] };
+        const { result } = await loadModeAndRunPipeline({
+          context,
+          tenantId: identity.tenant.tenantId,
+          candidatePlan: plan,
+          taskIntent: activationTask.intent,
+          validation: mechanicalValidation,
+          registry,
+          activePolicies,
+        });
+        return result.adjustedValidation;
+      },
     });
-    const validation = activationJevResult.adjustedValidation;
-    if (validation.includedNodeIds.length === 0) {
-      return { ok: false, error: "Re-validation found nothing left to authorize; this proposal is stale." };
-    }
-
-    const solverOutcome = solveMinimumAuthority({
-      requiredOperations: validation.requiredOperations,
-      registry,
-      forbiddenPermissionIds: new Set(),
-    });
-    if (solverOutcome.status !== "solved") {
-      return { ok: false, error: "Re-solving minimum authority failed; this proposal is stale." };
-    }
-
-    const recompiled = compileContract({ candidatePlan: plan, validation, solverOutcome, registry });
-    if (recompiled.inputHash !== contract.inputHash || recompiled.outputHash !== contract.outputHash) {
+    if (!core.ok) {
+      const errors: Record<string, string> = {
+        stale: "Re-solving minimum authority failed; this proposal is stale.",
+        nothing_left: "Re-validation found nothing left to authorize; this proposal is stale.",
+        different:
+          "The current registry or policies would compile this task's plan differently than when it was proposed. Propose a new contract version instead of activating this one.",
+      };
       return {
         ok: false,
         error:
-          "The current registry or policies would compile this task's plan differently than when it was proposed. Propose a new contract version instead of activating this one.",
+          core.reason === "verification_failed"
+            ? `Re-verification failed: ${core.detail}`
+            : (errors[core.reason] ?? errors.different),
       };
     }
 
-    const recomputedApprovals = deriveRequiredApprovals({
-      candidatePlan: plan,
-      validation,
-      solverOutcome,
-      registry,
-      activePolicies,
-    });
-    const recomputedApprovalsHash = canonicalHash({ schemaVersion: 1, items: recomputedApprovals });
+    const recomputedApprovalsHash = canonicalHash({ schemaVersion: 1, items: core.requiredApprovalsSpec });
     const persistedApprovalsHash = canonicalHash({ schemaVersion: 1, items: contract.requiredApprovalsSpec });
     if (recomputedApprovalsHash !== persistedApprovalsHash) {
       return {
@@ -770,24 +741,6 @@ export async function activateContractAction(taskId: string, contractId: string)
           "Current policy would require different approvals than this contract has on file. Propose a new contract version instead of activating this one.",
       };
     }
-
-    const verification = verifyCompiledContract({
-      candidatePlan: plan,
-      registry,
-      activePolicies,
-      compiled: recompiled,
-      narrowedValidation: validation,
-      tenantId: identity.tenant.tenantId,
-      taskId,
-      maxAllowedExpirySeconds: 24 * 3600,
-      supportedRegistryVersions,
-      supportedCompilerVersions,
-    });
-    if (!verification.ok) {
-      const firstFailure = verification.checks.find((c) => !c.passed);
-      return { ok: false, error: `Re-verification failed: ${firstFailure?.detail ?? "unknown check"}` };
-    }
-
     await callActivateTaskContract(context, contractId);
 
     revalidatePath(`/app/tasks/${taskId}`);
