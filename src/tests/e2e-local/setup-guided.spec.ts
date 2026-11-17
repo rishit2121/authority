@@ -138,7 +138,7 @@ test("an admin goes from app choice to a protected call with only their test cus
   // One real protected call.
   await page.getByTestId("setup-make-call").click();
   await expect(page.getByTestId("setup-call-label")).toHaveText("Allowed", { timeout: 30_000 });
-  await expect(page.getByTestId("setup-call-result")).toContainText("2 channels");
+  await expect(page.getByTestId("setup-call-result")).toContainText("3 channels");
   await expect(page).toHaveURL(/task=[0-9a-f-]{36}/);
   await expect(page.getByTestId("setup-recorded-label")).toHaveText("Allowed");
   await expect(page.getByTestId("setup-recorded-receipt")).not.toHaveText("none");

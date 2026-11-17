@@ -46,6 +46,8 @@ export function envBlock(context: {
   connectorId: string;
   connectionId: string;
   env?: SetupEnv | null;
+  /** The setup test customer's external id: the one user this connection is shared with so far. Not a secret. */
+  testUserId?: string | null;
 }): string {
   const env: SetupEnv = context.env ?? {
     AUTHORITY_URL: context.baseUrl,
@@ -53,7 +55,10 @@ export function envBlock(context: {
     AUTHORITY_AGENT_ID: KEY_PLACEHOLDER,
     AUTHORITY_AGENT_RUNTIME_KEY: KEY_PLACEHOLDER,
   };
-  return `${envFileText(env)}${connectionEnvVar(context.connectorId)}=${context.connectionId}\n`;
+  const user = context.testUserId
+    ? `# Your test customer, the only user this connection is shared with so far. Use your own user ids in production.\nAUTHORITY_USER_ID=${context.testUserId}\n`
+    : "";
+  return `${envFileText(env)}${connectionEnvVar(context.connectorId)}=${context.connectionId}\n${user}`;
 }
 
 /** One runnable server-side sample (plain JavaScript, no TypeScript to strip) for the chosen connector. */
@@ -69,9 +74,9 @@ const authority = new Authority({
   runtimeKey: process.env.AUTHORITY_AGENT_RUNTIME_KEY,
 });
 
-// Use your own app's stable id for the signed-in user here (from your session or database, not an email).
-// That user needs access to this connection: Setup shared it with your test customer only.
-const userId = "your-user-id";
+// Your app's own stable id for the signed-in user (from your session or database, not an email). The .env from
+// Setup sets AUTHORITY_USER_ID to your test customer, the only user this connection is shared with so far.
+const userId = process.env.AUTHORITY_USER_ID ?? "your-user-id";
 
 const run = await authority.prepareTask({
   userId,

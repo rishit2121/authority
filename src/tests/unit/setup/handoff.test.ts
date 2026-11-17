@@ -90,10 +90,24 @@ describe.each([
 
   it("the sample is plain JavaScript with the developer's own user id, not the setup customer", () => {
     expect(sample).not.toContain("authority-setup-");
-    expect(sample).toMatch(/Use your own app's stable id/);
+    expect(sample).toContain('const userId = process.env.AUTHORITY_USER_ID ?? "your-user-id";');
+    expect(sample).toMatch(/Your app's own stable id/);
     expect(sample).not.toMatch(/: (string|number|boolean)\b|\bas const\b|\binterface\b|!\./);
     expect(sample).toContain(SAMPLE_RUN_COMMAND);
     expect(sample).not.toContain(CONNECTION);
+  });
+
+  it("the .env block carries the test customer, so the copied pair runs as is", () => {
+    const block = envBlock({
+      baseUrl: "http://localhost:3000",
+      connectorId: "slack",
+      connectionId: "c1",
+      testUserId: "authority-setup-u1",
+    });
+    expect(block).toContain("AUTHORITY_USER_ID=authority-setup-u1");
+    expect(
+      envBlock({ baseUrl: "http://localhost:3000", connectorId: "slack", connectionId: "c1" }),
+    ).not.toContain("AUTHORITY_USER_ID");
   });
 
   it("the prompt explains goal, variable names, install, shape, rules and docs", () => {

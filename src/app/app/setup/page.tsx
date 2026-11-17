@@ -439,6 +439,7 @@ export default async function SetupPage({
           ready={chosenState === "ready"}
           baseUrl={baseUrl}
           initCommand={INIT_COMMAND}
+          testUserId={setupExternalId}
           recorded={recorded}
           today={new Date().toISOString().slice(0, 10)}
         />

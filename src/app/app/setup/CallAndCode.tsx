@@ -46,6 +46,7 @@ export function CallAndCode({
   ready,
   baseUrl,
   initCommand,
+  testUserId,
   recorded,
   today,
 }: {
@@ -58,6 +59,8 @@ export function CallAndCode({
   ready: boolean;
   baseUrl: string;
   initCommand: string;
+  /** The setup test customer's external id, so the copied .env runs the sample as is. */
+  testUserId: string;
   recorded: RecordedCall | null;
   /** YYYY-MM-DD from the server, so the label never differs between server and browser render. */
   today: string;
@@ -101,7 +104,7 @@ export function CallAndCode({
   const liveLabel = live ? liveOutcomeLabel(live.outcome, live.preparedStatus) : null;
   const showLive = live && (!recorded || live.taskId === recorded.taskId || !live.taskId);
   const callDone = Boolean(recorded && recorded.label.tone === "positive");
-  const context = { baseUrl, call, connectorId, connectionId, env };
+  const context = { baseUrl, call, connectorId, connectionId, env, testUserId };
 
   return (
     <>
