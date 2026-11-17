@@ -1,9 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import captured from "../../../examples/proof-run/captured-run.json";
 import { DEMO_COMMANDS, REGRESSION_COMMAND, REPO_URL } from "../../lib/proof-run/commands";
 
 import { signIn } from "./support/auth";
 import { OWNER_A } from "./support/users";
+
+/** The receipt the checked-in capture recorded for the allowed post (shortened, from a throwaway local run). */
+const FIRST_RECEIPT = captured.attempts[0]!.receipt!.receiptId;
 
 /**
  * The marketing flow: one scenario ("Post one update in #engineering. Don't email anyone.") from the hero, through
@@ -107,7 +111,7 @@ test.describe("proof run playback", () => {
     const result = run.getByRole("tabpanel");
     await expect(result.getByTestId("proof-run-outcome")).toHaveText("Executed");
     await expect(result.getByTestId("proof-run-dispatch")).toHaveText("Reached the provider once");
-    await expect(result.getByTestId("proof-run-receipt")).toContainText("rcpt_");
+    await expect(result.getByTestId("proof-run-receipt")).toContainText(FIRST_RECEIPT);
   });
 
   test("selecting Post to #general shows Blocked before dispatch and the reason", async ({ page }) => {
@@ -125,7 +129,7 @@ test.describe("proof run playback", () => {
 
     await run.getByRole("tab", { name: /^Post to #engineering/ }).click();
     await expect(result.getByTestId("proof-run-outcome")).toHaveText("Executed");
-    await expect(result.getByTestId("proof-run-receipt")).toContainText("rcpt_");
+    await expect(result.getByTestId("proof-run-receipt")).toContainText(FIRST_RECEIPT);
   });
 
   test("attempts switch with the keyboard, and Reset returns to the first", async ({ page }) => {
