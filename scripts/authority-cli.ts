@@ -268,8 +268,8 @@ function starterFiles(targetDir: string): Array<{ file: string; content: string 
         {
           compilerOptions: {
             target: "ES2022",
-            module: "NodeNext",
-            moduleResolution: "NodeNext",
+            module: "ESNext",
+            moduleResolution: "Bundler",
             strict: true,
             skipLibCheck: true,
             noEmit: true,
@@ -282,10 +282,12 @@ function starterFiles(targetDir: string): Array<{ file: string; content: string 
     },
     { file: ".gitignore", content: "node_modules\n.env\n" },
     { file: ".env.example", content: read(".env.example") },
-    { file: "index.ts", content: read("index.ts") },
+    // Every source file of the example, so local imports (./outcomes) resolve in the starter too.
+    ...readdirSync(source)
+      .filter((f) => f.endsWith(".ts"))
+      .sort()
+      .map((file) => ({ file, content: read(file) })),
   ];
-  if (existsSync(path.join(source, "openai-agent.ts")))
-    files.push({ file: "openai-agent.ts", content: read("openai-agent.ts") });
   return files;
 }
 
@@ -324,7 +326,8 @@ function init(flags: Record<string, string | boolean>) {
   const tarballBuilt = existsSync(path.join(ROOT, "public/sdk/authority-sdk.tgz"));
   console.log(`\n${green("Created")} ${files.length} files in ${target}\n\nNext:`);
   if (!tarballBuilt) console.log(`  node scripts/pack-sdk.mjs`);
-  console.log(`  cd ${path.relative(process.cwd(), target) || "."}`);
+  const relative = path.relative(process.cwd(), target);
+  console.log(`  cd ${relative.startsWith("../..") ? target : relative || "."}`);
   console.log("  npm install");
   console.log("  cp .env.example .env");
   console.log(dim("  Fill .env from Authority's setup page (/app/setup → Use it in your code), then:"));
