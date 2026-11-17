@@ -12,6 +12,7 @@ vi.mock("@/lib/gateway/rpc-postgres-queries", () => ({
     listPublishedPostgresQueriesForTenant(...args),
 }));
 
+import { baseRegistry } from "@/lib/registry/fixtures/base";
 import { githubDemoRegistry } from "@/lib/registry/fixtures/github-demo";
 import { buildTenantRegistry } from "@/lib/registry/tenant";
 import type { TenantPublishedOperation } from "@/lib/gateway/rpc-custom-operations";
@@ -47,15 +48,15 @@ describe("buildTenantRegistry", () => {
   it("returns the unmodified GitHub registry, byte-identical, when the tenant has no published custom operations", async () => {
     listPublishedCustomOperationsForTenant.mockResolvedValue([]);
     const registry = await buildTenantRegistry("tenant-a");
-    expect(registry.registryVersion).toBe(githubDemoRegistry.registryVersion);
-    expect(registry.operations.size).toBe(githubDemoRegistry.operations.length);
+    expect(registry.registryVersion).toBe(baseRegistry.registryVersion);
+    expect(registry.operations.size).toBe(baseRegistry.operations.length);
   });
 
   it("merges a published operation in alongside the GitHub fixture", async () => {
     listPublishedCustomOperationsForTenant.mockResolvedValue([fakeOp()]);
     const registry = await buildTenantRegistry("tenant-a");
     expect(registry.operations.has("custom_abc123.get_order")).toBe(true);
-    expect(registry.operations.size).toBe(githubDemoRegistry.operations.length + 1);
+    expect(registry.operations.size).toBe(baseRegistry.operations.length + 1);
     // Every GitHub operation is still present, untouched.
     for (const op of githubDemoRegistry.operations) {
       expect(registry.operations.get(op.id)).toEqual(op);
@@ -89,7 +90,7 @@ describe("buildTenantRegistry", () => {
     const first = await buildTenantRegistry("tenant-a");
     const second = await buildTenantRegistry("tenant-a");
     expect(first.registryVersion).toBe(second.registryVersion);
-    expect(first.registryVersion).not.toBe(githubDemoRegistry.registryVersion);
+    expect(first.registryVersion).not.toBe(baseRegistry.registryVersion);
     expect(first.registryVersion.length).toBeLessThanOrEqual(40);
   });
 
@@ -151,7 +152,7 @@ describe("buildTenantRegistry", () => {
     const registry = await buildTenantRegistry("tenant-a");
     expect(registry.operations.has("custom_abc123.get_order")).toBe(true);
     expect(registry.operations.has("postgres_abc123.get_customer_orders")).toBe(true);
-    expect(registry.operations.size).toBe(githubDemoRegistry.operations.length + 2);
+    expect(registry.operations.size).toBe(baseRegistry.operations.length + 2);
     const op = registry.operations.get("postgres_abc123.get_customer_orders")!;
     // Never external communication, regardless of effect -- a Postgres
     // connection targets the tenant's own database, never a third party.
@@ -163,7 +164,7 @@ describe("buildTenantRegistry", () => {
     listPublishedCustomOperationsForTenant.mockResolvedValue([]);
     listPublishedPostgresQueriesForTenant.mockResolvedValue([]);
     const registry = await buildTenantRegistry("tenant-a");
-    expect(registry.registryVersion).toBe(githubDemoRegistry.registryVersion);
+    expect(registry.registryVersion).toBe(baseRegistry.registryVersion);
   });
 
   it("never marks a Postgres write as external communication either -- its own database is never a third party", async () => {

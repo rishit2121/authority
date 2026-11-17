@@ -1,0 +1,107 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://dev.mailjet.com/email/reference/ -- basic auth with the API key as username and the secret key as password. */
+export const mailjet: RestConnectorSpec = {
+  id: "mailjet",
+  name: "Mailjet",
+  description: "List senders, read a contact or a sent message, and send one email to a pinned recipient.",
+  category: "Marketing & email",
+  docsUrl: "https://dev.mailjet.com/email/reference/",
+  host: "api.mailjet.com",
+  credential: {
+    label: "Secret key",
+    help: "Mailjet → Account settings → REST API → API key management. Paste the secret key here and the API key below.",
+  },
+  configFields: [
+    {
+      key: "api_key",
+      label: "API key (public)",
+      help: "The public API key shown next to the secret key.",
+      pattern: "^[A-Za-z0-9]{16,64}$",
+    },
+  ],
+  auth: { basic: { username: "{config.api_key}", password: "{key}" } },
+  verify: { method: "GET", path: "/v3/REST/sender?Limit=1" },
+  operations: [
+    {
+      slug: "list_senders",
+      summary: "Lists the account's sender addresses and their status.",
+      method: "GET",
+      path: "/v3/REST/sender",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [],
+    },
+    {
+      slug: "get_contact",
+      summary: "Returns one contact by id.",
+      method: "GET",
+      path: "/v3/REST/contact/{contact_id}",
+      sideEffect: "read",
+      resourceType: "contact",
+      resource: "contact_id",
+      dataSensitivity: "confidential",
+      args: [{ key: "contact_id", in: "path", required: true, description: "The contact's numeric id." }],
+    },
+    {
+      slug: "get_message",
+      summary: "Returns one sent message's status and metadata.",
+      method: "GET",
+      path: "/v3/REST/message/{message_id}",
+      sideEffect: "read",
+      resourceType: "message",
+      resource: "message_id",
+      dataSensitivity: "confidential",
+      args: [
+        {
+          key: "message_id",
+          in: "path",
+          required: true,
+          description: "The message id returned when it was sent.",
+        },
+      ],
+    },
+    {
+      slug: "send_email",
+      summary: "Sends one plain-text email to one recipient from a validated sender; nothing else.",
+      method: "POST",
+      path: "/v3.1/send",
+      sideEffect: "write_create",
+      resourceType: "email_recipient",
+      resource: "to",
+      externalCommunication: true,
+      args: [
+        {
+          key: "from",
+          in: "body",
+          target: "Messages.0.From.Email",
+          required: true,
+          description: "A validated sender address.",
+        },
+        {
+          key: "to",
+          in: "body",
+          target: "Messages.0.To.0.Email",
+          required: true,
+          description: "Recipient email address.",
+        },
+        {
+          key: "subject",
+          in: "body",
+          target: "Messages.0.Subject",
+          required: true,
+          freeText: true,
+          description: "Email subject.",
+        },
+        {
+          key: "text",
+          in: "body",
+          target: "Messages.0.TextPart",
+          required: true,
+          freeText: true,
+          description: "Plain-text body.",
+        },
+      ],
+    },
+  ],
+};

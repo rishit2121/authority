@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/docs/CodeBlock";
@@ -88,10 +89,11 @@ export default function ToolFilteringPage() {
       <DocsSection title="Where it comes from">
         <p>
           Built from the task&apos;s active contract&apos;s allowed actions, resolved against the
-          tenant&apos;s real registry — the same source <a href="/docs/connectors">the connector guides</a>{" "}
-          describe and the same source the MCP bridge (<code>/api/mcp/tasks/&#123;taskId&#125;</code>) uses
-          for its own <code>tools/list</code>, if you&apos;re integrating via an MCP-speaking client instead
-          of raw HTTP. Draft, retired, disconnected, and cross-tenant operations are never included.
+          tenant&apos;s real registry — the same source{" "}
+          <Link href="/docs/connectors">the connector guides</Link> describe and the same source the MCP
+          bridge (<code>/api/mcp/tasks/&#123;taskId&#125;</code>) uses for its own <code>tools/list</code>, if
+          you&apos;re integrating via an MCP-speaking client instead of raw HTTP. Draft, retired,
+          disconnected, and cross-tenant operations are never included.
         </p>
       </DocsSection>
     </DocsPage>

@@ -11,7 +11,7 @@ import {
   type TenantPublishedQuery,
 } from "@/lib/gateway/rpc-postgres-queries";
 
-import { githubDemoRegistry } from "./fixtures/github-demo";
+import { baseRegistry } from "./fixtures/base";
 import { loadRegistry, type LoadedRegistry } from "./load";
 import type { Permission, RegistryData, ToolOperation } from "./types";
 
@@ -193,13 +193,13 @@ export async function buildTenantRegistry(tenantId: string): Promise<LoadedRegis
     listPublishedPostgresQueriesForTenant(tenantId),
   ]);
   const items = [...customOps.map(fromCustomOperation), ...postgresQueries.map(fromPostgresQuery)];
-  if (items.length === 0) return loadRegistry(githubDemoRegistry);
+  if (items.length === 0) return loadRegistry(baseRegistry);
 
   const data: RegistryData = {
     schemaVersion: 1,
-    registryVersion: registryVersionFor(githubDemoRegistry.registryVersion, items),
-    operations: [...githubDemoRegistry.operations, ...items.map(toolOperationFor)],
-    permissions: [...githubDemoRegistry.permissions, ...items.map(permissionFor)],
+    registryVersion: registryVersionFor(baseRegistry.registryVersion, items),
+    operations: [...baseRegistry.operations, ...items.map(toolOperationFor)],
+    permissions: [...baseRegistry.permissions, ...items.map(permissionFor)],
   };
   return loadRegistry(data);
 }

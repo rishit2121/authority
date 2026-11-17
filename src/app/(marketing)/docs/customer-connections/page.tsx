@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { CodeBlock } from "@/components/docs/CodeBlock";
@@ -103,9 +104,9 @@ export default function CustomerConnectionsPage() {
         </p>
         <p>
           <strong>Only Gmail is wired to Mode A&apos;s embedded flow today.</strong> See{" "}
-          <a href="/docs/connectors/gmail">the Gmail connector guide</a> for provider-specific setup. Other
-          connectors require the dashboard-operated flow (organization-owned, with explicit delegation -- see
-          below) or Mode B.
+          <Link href="/docs/connectors/gmail">the Gmail connector guide</Link> for provider-specific setup.
+          Other connectors require the dashboard-operated flow (organization-owned, with explicit delegation
+          -- see below) or Mode B.
         </p>
       </DocsSection>
 

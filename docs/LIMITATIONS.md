@@ -124,6 +124,17 @@ These four points most often lead to wrong assumptions. Each is described in mor
   open (`CONSTRAINT_VIOLATION`). MCP's schema validation rejects some calls earlier, as a tool error result
   ("Input validation error") before Authority sees them: a missing required field, or a value that is not a string,
   number, boolean or list of strings. REST answers the first with `clarify` and the second with `400`.
+- **API-key connectors (98 services) are checked against published API references and a mock, not live
+  accounts.** Each is one declarative definition (`src/lib/connectors/rest/providers`) run by one shared connector.
+  Tests build every operation's exact request and run Sentry and Zendesk through authorize and execute against a mock
+  provider; none has been called against a real account by the project. Some cover only a provider's US region, and
+  a few documented choices (request formats, pinned API versions) are listed in each definition's comments. Report a
+  mismatch as an issue.
+- **AI plan generation is offered an API-key connector's tools only when the request names that service** (e.g.
+  "open a Jira issue"), to keep prompts small. Explicit plans can use any connector.
+- **Adding or changing a connector definition changes the registry version.** Authorize compares a contract's
+  registry version exactly, so after an upgrade that changes it, active contracts return
+  `UNSUPPORTED_CONTRACT_VERSION` until their task is prepared again.
 - **MCP `tools/call` does not de-duplicate retries.** MCP has no idempotency field, so each call gets a new key; a
   client that retries a timed-out write may execute it twice. The REST API and SDK take caller-supplied keys.
 

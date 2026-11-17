@@ -18,8 +18,10 @@ Under the OFL, the fonts may be bundled with software under any license, but the
 
 ## Provider logos (trademarks)
 
-`public/logos/` holds the logos of GitHub, Gmail, Linear, Notion, PostgreSQL, Slack and Stripe. They are used only
-to identify the service a connector talks to. Each is a trademark of its owner. The MIT license grants no rights to
+`public/logos/` holds the logos of GitHub, Gmail, Linear, Notion, PostgreSQL, Slack and Stripe, and of the 98
+services with declarative API-key connectors (`src/lib/connectors/rest/providers`). They are used only to identify the
+service a connector talks to. The marks come from Simple Icons (CC0 for the drawings), from svgl.app, and from each
+company's own published site icon (`scripts/connector-logos/`, see its README). Each is a trademark of its owner. The MIT license grants no rights to
 them, and their use here implies no endorsement. If you fork the project, check each owner's brand guidelines, or
 remove the logos. `public/logos/custom-api.svg`, `src/assets/authority-logo.png`, `src/app/icon.png` and `docs/assets/authority-logo.png` are this project's own.
 

@@ -1,0 +1,115 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://docs.gitlab.com/api/rest/ -- personal access tokens are sent in the `PRIVATE-TOKEN` header. */
+export const gitlab: RestConnectorSpec = {
+  id: "gitlab",
+  name: "GitLab",
+  description: "List and read a project's issues, open an issue, and comment on one.",
+  category: "Developer tools",
+  docsUrl: "https://docs.gitlab.com/api/issues/",
+  iconSlug: "gitlab",
+  host: "gitlab.com",
+  basePath: "/api/v4",
+  credential: {
+    label: "Personal access token",
+    help: "GitLab → Preferences → Access tokens → add a token with the api scope (or read_api for reads only).",
+    placeholder: "glpat-…",
+  },
+  auth: { headers: { "PRIVATE-TOKEN": "{key}" } },
+  verify: { method: "GET", path: "/user" },
+  operations: [
+    {
+      slug: "list_issues",
+      summary: "Lists issues in one project, optionally filtered by state.",
+      method: "GET",
+      path: "/projects/{project_id}/issues",
+      sideEffect: "read",
+      resourceType: "project",
+      resource: "project_id",
+      args: [
+        {
+          key: "project_id",
+          in: "path",
+          required: true,
+          description: "The project's numeric id or full path, e.g. group/project.",
+        },
+        { key: "state", in: "query", required: false, description: "opened, closed or all." },
+      ],
+    },
+    {
+      slug: "get_issue",
+      summary: "Returns one issue's title, description, state, labels and assignees.",
+      method: "GET",
+      path: "/projects/{project_id}/issues/{issue_iid}",
+      sideEffect: "read",
+      resourceType: "issue",
+      resource: "issue_iid",
+      args: [
+        {
+          key: "project_id",
+          in: "path",
+          required: true,
+          description: "The project's numeric id or full path, e.g. group/project.",
+        },
+        {
+          key: "issue_iid",
+          in: "path",
+          type: "number",
+          required: true,
+          description: "The issue's number within the project (iid).",
+        },
+      ],
+    },
+    {
+      slug: "create_issue",
+      summary: "Opens one new issue in a project.",
+      method: "POST",
+      path: "/projects/{project_id}/issues",
+      sideEffect: "write_create",
+      resourceType: "project",
+      resource: "project_id",
+      args: [
+        {
+          key: "project_id",
+          in: "path",
+          required: true,
+          description: "The project's numeric id or full path, e.g. group/project.",
+        },
+        { key: "title", in: "body", required: true, freeText: true, description: "Issue title." },
+        {
+          key: "description",
+          in: "body",
+          required: false,
+          freeText: true,
+          description: "Issue description (Markdown).",
+        },
+        { key: "labels", in: "body", required: false, description: "Comma-separated label names." },
+      ],
+    },
+    {
+      slug: "add_issue_note",
+      summary: "Adds one comment to an issue.",
+      method: "POST",
+      path: "/projects/{project_id}/issues/{issue_iid}/notes",
+      sideEffect: "write_create",
+      resourceType: "issue",
+      resource: "issue_iid",
+      args: [
+        {
+          key: "project_id",
+          in: "path",
+          required: true,
+          description: "The project's numeric id or full path, e.g. group/project.",
+        },
+        {
+          key: "issue_iid",
+          in: "path",
+          type: "number",
+          required: true,
+          description: "The issue's number within the project (iid).",
+        },
+        { key: "body", in: "body", required: true, freeText: true, description: "Comment text (Markdown)." },
+      ],
+    },
+  ],
+};

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState, useTransition } from "react";
 
 import { setCustomOperationAutoExecuteAction } from "@/app/app/alignment/actions";
@@ -50,9 +52,9 @@ export function CustomApiAutoExecutePanel({
         default. Turn one on here to let this application&apos;s agents run it without that hold. It still has
         to be in the task&apos;s contract with the pinned values and budget, and approval rules, task
         alignment and task sessions still apply. Each change is recorded below.{" "}
-        <a href="/docs/connectors/custom-api#approval" className="underline underline-offset-2">
+        <Link href="/docs/connectors/custom-api#approval" className="underline underline-offset-2">
           How approval works
-        </a>
+        </Link>
       </p>
       {operations.length === 0 ? (
         <p className="mt-3 text-[13px] text-ink-soft">No published Custom API write operations yet.</p>

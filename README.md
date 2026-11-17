@@ -277,6 +277,10 @@ Authority includes connectors for:
 - Notion
 - PostgreSQL
 - Custom HTTPS APIs
+- 98 more services with API-key or token access (Jira, GitLab, Sentry, HubSpot, Zendesk, Asana, SendGrid, Twilio and
+  others), each a short declarative definition with a fixed host and a few audited operations; see
+  `/docs/connectors` on a running deployment, or `src/lib/connectors/rest/providers`. These are
+  checked against each provider's published API reference and a mock, not yet against live accounts.
 
 Connection setup and identity depend on the provider. Gmail supports customer OAuth connections. Slack uses the configured bot identity. GitHub uses its App installation and repository access. Other connectors use configured credentials and access policies.
 

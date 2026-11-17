@@ -6,6 +6,7 @@ import { linearConnector } from "./linear/connector";
 import { notionConnector } from "./notion/connector";
 import { postgresConnector } from "./postgres/connector";
 import { registerConnector } from "./registry";
+import { restConnectors } from "./rest";
 import { slackConnector } from "./slack/connector";
 import { stripeConnector } from "./stripe/connector";
 
@@ -65,5 +66,12 @@ export function ensureConnectorsRegistered(): void {
     registerConnector(notionConnector);
   } catch {
     // Same race as above, for a test's own injected Notion connector instance.
+  }
+  for (const connector of restConnectors()) {
+    try {
+      registerConnector(connector);
+    } catch {
+      // Same race as above, for a test's own injected instance of a declarative REST connector.
+    }
   }
 }
