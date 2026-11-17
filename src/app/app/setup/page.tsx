@@ -39,6 +39,8 @@ import { Pill, Step } from "./Step";
 
 export const metadata: Metadata = { title: "Setup" };
 
+const SETUP_FEATURED = ["slack", "gmail", "github", "notion", "linear", "stripe", "postgresql", "custom-api"];
+
 /**
  * The guided Setup page: 1 Connect a service -> 2 Make a protected call -> 3 Use it in your code.
  *
@@ -283,7 +285,14 @@ export default async function SetupPage({
     });
 
   const returnTo = setupHref({ app: app.id });
-  const cards: PickerCard[] = CONNECTOR_CATALOG.filter((entry) => entry.href).map((entry) => {
+  // The hand-written services, plus any other service this workspace has already connected; the full catalog
+  // (100+ services) is one link away instead of a wall of cards.
+  const featured = new Set(SETUP_FEATURED);
+  const cards: PickerCard[] = CONNECTOR_CATALOG.filter(
+    (entry) =>
+      entry.href &&
+      (featured.has(entry.id) || connections.some((c) => cardMatches(entry.id, c.connector_id))),
+  ).map((entry) => {
     const rows = connections.filter((c) => cardMatches(entry.id, c.connector_id));
     const isGithub = entry.id === "github";
     return {
@@ -398,6 +407,13 @@ export default async function SetupPage({
             confirmedId={chosen?.id ?? null}
             canAdmin={canAdmin}
           />
+          <Link
+            href={`/app/integrations?returnTo=${encodeURIComponent(returnTo)}`}
+            className="w-fit text-[13px] font-medium text-ink underline underline-offset-2"
+            data-testid="setup-browse-all"
+          >
+            Browse all {CONNECTOR_CATALOG.length} services
+          </Link>
         </div>
 
         {chosen && chosenFacts && access && chosenState ? (

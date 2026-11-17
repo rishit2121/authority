@@ -1,12 +1,16 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Icon } from "@/components/ui/Icon";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusPill, type StatusTone } from "@/components/ui/StatusPill";
-import { CONNECTOR_CATALOG } from "@/lib/connectors/catalog";
+import { CONNECTOR_CATALOG, CONNECTOR_CATEGORIES } from "@/lib/connectors/catalog";
+import { REST_CONNECTOR_SPECS } from "@/lib/connectors/rest/providers";
 import { loadGithubOverview } from "@/lib/github/read-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+
+import { ConnectorCatalog } from "./ConnectorCatalog";
 
 const CONNECTION_STATUS_LABEL: Record<string, string> = {
   active: "Active",
@@ -40,7 +44,7 @@ function toConnectionRows(rows: RawConnectionRow[] | null, label: string, href: 
 }
 
 export default async function IntegrationsPage() {
-  const { context } = await createRepositoriesForCurrentTenant("/app/integrations");
+  const { identity, context } = await createRepositoriesForCurrentTenant("/app/integrations");
 
   const [
     { installation },
@@ -51,6 +55,7 @@ export default async function IntegrationsPage() {
     postgresResult,
     linearResult,
     notionResult,
+    restResult,
   ] = await Promise.all([
     loadGithubOverview(context.supabase),
     context.supabase
@@ -95,7 +100,18 @@ export default async function IntegrationsPage() {
       .eq("connector_id", "notion")
       .neq("status", "disconnected")
       .order("created_at", { ascending: false }),
+    context.supabase
+      .from("connector_connections")
+      .select("id, name, status, connector_id")
+      .eq("tenant_id", identity.tenant.tenantId)
+      .in(
+        "connector_id",
+        REST_CONNECTOR_SPECS.map((spec) => spec.id),
+      )
+      .neq("status", "disconnected")
+      .order("created_at", { ascending: false }),
   ]);
+  const restName = new Map(REST_CONNECTOR_SPECS.map((spec) => [spec.id, spec.name]));
 
   const connections: ConnectionRow[] = [
     ...(installation
@@ -115,6 +131,12 @@ export default async function IntegrationsPage() {
     ...toConnectionRows(postgresResult.data, "PostgreSQL", "/app/integrations/postgres"),
     ...toConnectionRows(linearResult.data, "Linear", "/app/integrations/linear"),
     ...toConnectionRows(notionResult.data, "Notion", "/app/integrations/notion"),
+    ...(restResult.data ?? []).map((c) => ({
+      id: c.id,
+      name: `${restName.get(c.connector_id) ?? c.connector_id} · ${c.name}`,
+      status: c.status,
+      href: `/app/integrations/${c.connector_id}`,
+    })),
   ];
 
   return (
@@ -125,54 +147,6 @@ export default async function IntegrationsPage() {
         secondaryAction={{ label: "Connector docs", href: "/docs/connectors" }}
       />
 
-      <section aria-labelledby="connector-catalog" className="flex flex-col gap-3">
-        <h2 id="connector-catalog" className="text-[15px] font-semibold text-ink">
-          Connectors
-        </h2>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {CONNECTOR_CATALOG.map((entry) => {
-            const card = (
-              <>
-                <div className="flex items-center justify-between gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- a small, locally bundled, static brand mark; next/image's overhead buys nothing here. */}
-                  <img
-                    src={entry.logo.src}
-                    alt={entry.logo.alt}
-                    width={36}
-                    height={36}
-                    className="shrink-0"
-                  />
-                  {entry.href ? (
-                    <Icon name="arrow_forward" size={16} className="text-ink-soft" />
-                  ) : (
-                    <StatusPill tone="muted">Coming soon</StatusPill>
-                  )}
-                </div>
-                <h3 className="mt-3 text-[15px] font-semibold text-ink">{entry.name}</h3>
-                <p className="mt-1 text-[13px] text-ink-soft">{entry.description}</p>
-              </>
-            );
-            const className =
-              "flex flex-col rounded-[14px] border border-line bg-paper-raised p-6 transition-colors" +
-              (entry.href ? " hover:bg-black/[0.02]" : " opacity-70");
-            return entry.href ? (
-              <Link
-                key={entry.id}
-                href={entry.href}
-                data-testid={`${entry.id}-integration-link`}
-                className={className}
-              >
-                {card}
-              </Link>
-            ) : (
-              <div key={entry.id} data-testid={`${entry.id}-integration-coming-soon`} className={className}>
-                {card}
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
       <section aria-labelledby="connections" className="flex flex-col gap-3">
         <h2 id="connections" className="text-[15px] font-semibold text-ink">
           Connections
@@ -181,7 +155,7 @@ export default async function IntegrationsPage() {
           <EmptyState
             icon="token"
             heading="No connections yet"
-            description="Choose a connector above to get started."
+            description="Choose a connector below to get started."
           />
         ) : (
           <div className="flex flex-col gap-3">
@@ -202,6 +176,25 @@ export default async function IntegrationsPage() {
             ))}
           </div>
         )}
+      </section>
+
+      <section aria-labelledby="connector-catalog" className="flex flex-col gap-3">
+        <h2 id="connector-catalog" className="text-[15px] font-semibold text-ink">
+          Connectors
+        </h2>
+        <Suspense fallback={null}>
+          <ConnectorCatalog
+            entries={CONNECTOR_CATALOG.map((entry) => ({
+              id: entry.id,
+              name: entry.name,
+              description: entry.description,
+              category: entry.category,
+              href: entry.href,
+              logo: entry.logo.src,
+            }))}
+            categories={CONNECTOR_CATEGORIES}
+          />
+        </Suspense>
       </section>
     </div>
   );

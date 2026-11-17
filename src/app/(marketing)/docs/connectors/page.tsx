@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { DocsPage, DocsSection } from "@/components/docs/DocsPage";
+import { REST_CONNECTOR_SPECS } from "@/lib/connectors/rest/providers";
 
 export const metadata: Metadata = { title: "Connector guides — Authority Docs" };
 
@@ -39,6 +40,32 @@ export default function ConnectorsIndexPage() {
             </Link>
           ))}
         </div>
+      </DocsSection>
+
+      <DocsSection title={`API-key connectors (${REST_CONNECTOR_SPECS.length})`}>
+        <p>
+          Each of these is one declarative definition — a fixed host, how its key is sent, and a short list of
+          audited operations — executed by one shared connector, so what Authority authorizes and what it
+          sends can&apos;t drift apart. They are checked against each provider&apos;s published API reference
+          and a mock of it, not yet against live accounts.
+        </p>
+        {[...new Set(REST_CONNECTOR_SPECS.map((s) => s.category))].sort().map((category) => (
+          <div key={category} className="flex flex-col gap-2">
+            <h3 className="text-[13px] font-semibold text-ink">{category}</h3>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {REST_CONNECTOR_SPECS.filter((s) => s.category === category).map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/docs/connectors/${s.id}`}
+                  className="rounded-[10px] border border-line bg-paper-raised p-3 transition-colors hover:bg-black/[0.02]"
+                >
+                  <span className="block text-[13px] font-medium text-ink">{s.name}</span>
+                  <span className="mt-0.5 block text-[12px] text-ink-soft">{s.description}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ))}
       </DocsSection>
     </DocsPage>
   );
