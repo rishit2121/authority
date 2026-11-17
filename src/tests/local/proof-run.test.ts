@@ -19,14 +19,7 @@ import {
 import type { Database } from "@/lib/supabase/database.types";
 
 import { FIXTURE_PASSWORD, localSupabaseEnv, OWNER_A } from "./local-env";
-import {
-  ADMIN_A_USER_ID,
-  configureLocalEnv,
-  loadRoutes,
-  request,
-  TENANT_A_ID,
-  type Handler,
-} from "./mock-provider-fixture";
+import { configureLocalEnv, loadRoutes, request, type Handler } from "./mock-provider-fixture";
 
 /**
  * The Proof Run, for real: one checked-in recipe (PROOF_RUN_RECIPE, default examples/proof-run/engineering-update.json)
@@ -48,6 +41,13 @@ const CAPTURE_PATH = resolve("examples/proof-run/captured-run.json");
 const recipe: ProofRunRecipe = proofRunRecipeSchema.parse(JSON.parse(readFileSync(RECIPE_PATH, "utf8")));
 const MOCK_BOT_TOKEN = "xoxb-mock-proof-run-not-a-real-token";
 const CONNECTION_NAME_PREFIX = "proof-run";
+/**
+ * The runner's own local tenant, owned by the seeded owner.a fixture user. A tenant of its own means the mock Slack
+ * connection never collides with a connection a developer made in the local dashboard (one unverified connection
+ * per connector per tenant), and nothing here touches the seeded tenants. Created on first run, local only.
+ */
+const PROOF_TENANT_ID = "33333333-3333-4333-8333-333333333333";
+const OWNER_A_USER_ID = "a0000000-0000-4000-8000-000000000001";
 
 /** The mock Slack Web API. Counts every request; only chat.postMessage is a dispatch (a provider write). */
 class MockSlack {
@@ -103,18 +103,18 @@ async function disconnectEarlierProofRunConnections() {
   const active = await db.query<{ id: string; name: string }>(
     `select id, name from public.connector_connections
       where tenant_id = $1 and connector_id = 'slack' and status <> 'disconnected'`,
-    [TENANT_A_ID],
+    [PROOF_TENANT_ID],
   );
   for (const row of active.rows) {
     if (!row.name.startsWith(CONNECTION_NAME_PREFIX)) {
       throw new Error(
-        `Tenant A already has an active Slack connection ("${row.name}"). The Proof Run will not touch a ` +
+        `The Proof Run tenant already has an active Slack connection ("${row.name}"). The Proof Run will not touch a ` +
           "connection it did not create; disconnect it in the local dashboard or reset the local database.",
       );
     }
     const result = await disconnectConnectorConnection({
-      tenantId: TENANT_A_ID,
-      userId: ADMIN_A_USER_ID,
+      tenantId: PROOF_TENANT_ID,
+      userId: OWNER_A_USER_ID,
       connectionId: row.id,
     });
     if (result.status !== "ok") throw new Error(`disconnect earlier proof-run connection: ${result.status}`);
@@ -129,9 +129,20 @@ async function setUp() {
   const { error } = await owner.auth.signInWithPassword({ email: OWNER_A, password: FIXTURE_PASSWORD });
   if (error) throw new Error(`sign-in: ${error.message}`);
 
+  await db.query(
+    `insert into public.tenants (id, name, slug, environment, created_by)
+     values ($1, 'Proof Run (local fixture)', 'proof-run-local', 'development', $2) on conflict (id) do nothing`,
+    [PROOF_TENANT_ID, OWNER_A_USER_ID],
+  );
+  await db.query(
+    `insert into public.tenant_memberships (tenant_id, user_id, role) values ($1, $2, 'owner')
+     on conflict do nothing`,
+    [PROOF_TENANT_ID, OWNER_A_USER_ID],
+  );
+
   const stamp = `${CONNECTION_NAME_PREFIX}-${Date.now().toString(36)}`;
   const { data: app, error: appError } = await owner.rpc("create_application", {
-    p_tenant_id: TENANT_A_ID,
+    p_tenant_id: PROOF_TENANT_ID,
     p_name: stamp,
     p_slug: stamp,
     p_environment: "production",
@@ -144,12 +155,12 @@ async function setUp() {
     p_name: stamp,
   });
   const { data: principal } = await owner.rpc("ensure_human_principal_for_current_user", {
-    p_tenant_id: TENANT_A_ID,
+    p_tenant_id: PROOF_TENANT_ID,
   });
   const { data: agent, error: agentError } = await owner
     .from("agents")
     .insert({
-      tenant_id: TENANT_A_ID,
+      tenant_id: PROOF_TENANT_ID,
       name: stamp,
       model: "none",
       model_provider: "none",
@@ -169,8 +180,8 @@ async function setUp() {
   const { createConnectorConnection } = await import("@/lib/gateway/rpc-connectors");
   const { setConnectorSecret } = await import("@/lib/gateway/rpc-connector-secrets");
   const created = await createConnectorConnection({
-    tenantId: TENANT_A_ID,
-    userId: ADMIN_A_USER_ID,
+    tenantId: PROOF_TENANT_ID,
+    userId: OWNER_A_USER_ID,
     connectorId: "slack",
     name: stamp,
     environment: "development",
@@ -179,8 +190,8 @@ async function setUp() {
     throw new Error(`slack connection: ${created.status}`);
   world.connectionId = created.connectionId;
   const secret = await setConnectorSecret({
-    tenantId: TENANT_A_ID,
-    userId: ADMIN_A_USER_ID,
+    tenantId: PROOF_TENANT_ID,
+    userId: OWNER_A_USER_ID,
     connectionId: world.connectionId,
     secretType: "bearer_token",
     plaintextSecret: MOCK_BOT_TOKEN,
@@ -329,8 +340,8 @@ afterAll(async () => {
     if (world.connectionId) {
       const { disconnectConnectorConnection } = await import("@/lib/gateway/rpc-connectors");
       await disconnectConnectorConnection({
-        tenantId: TENANT_A_ID,
-        userId: ADMIN_A_USER_ID,
+        tenantId: PROOF_TENANT_ID,
+        userId: OWNER_A_USER_ID,
         connectionId: world.connectionId,
       });
     }
@@ -341,9 +352,9 @@ afterAll(async () => {
 });
 
 /**
- * Removes this runner's own throwaway Slack connections (name prefix "proof-run", tenant A, already disconnected)
+ * Removes this runner's own throwaway Slack connections (name prefix "proof-run", in its own tenant, already disconnected)
  * and their rows from the LOCAL database, as the Slack integration fixture does. Disconnecting alone keeps the mock
- * token row, which would block other local suites that reset tenant A's connections.
+ * token row, which would block a later local reset of that tenant.
  */
 async function purgeProofRunConnections() {
   await db.query("begin");
@@ -358,9 +369,9 @@ async function purgeProofRunConnections() {
       "connection_delegations",
       "connector_connection_secrets",
     ]) {
-      await db.query(`delete from public.${table} where connection_id in ${ids}`, [TENANT_A_ID]);
+      await db.query(`delete from public.${table} where connection_id in ${ids}`, [PROOF_TENANT_ID]);
     }
-    await db.query(`delete from public.connector_connections where id in ${ids}`, [TENANT_A_ID]);
+    await db.query(`delete from public.connector_connections where id in ${ids}`, [PROOF_TENANT_ID]);
     await db.query("commit");
   } catch (error) {
     await db.query("rollback");
@@ -402,7 +413,7 @@ describe(`Proof Run: ${recipe.title}`, () => {
     for (const channel of channels) expect(pinned).toContain(channel);
   });
 
-  it("writes the sanitized transcript when PROOF_RUN_CAPTURE=1", () => {
+  it("writes the sanitized transcript when PROOF_RUN_CAPTURE=1", async () => {
     if (process.env.PROOF_RUN_CAPTURE !== "1") return;
     const byId = new Map(transcript.map((t) => [t.id, t]));
     const captured: ProofRunTranscript = {
@@ -418,6 +429,9 @@ describe(`Proof Run: ${recipe.title}`, () => {
     expect(text).not.toContain(MOCK_BOT_TOKEN);
     expect(text).not.toMatch(UUID);
     expect(text).not.toMatch(/authority_(ts|bk|ak|rk)_/);
-    writeFileSync(CAPTURE_PATH, `${text}\n`);
+    // Formatted like every other checked-in file, so a fresh capture passes `npm run format:check`.
+    const { format, resolveConfig } = await import("prettier");
+    const options = (await resolveConfig(CAPTURE_PATH)) ?? {};
+    writeFileSync(CAPTURE_PATH, await format(text, { ...options, parser: "json" }));
   });
 });

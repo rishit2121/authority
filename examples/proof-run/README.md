@@ -26,7 +26,7 @@ npx supabase start
 npm run authority -- demo
 ```
 
-`demo` runs [`src/tests/local/proof-run.test.ts`](../../src/tests/local/proof-run.test.ts). That test creates a throwaway application, agent, customer and Slack workspace-bot connection in your local Supabase. The connection holds a mock token and is shared with exactly one customer by an admin grant. The test then calls Authority's own route handlers: create task, prepare, open a session, authorize, execute.
+`demo` runs [`src/tests/local/proof-run.test.ts`](../../src/tests/local/proof-run.test.ts). That test creates a throwaway application, agent, customer and Slack workspace-bot connection in your local Supabase, inside a local tenant of its own ("Proof Run (local fixture)"), so it never collides with connections you make in the local dashboard. The connection holds a mock token and is shared with exactly one customer by an admin grant. The test then calls Authority's own route handlers: create task, prepare, open a session, authorize, execute.
 
 The Slack connector's transport is replaced, in that test process only, by a mock that counts requests. A Gmail transport that must never be called is installed alongside it. Nothing leaves your machine, and production egress protection is not changed.
 
