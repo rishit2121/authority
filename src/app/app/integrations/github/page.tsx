@@ -8,6 +8,7 @@ import { EXPECTED_PERMISSIONS } from "@/lib/github/constants";
 import { githubReadiness } from "@/lib/github/config";
 import { loadGithubOverview } from "@/lib/github/read-model";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { safeReturnTo } from "@/lib/setup/return-to";
 
 export const metadata: Metadata = { title: "GitHub integration" };
 
@@ -41,9 +42,11 @@ const STATUS_STYLE: Record<string, string> = {
 export default async function GithubIntegrationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; connected?: string; updated?: string }>;
+  searchParams: Promise<{ error?: string; connected?: string; updated?: string; returnTo?: string }>;
 }) {
   const params = await searchParams;
+  // Arrived from Setup: the install flow sends the browser back there (validated again by the connect route).
+  const returnTo = safeReturnTo(params.returnTo);
   const { identity, context } = await createRepositoriesForCurrentTenant("/app/integrations/github");
   const { installation, repositories } = await loadGithubOverview(context.supabase);
   const readiness = githubReadiness();
@@ -147,6 +150,7 @@ export default async function GithubIntegrationPage({
           {canAdmin && readiness.mode !== "disabled" ? (
             <>
               <form method="post" action="/api/github/connect" className="mt-space-md">
+                {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
                 <button
                   type="submit"
                   data-testid="github-connect"
@@ -157,6 +161,7 @@ export default async function GithubIntegrationPage({
               </form>
               <form method="post" action="/api/github/connect" className="mt-space-sm">
                 <input type="hidden" name="mode" value="existing" />
+                {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
                 <button
                   type="submit"
                   data-testid="github-connect-existing"

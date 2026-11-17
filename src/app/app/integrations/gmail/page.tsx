@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { missingGoogleOAuthConfig } from "@/lib/connectors/gmail/config";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { safeReturnTo } from "@/lib/setup/return-to";
 
 import { ConnectConnectionForm, ConnectionCard } from "./GmailControls";
 
@@ -81,6 +82,8 @@ export default async function GmailIntegrationPage({
   });
 
   const error = typeof params.error === "string" ? params.error : null;
+  // Arrived from Setup: Google's consent sends the browser back there (validated again by the connect route).
+  const returnTo = safeReturnTo(params.returnTo);
 
   return (
     <div className="flex flex-col gap-space-lg">
@@ -187,6 +190,7 @@ export default async function GmailIntegrationPage({
               connection={connection}
               statusStyle={STATUS_STYLE[connection.status] ?? STATUS_STYLE.disconnected}
               canAdmin={canAdmin}
+              returnTo={returnTo}
             />
           ))}
         </div>

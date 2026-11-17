@@ -108,10 +108,13 @@ export function ConnectionCard({
   connection,
   statusStyle,
   canAdmin,
+  returnTo = null,
 }: {
   connection: GmailConnectionRow;
   statusStyle: string;
   canAdmin: boolean;
+  /** A validated Setup path to come back to after Google's consent (see safeReturnTo). */
+  returnTo?: string | null;
 }) {
   const { result, pending, run } = useAction();
   return (
@@ -163,6 +166,7 @@ export function ConnectionCard({
           data-testid={`gmail-connect-oauth-${connection.id}`}
         >
           <input type="hidden" name="connectionId" value={connection.id} />
+          {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
           <button type="submit" className={BTN_PRIMARY}>
             Connect with Google
           </button>

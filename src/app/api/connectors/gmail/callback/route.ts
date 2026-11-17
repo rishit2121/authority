@@ -12,6 +12,7 @@ import {
 import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
 import { setConnectorSecret, updateConnectorConnectionConfig } from "@/lib/gateway/rpc-connector-secrets";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { RETURN_TO_COOKIE, safeReturnTo, sameOriginUrl, withQueryParam } from "@/lib/setup/return-to";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,14 +26,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const params = request.nextUrl.searchParams;
   const cookieNonce = request.cookies.get(STATE_COOKIE)?.value;
   const cookieVerifier = request.cookies.get(PKCE_COOKIE)?.value;
+  // Set by the connect route only for a validated Setup path; validated again here, never trusted as-is.
+  const returnTo = safeReturnTo(request.cookies.get(RETURN_TO_COOKIE)?.value);
 
   const finish = (target: string) => {
-    const response = NextResponse.redirect(new URL(target, origin(request)));
+    const response = NextResponse.redirect(sameOriginUrl(target, origin(request), PAGE));
     response.cookies.delete({ name: STATE_COOKIE, path: "/api/connectors/gmail" });
     response.cookies.delete({ name: PKCE_COOKIE, path: "/api/connectors/gmail" });
+    response.cookies.delete({ name: RETURN_TO_COOKIE, path: "/api/connectors/gmail" });
     return response;
   };
-  const fail = (code: string) => finish(`${PAGE}?error=${encodeURIComponent(code)}`);
+  const fail = (code: string) =>
+    finish(
+      returnTo
+        ? withQueryParam(returnTo, "connect_error", code)
+        : `${PAGE}?error=${encodeURIComponent(code)}`,
+    );
 
   // No state cookie at all: Google sent the user back without Authority
   // having started the flow in this browser. Nothing is mapped.
@@ -91,5 +100,5 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Non-fatal -- see comment above.
   }
 
-  return finish(`${PAGE}?connected=1`);
+  return finish(returnTo ? withQueryParam(returnTo, "connected", GMAIL_CONNECTOR_ID) : `${PAGE}?connected=1`);
 }
