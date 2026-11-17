@@ -26,7 +26,14 @@ import {
 } from "@/lib/setup/state";
 
 import { CallAndCode, type RecordedCall } from "./CallAndCode";
-import { AccessControls, AppPicker, ConnectionPicker, CreateAppForm, type PickerCard } from "./SetupControls";
+import {
+  AccessControls,
+  AppPicker,
+  ConnectionPicker,
+  CreateAppForm,
+  NewAppToggle,
+  type PickerCard,
+} from "./SetupControls";
 import { SetupSample } from "./SetupSample";
 import { Pill, Step } from "./Step";
 
@@ -181,12 +188,17 @@ export default async function SetupPage({
         ) : (
           <p className="text-[13px] text-ink-soft">Ask a workspace owner or admin to create your app.</p>
         )
-      ) : apps.length === 1 && app ? (
-        <p className="text-[14px] text-ink" data-testid="setup-app-name-display">
-          {app.name}
-        </p>
       ) : (
-        <AppPicker apps={apps} selectedId={app?.id ?? null} />
+        <>
+          {apps.length === 1 && app ? (
+            <p className="text-[14px] text-ink" data-testid="setup-app-name-display">
+              {app.name}
+            </p>
+          ) : (
+            <AppPicker apps={apps} selectedId={app?.id ?? null} />
+          )}
+          {canAdmin ? <NewAppToggle /> : null}
+        </>
       )}
     </div>
   );

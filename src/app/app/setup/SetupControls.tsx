@@ -26,9 +26,15 @@ function ErrorText({ error }: { error: string | null }) {
 // App
 // ---------------------------------------------------------------------------------------------------------------
 
-export function CreateAppForm() {
+export function CreateAppForm({
+  initialName = "My app",
+  submitLabel = "Create your app",
+}: {
+  initialName?: string;
+  submitLabel?: string;
+} = {}) {
   const router = useRouter();
-  const [name, setName] = useState("My app");
+  const [name, setName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   return (
@@ -57,12 +63,44 @@ export function CreateAppForm() {
         />
       </label>
       <button type="submit" disabled={pending} className={BTN_PRIMARY} data-testid="setup-create-app-submit">
-        {pending ? "Creating…" : "Create your app"}
+        {pending ? "Creating…" : submitLabel}
       </button>
       <div className="w-full">
         <ErrorText error={error} />
       </div>
     </form>
+  );
+}
+
+/** For a workspace that already has apps: a new one is one click away instead of only the existing ones. */
+export function NewAppToggle() {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-fit text-[13px] font-medium text-ink underline underline-offset-2 hover:text-ink-soft"
+        data-testid="setup-new-app"
+      >
+        + Create a new app
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-line p-4" data-testid="setup-new-app-form">
+      <p className="text-[13px] text-ink-soft">
+        An app is your product: its customers are the people your agent acts for.
+      </p>
+      <CreateAppForm initialName="" submitLabel="Create app" />
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        className="w-fit text-[13px] text-ink-soft underline underline-offset-2"
+      >
+        Cancel
+      </button>
+    </div>
   );
 }
 

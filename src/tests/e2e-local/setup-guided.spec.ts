@@ -47,7 +47,12 @@ test.beforeAll(async () => {
       where tenant_id = $1 and connector_id = 'slack' and status <> 'disconnected' and name like $2`,
     [TENANT_A, `${PREFIX}%`],
   );
-  // A dedicated app, so the tenant has several and the page must ask which one.
+  // A dedicated app plus a second one, so the tenant has several (even on a freshly reset database) and the page must
+  // ask which one.
+  await db.query(
+    `insert into public.applications (tenant_id, name, slug, environment) values ($1, $2, $2, 'production')`,
+    [TENANT_A, `${STAMP}-other`],
+  );
   appId = (
     await db.query(
       `insert into public.applications (tenant_id, name, slug, environment)
@@ -179,4 +184,22 @@ test("the sample path is labelled and never live", async ({ page }) => {
   await page.goto("/app/setup?mode=sample");
   await expect(page.getByTestId("setup-sample")).toContainText("Sample · no accounts connected");
   await expect(page.getByTestId("setup-step-2")).toHaveCount(0);
+});
+
+test("an admin whose workspace already has apps can still create a new one from setup", async ({ page }) => {
+  await signIn(page, OWNER_A);
+  await page.goto("/app/setup");
+  await expect(page.getByTestId("setup-app-select")).toBeVisible();
+  await page.getByTestId("setup-new-app").click();
+  await expect(page.getByTestId("setup-app-name")).toHaveValue("");
+  await page.getByTestId("setup-app-name").fill(`${STAMP}-new`);
+  await page.getByTestId("setup-create-app-submit").click();
+  await page.waitForURL(/app=/);
+  const created = await db.query<{ id: string }>(
+    `select id from public.applications where tenant_id = $1 and name = $2`,
+    [TENANT_A, `${STAMP}-new`],
+  );
+  expect(created.rows).toHaveLength(1);
+  await expect(page).toHaveURL(new RegExp(`app=${created.rows[0]!.id}`));
+  await expect(page.getByTestId("setup-app-select")).toHaveValue(created.rows[0]!.id);
 });
