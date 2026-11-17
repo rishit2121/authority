@@ -1,5 +1,5 @@
 import { contentApi, type ContentApi } from "./content.js";
-import { request, type ClientConfig, type RequestOptions } from "./http.js";
+import { request, type ClientConfig, type FetchLike, type RequestOptions } from "./http.js";
 import type {
   CandidatePlanInput,
   ContractStatus,
@@ -15,7 +15,20 @@ export interface AuthorityBackendClientOptions {
   /** A developer backend credential (`authority_dk_...`), from Settings -> Applications -> Backend credentials. Never an agent runtime key or session token. */
   apiKey: string;
   defaultTimeoutMs?: number;
+  /** Defaults to the global `fetch`. */
+  fetch?: FetchLike;
 }
+
+/** What `tasks.prepare` accepts: a structured plan or an AI-drafted one, optionally asking for a budget raise. */
+export type PrepareTaskInput = (
+  { plan: CandidatePlanInput; generate?: never } | { generate: true; plan?: never }
+) & {
+  /**
+   * Renew the task-wide budgets of this contract's actions when it activates; otherwise they are inherited from
+   * earlier versions of the task. An explicit backend operation -- never set automatically. Sent only when given.
+   */
+  raiseBudgets?: boolean;
+};
 
 /**
  * The application-backend side of the Authority developer API: create or
@@ -34,6 +47,7 @@ export class AuthorityBackendClient {
       baseUrl: options.baseUrl,
       token: options.apiKey,
       defaultTimeoutMs: options.defaultTimeoutMs,
+      fetch: options.fetch,
     };
   }
 
@@ -182,14 +196,11 @@ export class AuthorityBackendClient {
      * backend-API caller repeat it a second time, redundantly, inside the
      * plan body itself.
      */
-    prepare: (
-      taskId: string,
-      input: { plan: CandidatePlanInput } | { generate: true },
-      idempotencyKey?: string,
-      options?: RequestOptions,
-    ) => {
-      const body =
-        "plan" in input ? { plan: { ...input.plan, taskId }, idempotencyKey } : { ...input, idempotencyKey };
+    prepare: (taskId: string, input: PrepareTaskInput, idempotencyKey?: string, options?: RequestOptions) => {
+      const raise = input.raiseBudgets !== undefined ? { raiseBudgets: input.raiseBudgets } : {};
+      const body = input.plan
+        ? { plan: { ...input.plan, taskId }, idempotencyKey, ...raise }
+        : { generate: true, idempotencyKey, ...raise };
       // Drafting a plan with a model (`generate: true`) routinely takes longer than the client's default
       // timeout; preparing is also safe to retry with the same idempotency key. Callers can still override.
       return request<PrepareTaskOutcome & { taskId: string }>(
