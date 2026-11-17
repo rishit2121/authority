@@ -32,7 +32,7 @@ export function ThreeStepExplanation() {
                 index > 0 ? "border-t border-mkt-hairline md:border-l md:border-t-0" : ""
               } ${index > 0 ? "md:pl-10" : ""} ${index < STEPS.length - 1 ? "md:pr-10" : ""}`}
             >
-              <span className="font-mono-code text-[13px] text-mkt-gray">{step.number}</span>
+              <span className="font-mono-code text-[13px] text-mkt-text-secondary">{step.number}</span>
               <h3 className="font-headline-lg text-[22px] font-semibold text-mkt-text">{step.title}</h3>
               <p className="text-[15px] leading-relaxed text-mkt-text-secondary">{step.body}</p>
             </div>
