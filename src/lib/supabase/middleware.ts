@@ -26,7 +26,21 @@ export interface SessionRefreshResult {
   claims: { sub: string; email?: string } | null;
 }
 
-export async function refreshSession(request: NextRequest): Promise<SessionRefreshResult> {
+export interface RefreshSessionOptions {
+  /**
+   * Also confirm the session with the Auth server, not only the token's signature. A token outlives its session: after
+   * a sign-out elsewhere, a revoked session or a reset database it still verifies until it expires, while the pages
+   * (which call getUser) treat the visitor as signed out. Without this check, /login would bounce such a visitor back
+   * to /app, /app back to /login, and so on. It costs one Auth round trip, so it is only asked for on the routes that
+   * redirect signed-in users away. A session that fails is cleared from the cookies.
+   */
+  confirmWithAuthServer?: boolean;
+}
+
+export async function refreshSession(
+  request: NextRequest,
+  options: RefreshSessionOptions = {},
+): Promise<SessionRefreshResult> {
   // Forwarded so a Server Component can learn which path was requested, which
   // is otherwise unavailable in a layout and is needed to build an accurate
   // post-login return path.
@@ -66,6 +80,15 @@ export async function refreshSession(request: NextRequest): Promise<SessionRefre
 
   if (error || !data?.claims?.sub) {
     return { response, claims: null };
+  }
+
+  if (options.confirmWithAuthServer) {
+    const { data: confirmed, error: confirmError } = await supabase.auth.getUser();
+    if (confirmError || confirmed.user?.id !== data.claims.sub) {
+      // Clears the stale auth cookies on `response` (through setAll), so the next request starts signed out.
+      await supabase.auth.signOut({ scope: "local" });
+      return { response, claims: null };
+    }
   }
 
   const claims = data.claims as { sub: string; email?: string };
