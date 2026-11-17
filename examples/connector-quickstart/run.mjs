@@ -152,16 +152,20 @@ function connectorSpec() {
           resource: "workspace",
           arguments: {},
         },
+        // A real tool this task was never granted (Slack has no other write tool besides
+        // slack.post_message, and this task is bound only to its Slack connection).
         outOfScopeTool: {
-          tool: "slack.send_message",
-          operation: "send_message",
-          resource: env.SLACK_CHANNEL_ID || "C000000",
-          arguments: { channel: env.SLACK_CHANNEL_ID || "C000000", text: "test" },
+          tool: "gmail.send_email",
+          operation: "send_email",
+          resource: "nobody@example.com",
+          arguments: { to: "nobody@example.com", subject: "test", body: "test" },
         },
       };
     case "postgres":
       return {
-        connectorId: "postgres",
+        // PostgreSQL and Custom API connector ids are per connection ("postgres_<id>", "custom_<id>"):
+        // the real id is taken from the selected connection, never hardcoded.
+        connectorPrefix: "postgres_",
         intent: "Run a published Postgres query (connector-quickstart)",
         safeOperation: {
           tool: requireEnv("POSTGRES_TOOL"),
@@ -173,7 +177,7 @@ function connectorSpec() {
       };
     case "custom-api":
       return {
-        connectorId: "custom_api",
+        connectorPrefix: "custom_",
         intent: "Call a published Custom API operation (connector-quickstart)",
         safeOperation: {
           tool: requireEnv("CUSTOM_API_TOOL"),
@@ -201,26 +205,43 @@ function connectorSpec() {
   }
 }
 
-async function resolveConnection(backend) {
-  if (env.CONNECTION_ID) return env.CONNECTION_ID;
+/**
+ * Returns the selected connection's id AND its real connectorId (for the task binding). Fixed connectors
+ * match by id ("slack"); PostgreSQL / Custom API match by prefix, and the binding uses the selected
+ * connection's own per-connection id ("custom_<id>").
+ */
+async function resolveConnection(backend, spec) {
+  const label = spec.connectorId ?? `${spec.connectorPrefix}*`;
   const { connections } = await backend.connections.list(CUSTOMER_ID);
-  const matches = connections.filter((c) => c.connectorId === connectorSpec().connectorId);
-  if (matches.length === 0) {
+  const candidates = connections.filter((c) =>
+    spec.connectorId ? c.connectorId === spec.connectorId : c.connectorId.startsWith(spec.connectorPrefix),
+  );
+  if (env.CONNECTION_ID) {
+    const chosen = candidates.find((c) => c.connectionId === env.CONNECTION_ID);
+    if (!chosen) {
+      console.error(
+        `CONNECTION_ID ${env.CONNECTION_ID} is not a ${label} connection usable by customer ${CUSTOMER_ID}.`,
+      );
+      process.exit(1);
+    }
+    return { connectionId: chosen.connectionId, connectorId: chosen.connectorId };
+  }
+  if (candidates.length === 0) {
     console.error(
-      `No ${connectorSpec().connectorId} connection usable by customer ${CUSTOMER_ID}. Set up a connection ` +
+      `No ${label} connection usable by customer ${CUSTOMER_ID}. Set up a connection ` +
         `(dashboard or developer API) and delegate it to this customer first, or set CONNECTION_ID directly.`,
     );
     process.exit(1);
   }
-  if (matches.length > 1) {
+  if (candidates.length > 1) {
     console.error(
-      `${matches.length} ${connectorSpec().connectorId} connections are usable by customer ${CUSTOMER_ID} -- ` +
+      `${candidates.length} ${label} connections are usable by customer ${CUSTOMER_ID} -- ` +
         `ambiguous which one to use. Set CONNECTION_ID explicitly to one of:\n` +
-        matches.map((c) => `  ${c.connectionId}`).join("\n"),
+        candidates.map((c) => `  ${c.connectionId} (${c.connectorId})`).join("\n"),
     );
     process.exit(1);
   }
-  return matches[0].connectionId;
+  return { connectionId: candidates[0].connectionId, connectorId: candidates[0].connectorId };
 }
 
 /**
@@ -259,14 +280,20 @@ async function main() {
   const spec = connectorSpec();
   const backend = new AuthorityBackendClient({ baseUrl: AUTHORITY_URL, apiKey: BACKEND_API_KEY });
 
+  const binding = connectorArg === "github" ? null : await resolveConnection(backend, spec);
+  if (binding && spec.connectorPrefix && !spec.safeOperation.tool.startsWith(`${binding.connectorId}.`)) {
+    console.error(
+      `${spec.safeOperation.tool} does not belong to the selected connection (${binding.connectorId}). ` +
+        `Its tools are named ${binding.connectorId}.<operation>; set CONNECTION_ID or the tool to match.`,
+    );
+    process.exit(1);
+  }
+
   const task = await backend.tasks.create({
     customerId: CUSTOMER_ID,
     agentId: AGENT_ID,
     intent: spec.intent,
-    connections:
-      connectorArg === "github"
-        ? undefined
-        : [{ connectorId: spec.connectorId, connectionId: await resolveConnection(backend) }],
+    connections: binding ? [binding] : undefined,
     idempotencyKey: `connector-quickstart-${connectorArg}-${CUSTOMER_ID}-${RUN_ID}`,
   });
   console.log(`Task: ${task.taskId}`);

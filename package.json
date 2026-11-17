@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/*",
     "examples/model-driven-agent",
-    "examples/connector-quickstart"
+    "examples/connector-quickstart",
+    "examples/sdk-quickstart"
   ],
   "scripts": {
     "sdk:build": "npm run build -w @authority/sdk",

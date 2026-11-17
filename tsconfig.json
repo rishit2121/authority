@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@authority/sdk": ["./packages/authority-sdk/src/index.ts"],
+      "@authority/sdk/openai": ["./packages/authority-sdk/src/adapters/openai.ts"]
     }
   },
   "include": [
