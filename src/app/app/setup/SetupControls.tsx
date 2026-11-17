@@ -238,6 +238,30 @@ export function ConnectionPicker({
                 ))}
               </ul>
             ) : null}
+            {selected && card.connections.some((c) => c.id === selected) ? (
+              // Right under the chosen connection, not below every service card where it scrolls out of view.
+              <div className="flex flex-col gap-2" data-testid="setup-use-connection-row">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={selected === confirmedId}
+                    className={BTN_PRIMARY}
+                    onClick={() => router.push(setupHref({ app: applicationId, connection: selected }))}
+                    data-testid="setup-use-connection"
+                  >
+                    Use this connection
+                  </button>
+                  {selected === confirmedId ? (
+                    <span className="text-[13px] text-ink-soft">This connection is in use below.</span>
+                  ) : null}
+                </div>
+                {selected !== confirmedId ? (
+                  <p className="text-[12px] text-ink-soft">
+                    &ldquo;Needs access&rdquo; is expected: next you choose who may use it.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             {card.connectHref && canAdmin ? (
               <Link
                 href={card.connectHref}
@@ -253,22 +277,6 @@ export function ConnectionPicker({
       {!canAdmin ? (
         <p className="text-[13px] text-ink-soft">Only an owner or admin can connect a new service.</p>
       ) : null}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          disabled={!selected || selected === confirmedId}
-          className={BTN_PRIMARY}
-          onClick={() => {
-            if (selected) router.push(setupHref({ app: applicationId, connection: selected }));
-          }}
-          data-testid="setup-use-connection"
-        >
-          Use this connection
-        </button>
-        {selected && selected === confirmedId ? (
-          <span className="text-[13px] text-ink-soft">This connection is in use below.</span>
-        ) : null}
-      </div>
     </div>
   );
 }

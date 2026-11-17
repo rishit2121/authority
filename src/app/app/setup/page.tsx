@@ -314,6 +314,8 @@ export default async function SetupPage({
       }),
     };
   });
+  // Services you have already connected first (catalog order otherwise), so your connection is at the top.
+  cards.sort((a, b) => Number(b.connections.length > 0) - Number(a.connections.length > 0));
 
   const requestedConnectionId = one(params, "connection");
   const chosen =
