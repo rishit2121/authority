@@ -334,10 +334,39 @@ afterAll(async () => {
         connectionId: world.connectionId,
       });
     }
+    await purgeProofRunConnections();
   } finally {
     await db?.end();
   }
 });
+
+/**
+ * Removes this runner's own throwaway Slack connections (name prefix "proof-run", tenant A, already disconnected)
+ * and their rows from the LOCAL database, as the Slack integration fixture does. Disconnecting alone keeps the mock
+ * token row, which would block other local suites that reset tenant A's connections.
+ */
+async function purgeProofRunConnections() {
+  await db.query("begin");
+  try {
+    await db.query("select set_config('authority.allow_demo_purge', 'on', true)");
+    const ids = `(select id from public.connector_connections where tenant_id = $1 and connector_id = 'slack'
+                  and status = 'disconnected' and name like '${CONNECTION_NAME_PREFIX}-%')`;
+    for (const table of [
+      "connector_execution_receipts",
+      "connector_reservations",
+      "task_connector_bindings",
+      "connection_delegations",
+      "connector_connection_secrets",
+    ]) {
+      await db.query(`delete from public.${table} where connection_id in ${ids}`, [TENANT_A_ID]);
+    }
+    await db.query(`delete from public.connector_connections where id in ${ids}`, [TENANT_A_ID]);
+    await db.query("commit");
+  } catch (error) {
+    await db.query("rollback");
+    console.warn(`proof-run cleanup skipped: ${(error as Error).message}`);
+  }
+}
 
 describe(`Proof Run: ${recipe.title}`, () => {
   const runs = taskRunsFor(recipe);
