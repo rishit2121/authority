@@ -34,7 +34,9 @@ describe("ProofRunPlayback", () => {
     expect(result.getByTestId("proof-run-outcome")).toHaveTextContent("Executed");
     expect(result.getByText("Allowed")).toBeInTheDocument();
     expect(result.getByTestId("proof-run-dispatch")).toHaveTextContent("Reached the provider once");
-    expect(result.getByTestId("proof-run-receipt")).toHaveTextContent("rcpt_");
+    expect(result.getByTestId("proof-run-receipt")).toHaveTextContent(
+      capturedRun.attempts[0].receipt!.receiptId,
+    );
     expect(result.getByText("#engineering")).toBeInTheDocument();
   });
 
@@ -96,8 +98,16 @@ describe("ProofRunPlayback", () => {
     expect(result.getByText(/Same task, right after/)).toBeInTheDocument();
   });
 
+  it("the checked-in transcript is a local-fixture capture of the recipe as it is now", () => {
+    // Change the recipe and this fails until `npm run authority -- demo --capture` records a new run.
+    expect(capturedRun.source).toBe("local-fixture");
+    expect(capturedRun.recipeHash).toBe(recipeHash(engineeringUpdateRecipe));
+    expect(capturedRun.attempts.map((a) => a.id)).toEqual(engineeringUpdateRecipe.attempts.map((a) => a.id));
+  });
+
   it("labels the illustrative transcript and shows no stale warning", () => {
-    render(<ProofRunPlayback recipeHashMatches={false} />);
+    const transcript = { ...capturedRun, source: "illustrative" as const, recipeHash: "" };
+    render(<ProofRunPlayback recipeHashMatches={false} transcript={transcript} />);
     expect(screen.getByText("Example run · No accounts connected")).toBeInTheDocument();
     expect(screen.getByTestId("proof-run-source")).toHaveTextContent("Illustrative transcript");
     expect(screen.queryByRole("note")).toBeNull();
