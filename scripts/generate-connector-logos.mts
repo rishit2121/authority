@@ -1,9 +1,12 @@
-// Writes public/logos/<id>.svg for every declarative REST connector: the Simple Icons mark (CC0) in its brand colour
-// when the spec names an iconSlug that exists, otherwise a neutral lettered tile. Simple Icons is not a project
-// dependency; install it anywhere and point at it, then commit the generated SVGs:
+// Writes public/logos/<id>.svg for every declarative REST connector, from the first source that has one:
+//   1. scripts/connector-logos/<id>.svg|png|jpg -- a brand mark fetched once and checked in (see the README there);
+//      an SVG must contain no script, event handler, foreignObject, embedded image or external reference;
+//   2. the Simple Icons mark (CC0) for the spec's iconSlug, in its brand colour;
+//   3. a neutral lettered tile.
+// Simple Icons is not a project dependency; install it anywhere and point at it, then commit the generated SVGs:
 //   npm install --prefix /tmp/si simple-icons
 //   SIMPLE_ICONS=/tmp/si/node_modules/simple-icons node --import tsx scripts/generate-connector-logos.mts
-import { writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -25,12 +28,43 @@ for (const value of Object.values(simpleIcons) as unknown[]) {
 }
 
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const UNSAFE_SVG =
+  /<script|javascript:|\son[a-z]+\s*=|<foreignObject|<image|(?:xlink:)?href\s*=\s*["'](?!#)|@import|url\((?!#)/i;
+const SOURCES = path.join("scripts", "connector-logos");
+
+/** A checked-in brand mark, as a self-contained SVG, or null. */
+function checkedIn(id: string, name: string): string | null {
+  const svgPath = path.join(SOURCES, `${id}.svg`);
+  if (existsSync(svgPath)) {
+    const svg = readFileSync(svgPath, "utf8");
+    if (UNSAFE_SVG.test(svg) || !/^\s*(<\?xml[^>]*>\s*)?<svg[\s>]/.test(svg)) {
+      throw new Error(`${svgPath} contains active or external content; refusing to publish it.`);
+    }
+    return svg.trim() + "\n";
+  }
+  for (const [ext, type] of [
+    ["png", "image/png"],
+    ["jpg", "image/jpeg"],
+  ] as const) {
+    const rasterPath = path.join(SOURCES, `${id}.${ext}`);
+    if (!existsSync(rasterPath)) continue;
+    const data = readFileSync(rasterPath).toString("base64");
+    return `<svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escape(name)}</title><image width="24" height="24" href="data:${type};base64,${data}"/></svg>\n`;
+  }
+  return null;
+}
+
 let branded = 0;
+let fetched = 0;
 const lettered: string[] = [];
 for (const spec of REST_CONNECTOR_SPECS) {
   const icon = spec.iconSlug ? bySlug.get(spec.iconSlug) : undefined;
+  const own = checkedIn(spec.id, spec.name);
   let svg: string;
-  if (icon) {
+  if (own) {
+    svg = own;
+    fetched++;
+  } else if (icon) {
     svg = `<svg fill="#${icon.hex}" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>${escape(spec.name)}</title><path d="${icon.path}"/></svg>\n`;
     branded++;
   } else {
@@ -46,5 +80,5 @@ for (const spec of REST_CONNECTOR_SPECS) {
   writeFileSync(path.join("public", "logos", `${spec.id}.svg`), svg);
 }
 console.log(
-  `logos: ${branded} brand marks, ${lettered.length} lettered tiles${lettered.length ? ` (${lettered.join(", ")})` : ""}`,
+  `logos: ${fetched} checked-in marks, ${branded} Simple Icons marks, ${lettered.length} lettered tiles${lettered.length ? ` (${lettered.join(", ")})` : ""}`,
 );

@@ -7,6 +7,7 @@ export const mistral: RestConnectorSpec = {
   description:
     "List available models and generate one text response with a pinned model (mistral-small-2603).",
   category: "AI & ML",
+  iconSlug: "mistralai",
   docsUrl: "https://docs.mistral.ai/openapi.yaml",
   host: "api.mistral.ai",
   basePath: "/v1",
