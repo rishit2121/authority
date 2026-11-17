@@ -52,6 +52,13 @@ export interface ExcludedStep {
   reasons: string[];
 }
 
+/**
+ * Task-wide budgets: "inherited" -- this contract draws on what earlier versions of the task already used;
+ * "raised" -- the backend asked for a raise (`raiseBudgets: true`) and it was applied at activation;
+ * "raise_on_activation" -- asked for, applied when a person activates the contract.
+ */
+export type PrepareBudgets = "inherited" | "raised" | "raise_on_activation";
+
 export type PrepareTaskOutcome =
   | {
       status: "ready";
@@ -62,6 +69,7 @@ export type PrepareTaskOutcome =
       excludedSteps?: ExcludedStep[];
       alignment?: PlanAlignment;
       checks?: { planReview: "ran" | "not_run" };
+      budgets: PrepareBudgets;
     }
   | {
       status: "awaiting_approval";
@@ -71,6 +79,7 @@ export type PrepareTaskOutcome =
       excludedSteps?: ExcludedStep[];
       alignment?: PlanAlignment;
       checks?: { planReview: "ran" | "not_run" };
+      budgets: PrepareBudgets;
     }
   /** Enforced alignment review did not clear the plan: "revise" it, or wait for a person ("hold"). */
   | {
@@ -81,6 +90,8 @@ export type PrepareTaskOutcome =
       reviewPath: string;
       excludedSteps?: ExcludedStep[];
       alignment: PlanAlignment;
+      checks?: { planReview: "ran" | "not_run" };
+      budgets: PrepareBudgets;
     }
   | { status: "clarification"; reason: string; details?: unknown }
   | { status: "rejected"; reason: string }
@@ -109,6 +120,12 @@ export interface CandidatePlanNodeInput {
    * concrete value in `arguments`, or the step is excluded with status "replan".
    */
   dataFlowRefs?: Array<{ argumentKey: string; fromNodeId: string; output: string }>;
+  /**
+   * Free-text argument keys the agent writes at run time (a message body, subject or title). Each must be a
+   * free-text field this node neither pins nor takes from an earlier step. Recipients, channels, ids and amounts
+   * are never agent-generated.
+   */
+  agentGenerated?: string[];
   expectedSideEffect: "read" | "write_create" | "write_update" | "write_delete" | "admin";
   maxInvocations?: number;
 }
@@ -118,17 +135,28 @@ export interface CandidatePlanInput {
   nodes: CandidatePlanNodeInput[];
 }
 
+/** One pinned (`equals`) or glob-constrained (`matches`) argument of an allowed action. */
+export interface ResourceConstraint {
+  key: string;
+  equals?: string;
+  matches?: string;
+}
+
 export interface ToolManifestEntry {
   tool: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  resourceConstraints: unknown[];
+  resourceConstraints: ResourceConstraint[];
   maxInvocations: number | null;
+  /** What is left to spend now: the lower of this contract version's and the task-wide remainder. null if unknown. */
+  remainingInvocations: number | null;
   /**
    * Unpinned arguments this action accepts (free text such as a message body). Any argument that is neither
    * pinned in `resourceConstraints` nor listed here is refused. null on contracts compiled before this rule.
    */
-  openArguments?: string[] | null;
+  openArguments: string[] | null;
+  /** The open arguments the plan declared as written by the agent (`agentGenerated`). */
+  generatedArguments: string[];
   requiresApproval: boolean;
 }
 
@@ -138,6 +166,21 @@ export interface ToolManifest {
   versions: { registry: string; compiler: string };
   manifestHash: string;
   tools: ToolManifestEntry[];
+}
+
+/** The recovery action the server recommends after a decision. */
+export interface AgentGuidance {
+  nextStep: "proceed" | "replan" | "clarify" | "request_approval" | "retry_later" | "stop";
+  message: string;
+}
+
+/** A short-lived task session (`POST /api/v1/sessions`). The token is a credential: never log it. */
+export interface TaskSessionResponse {
+  sessionId: string;
+  token: string;
+  taskId: string;
+  contract: { id: string; version: number };
+  expiresAt: string;
 }
 
 export interface AgentAuthorizeResponse {
@@ -172,7 +215,10 @@ export interface AgentAuthorizeResponse {
     expiresAt: string | null;
     statusUrl: string;
   };
-  guidance: unknown;
+  /** Which enforcement mode applied, and whether security policy degraded or narrowed this decision. */
+  enforcement: { mode: "off" | "shadow" | "enforce"; degraded: boolean; narrowedBySecurityPolicy: boolean };
+  /** What to do next after this decision (deliberately coarse). */
+  guidance: AgentGuidance;
   simulation: boolean;
 }
 
