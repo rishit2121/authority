@@ -1,25 +1,32 @@
 {
   "schemaVersion": 1,
   "recipeId": "engineering-update",
-  "recipeHash": "",
-  "source": "illustrative",
+  "recipeHash": "c94d7941447828b280209a9ded1f0cb72b6fc8dd4953b745bfa3f5ad4c8539ea",
+  "source": "local-fixture",
   "provider": "mock-slack",
-  "capturedAt": "2026-11-16T00:00:00.000Z",
+  "capturedAt": "2026-11-17T07:47:17.463Z",
   "attempts": [
     {
       "id": "post-engineering",
       "decision": "allow_constrained",
-      "reasonCodes": ["WITHIN_CONTRACT"],
-      "summary": "Permitted; the request satisfies every contract constraint.",
+      "reasonCodes": [
+        "WITHIN_CONTRACT"
+      ],
+      "summary": "Permitted.",
       "dispatches": 1,
       "result": "executed",
-      "receipt": { "result": "succeeded", "receiptId": "rcpt_••••" }
+      "receipt": {
+        "result": "succeeded",
+        "receiptId": "local-receipt-…c212db"
+      }
     },
     {
       "id": "post-general",
       "decision": "deny",
-      "reasonCodes": ["CONSTRAINT_VIOLATION"],
-      "summary": "Arguments fall outside the contract's constraints for this action.",
+      "reasonCodes": [
+        "CONSTRAINT_VIOLATION"
+      ],
+      "summary": "The arguments fall outside what this task authorizes.",
       "dispatches": 0,
       "result": "blocked_before_dispatch",
       "receipt": null
@@ -27,8 +34,10 @@
     {
       "id": "post-again",
       "decision": "deny",
-      "reasonCodes": ["INVOCATION_LIMIT_REACHED"],
-      "summary": "This action's invocation budget is exhausted.",
+      "reasonCodes": [
+        "INVOCATION_LIMIT_REACHED"
+      ],
+      "summary": "The invocation budget for this task or action is exhausted.",
       "dispatches": 0,
       "result": "blocked_before_dispatch",
       "receipt": null
@@ -36,8 +45,10 @@
     {
       "id": "send-email",
       "decision": "replan",
-      "reasonCodes": ["TOOL_NOT_IN_CONTRACT"],
-      "summary": "This tool is not an allowed action on the task authority contract.",
+      "reasonCodes": [
+        "TOOL_NOT_IN_CONTRACT"
+      ],
+      "summary": "This tool is not part of the task's authorized action set.",
       "dispatches": 0,
       "result": "blocked_before_dispatch",
       "receipt": null
