@@ -38,31 +38,82 @@
   }
 }
 
-@layer utilities {
-  /* Sequenced authority-graph edges. Every animated path declares
-     `pathLength="1"`, so a single dash length works regardless of the path's
-     real geometry: offset 1 = undrawn, 0 = fully drawn. */
-  .edge-path {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 1;
+/* Proof Run and action-flow motion. Decorative only: every state is fully stated in text, and all of this is
+   defined inside no-preference so reduced-motion users never get it at all (the hook also withholds the classes). */
+@media (prefers-reduced-motion: no-preference) {
+  .proof-run-enter {
+    animation: proof-run-enter 240ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
 
-  .edge-path-drawn {
-    stroke-dashoffset: 0;
+  .proof-run-stamp-allow {
+    animation: proof-run-pop 420ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
   }
 
-  .edge-animated {
-    transition:
-      stroke-dashoffset 900ms cubic-bezier(0.65, 0, 0.35, 1),
-      opacity 400ms ease;
+  .proof-run-stamp-block {
+    animation: proof-run-nudge 380ms ease-in-out both;
   }
 
-  /* Capability retraction pulls the stroke back toward the agent core. */
-  .edge-retracting {
-    stroke-dashoffset: -1;
-    transition:
-      stroke-dashoffset 700ms cubic-bezier(0.55, 0, 0.55, 1),
-      opacity 500ms ease;
+  .action-flow-march {
+    animation: action-flow-march 1.4s linear infinite;
+  }
+
+  .action-flow-stop {
+    animation: action-flow-stop 2.8s ease-in-out infinite;
+  }
+
+  @keyframes proof-run-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes proof-run-pop {
+    0% {
+      transform: scale(0.6);
+    }
+    60% {
+      transform: scale(1.15);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes proof-run-nudge {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-3px);
+    }
+    50% {
+      transform: translateX(3px);
+    }
+    75% {
+      transform: translateX(-2px);
+    }
+  }
+
+  @keyframes action-flow-march {
+    to {
+      stroke-dashoffset: -20;
+    }
+  }
+
+  @keyframes action-flow-stop {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 1;
+    }
   }
 }
 
@@ -71,8 +122,8 @@
     scroll-behavior: auto;
   }
 
-  /* Decorative motion is removed outright; the graph additionally renders its
-     resolved end state via the useReducedMotion hook rather than a sequence. */
+  /* Decorative motion is removed outright; the Proof Run additionally withholds
+     its animation classes via the useReducedMotion hook. */
   *,
   *::before,
   *::after {

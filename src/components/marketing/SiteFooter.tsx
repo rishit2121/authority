@@ -1,4 +1,6 @@
-import { FOOTER_COLUMNS, LEGAL_LINKS } from "@/lib/navigation";
+import Link from "next/link";
+
+import { externalProps, FOOTER_COLUMNS, LEGAL_LINKS } from "@/lib/navigation";
 import { supportEmail } from "@/lib/support";
 
 import { Logo } from "./Logo";
@@ -17,21 +19,25 @@ export function SiteFooter() {
               <span className="text-[15px] font-semibold text-mkt-text">Authority</span>
             </div>
             <p className="max-w-xs text-[13px] leading-relaxed text-mkt-text-secondary">
-              Least-privilege control for AI agents.
+              Give your agent tools. Set the limits.
             </p>
           </div>
 
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.title} className="flex flex-col gap-3">
-              <span className="text-[12px] font-medium uppercase tracking-wider text-mkt-gray">
+              <span className="text-[12px] font-medium uppercase tracking-wider text-mkt-text-secondary">
                 {column.title}
               </span>
               <ul className="flex flex-col gap-2">
                 {column.links.map((link) => (
                   <li key={link.label} className="text-[13px]">
-                    <a href={link.href} className="text-mkt-text-secondary hover:text-mkt-text">
+                    <Link
+                      href={link.href}
+                      {...externalProps(link)}
+                      className="text-mkt-text-secondary hover:text-mkt-text"
+                    >
                       {link.label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -40,15 +46,22 @@ export function SiteFooter() {
         </div>
 
         <div className="flex flex-col items-center justify-between gap-4 pt-6 sm:flex-row">
-          <p className="text-[13px] text-mkt-gray">© {year} Authority.</p>
+          <p className="text-[13px] text-mkt-text-secondary">© {year} Authority.</p>
           <div className="flex items-center gap-5">
             {LEGAL_LINKS.map((link) => (
-              <a key={link.label} href={link.href} className="text-[13px] text-mkt-gray hover:text-mkt-text">
+              <Link
+                key={link.label}
+                href={link.href}
+                className="text-[13px] text-mkt-text-secondary hover:text-mkt-text"
+              >
                 {link.label}
-              </a>
+              </Link>
             ))}
             {contact ? (
-              <a href={`mailto:${contact}`} className="text-[13px] text-mkt-gray hover:text-mkt-text">
+              <a
+                href={`mailto:${contact}`}
+                className="text-[13px] text-mkt-text-secondary hover:text-mkt-text"
+              >
                 Contact
               </a>
             ) : null}

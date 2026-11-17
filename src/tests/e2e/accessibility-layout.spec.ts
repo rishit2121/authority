@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 const ROUTES = [
   "/",
   "/demo",
+  "/how-it-works",
   "/app",
   "/app/tasks",
   "/app/tasks/new",
@@ -65,7 +66,7 @@ test.describe("layout: no console errors", () => {
 test.describe("keyboard access and focus visibility", () => {
   test("the primary CTA on the homepage is reachable and shows a visible focus ring", async ({ page }) => {
     await page.goto("/");
-    const cta = page.getByRole("link", { name: "Start building" }).first();
+    const cta = page.locator("#top").getByRole("link", { name: "Try a protected call" });
     await cta.focus();
     await expect(cta).toBeFocused();
 
@@ -77,18 +78,26 @@ test.describe("keyboard access and focus visibility", () => {
     expect(outlineWidth).not.toBe("0px");
   });
 
-  test("the graph's pause control is keyboard-accessible and toggles Resume", async ({ page }) => {
+  test("the proof run's attempts are keyboard operable with a visible focus ring", async ({ page }) => {
     await page.goto("/");
-    const hero = page.getByRole("group", { name: "Authority field, animated" });
-    // Desktop and mobile layouts each render their own copy of the control, sharing one paused
-    // state; `.first()` is the desktop one, visible at this default viewport.
-    const pauseButton = hero.getByRole("button", { name: "Pause animation" }).first();
-    // Keyboard-accessible even though it's visually subtle until focused — focusing it directly
-    // (simulating Tab arriving on it) must work without first needing a pointer hover.
-    await pauseButton.focus();
-    await expect(pauseButton).toBeFocused();
+    const run = page.locator("#proof-run");
+    const first = run.getByRole("tab", { name: /^Post to #engineering/ });
+    await first.focus();
+    await page.keyboard.press("ArrowDown");
+    const general = run.getByRole("tab", { name: /^Post to #general/ });
+    await expect(general).toBeFocused();
+    await expect(general).toHaveAttribute("aria-selected", "true");
+    const outlineStyle = await general.evaluate((el) => getComputedStyle(el).outlineStyle);
+    expect(outlineStyle).not.toBe("none");
+    await expect(run.getByRole("tabpanel").getByTestId("proof-run-outcome")).toHaveText(
+      "Blocked before dispatch",
+    );
+
+    // Home moves focus back to the first attempt; Enter (the tabs are buttons) selects it.
+    await page.keyboard.press("Home");
+    await expect(first).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(hero.getByRole("button", { name: "Resume animation" }).first()).toBeVisible();
+    await expect(first).toHaveAttribute("aria-selected", "true");
   });
 
   test("kill-switch confirmation is keyboard operable", async ({ page }) => {
@@ -115,22 +124,25 @@ test.describe("keyboard access and focus visibility", () => {
 test.describe("reduced motion", () => {
   test.use({ reducedMotion: "reduce" });
 
-  test("the authority graph renders the resolved state with no pause control", async ({ page }) => {
+  test("the proof run switches outcomes with no animation classes", async ({ page }) => {
     await page.goto("/");
-    const hero = page.getByRole("group", { name: "Authority field, animated" });
-    // Both the desktop and mobile layouts render in the DOM simultaneously (one hidden via CSS
-    // depending on viewport width), so this text matches two elements. The desktop layout is
-    // first in DOM order and this test runs at the default (desktop-width) viewport, where it's
-    // the one actually visible.
-    await expect(hero.getByText("Permissions revoked").first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Pause animation" })).toHaveCount(0);
+    const run = page.locator("#proof-run");
+    await run.getByRole("tab", { name: /^Post to #general/ }).click();
+    await expect(run.getByRole("tabpanel").getByTestId("proof-run-outcome")).toHaveText(
+      "Blocked before dispatch",
+    );
+    await expect(
+      page.locator(".proof-run-enter, .proof-run-stamp-block, .proof-run-stamp-allow"),
+    ).toHaveCount(0);
   });
 
-  test("the walkthrough is fully usable with motion reduced", async ({ page }) => {
+  test("/demo's playback is fully usable with motion reduced", async ({ page }) => {
     await page.goto("/demo");
-    const walkthrough = page.getByRole("group", { name: "Runtime authorization walkthrough" });
-    await walkthrough.getByRole("button", { name: "Next" }).click();
-    await expect(walkthrough.getByRole("heading", { name: "Task Authority Contract created" })).toBeVisible();
+    const run = page.getByTestId("proof-run-playback");
+    await run.getByRole("tab", { name: /^Send an email/ }).click();
+    await expect(run.getByRole("tabpanel").getByTestId("proof-run-reason")).toHaveText(
+      "Email is not part of this task's contract.",
+    );
   });
 });
 

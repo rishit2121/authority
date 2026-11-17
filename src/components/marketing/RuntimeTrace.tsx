@@ -35,7 +35,9 @@ export function RuntimeTrace({ entries }: { entries: RuntimeTraceEntry[] }) {
               <span className="font-mono-code text-[13px] text-mkt-text-secondary">{entry.time}</span>
               <span className="text-[15px] text-mkt-text">{entry.label}</span>
               {entry.operationId ? (
-                <span className="font-mono-code text-[11px] text-mkt-gray">{entry.operationId}</span>
+                <span className="font-mono-code text-[11px] text-mkt-text-secondary">
+                  {entry.operationId}
+                </span>
               ) : null}
             </div>
             {entry.status ? (

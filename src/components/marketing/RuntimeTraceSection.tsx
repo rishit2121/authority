@@ -28,7 +28,7 @@ export function RuntimeTraceSection() {
         <SectionHeading
           eyebrow="Tool calls"
           title="Every call, checked and recorded."
-          description="A real decision trace — human-readable action names first, operation ids secondary."
+          description="An example decision trace — human-readable action names first, operation ids secondary."
         />
         <div className="mt-10">
           <RuntimeTrace entries={ENTRIES} />
