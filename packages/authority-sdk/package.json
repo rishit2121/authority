@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./openai": {
+      "types": "./dist/adapters/openai.d.ts",
+      "default": "./dist/adapters/openai.js"
     }
   },
   "files": [
