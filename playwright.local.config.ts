@@ -40,6 +40,10 @@ export default defineConfig({
       GATEWAY_DATABASE_SSL: "disable",
       AUTHORITY_DEPLOYMENT: "local",
       AUTHORITY_PUBLIC_URL: BASE_URL,
+      // The in-process fake Slack API (never slack.com) for setup-guided.spec.ts. `next start` runs with
+      // NODE_ENV=production, which refuses fixture mode without the explicit second flag.
+      SLACK_FIXTURE_MODE: "1",
+      AUTHORITY_ALLOW_SLACK_FIXTURE: "1",
       OPENAI_API_KEY: "",
       OPENROUTER_API_KEY: "",
       RESEND_API_KEY: "",

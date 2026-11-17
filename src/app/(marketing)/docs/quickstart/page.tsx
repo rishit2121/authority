@@ -4,7 +4,9 @@ import Link from "next/link";
 import { CodeBlock } from "@/components/docs/CodeBlock";
 import { DocsPage, DocsSection, DocsTable } from "@/components/docs/DocsPage";
 import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
-import { installCommand, quickstartSnippet, RUN_COMMAND } from "@/lib/setup/quick-setup";
+import { firstCallSample, SAMPLE_FILE, SAMPLE_RUN_COMMAND } from "@/lib/setup/handoff";
+import { installCommand } from "@/lib/setup/quick-setup";
+import { READ_CALLS } from "@/lib/setup/state";
 
 export const metadata: Metadata = { title: "Quickstart — Authority Docs" };
 
@@ -35,28 +37,43 @@ export default function QuickstartPage() {
 
       <DocsSection title="2. Connect a service">
         <p>
-          Pick a service on the Setup page — Slack, Gmail, GitHub, Notion, Linear, Stripe, PostgreSQL, or any
-          HTTPS API. Each one asks only for what it needs (a bot token, an API key, or a Google sign-in) and
-          verifies it right away. Credentials are stored encrypted and never shown again.
+          On the Setup page, choose your app, then pick a service: Slack (a workspace bot token), Gmail
+          (Google account consent), GitHub (the GitHub App installation), Notion, Linear, Stripe, PostgreSQL,
+          or any HTTPS API. Each card shows the connections you already have and whether each one is ready,
+          needs consent, needs access or needs reconnecting. Credentials are stored encrypted and never shown
+          again.
+        </p>
+        <p>
+          Setup then shows <strong>who can use the connection</strong> today, before anything changes. To try
+          it, share it with <strong>your test customer only</strong> (one explicit click). Sharing with every
+          customer of your app is a separate, optional choice that asks for confirmation; setup never does it
+          for you.
         </p>
       </DocsSection>
 
-      <DocsSection title="3. Create your agent">
+      <DocsSection title="3. Make a protected call">
         <p>
-          Give your agent a name and click <strong>Create agent and keys</strong>. Authority creates the
-          agent, lets it use the services you picked, and shows a <code>.env</code> block with two keys —{" "}
-          <strong>copy it right away</strong>, it&apos;s shown once:
+          For Gmail and Slack, <strong>Make a protected call</strong> runs one fixed read (
+          <code>gmail.list_labels</code> or <code>slack.list_channels</code>) through this deployment&apos;s
+          own API, exactly as your code will: a task for your test customer with only that connection, a
+          one-step plan (no model), a short task session, authorize, execute. You see the decision, its
+          reasons and the receipt. Nothing is retried: a timeout after execute is shown as &quot;outcome
+          unknown&quot;.
+        </p>
+        <p>
+          The same click issues two keys, shown <strong>once</strong>, as a <code>.env</code> block:
         </p>
         <CodeBlock
           code={`AUTHORITY_URL=${baseUrl}
 AUTHORITY_BACKEND_API_KEY=authority_dk_...
 AUTHORITY_AGENT_ID=...
-AUTHORITY_AGENT_RUNTIME_KEY=authority_rk_...`}
+AUTHORITY_AGENT_RUNTIME_KEY=authority_rk_...
+SLACK_CONNECTION_ID=...`}
         />
         <p>
           New applications start with <strong>Require task sessions</strong> on: your agent opens a session
-          for each task (the snippet below does), and its runtime key alone is refused on your tasks. Nothing
-          waits for a person unless you add an approval rule.
+          for each task, and its runtime key alone is refused on your tasks. Nothing waits for a person unless
+          you add an approval rule.
         </p>
       </DocsSection>
 
@@ -65,55 +82,40 @@ AUTHORITY_AGENT_RUNTIME_KEY=authority_rk_...`}
           headers={["Once, in the dashboard", "Every task, from your code"]}
           rows={[
             [
-              "Connect services; share them with your app (Setup does this)",
-              "Create a task for a user: backend.tasks.create",
+              "Connect services; share each one with the customers who may use it",
+              "Prepare a task for one user with exactly the connections it needs: authority.prepareTask",
             ],
             [
-              "Create the agent and keys",
-              "Prepare it: backend.tasks.prepare -- Authority plans and compiles the contract",
+              "Create the agent and keys (Setup does this)",
+              'Handle every prepare status; only "ready" has a task to call',
             ],
-            [
-              "Optional: approval rules (Approvals page)",
-              'If a rule matched: wait for status "active" (backend.contracts.getStatus)',
-            ],
+            ["Optional: approval rules (Approvals page)", "Call the planned tools: run.task.call"],
             [
               "Optional: task alignment and content screening (Settings → Applications)",
-              "Open a task session: agent.sessions.create",
-            ],
-            [
-              "Require task sessions (on for new applications)",
-              "List permitted tools, then execute: agent.tools.list, agent.tools.execute",
+              "Handle every call status; never auto-retry an indeterminate write",
             ],
           ]}
         />
       </DocsSection>
 
-      <DocsSection title="4. Run your first task">
+      <DocsSection title="4. Use it in your code">
         <p>Install the SDK (Node 20 or newer):</p>
         <CodeBlock code={installCommand(baseUrl)} />
         <p>
-          Save this as <code>quickstart.mjs</code> next to your <code>.env</code>:
+          Save this as <code>{SAMPLE_FILE}</code> next to your <code>.env</code> (the Setup page shows the
+          same file for the connector you chose):
         </p>
         <CodeBlock
-          code={quickstartSnippet("List the channels in our Slack workspace")}
+          code={firstCallSample({ baseUrl, call: READ_CALLS.slack, connectionId: "<your connection id>" })}
           language="javascript"
         />
         <p>Run it:</p>
-        <CodeBlock code={RUN_COMMAND} />
+        <CodeBlock code={SAMPLE_RUN_COMMAND} />
         <p>
-          The flow:{" "}
-          <strong>
-            create task → prepare → handle approval (only if a rule matched) → create a task session → fetch
-            the permitted tools → execute → read the receipt
-          </strong>
-          . Authority drafts a plan, grants only the tools that plan needs, and your agent can call those
-          tools — and nothing else. Each executed call returns a <code>receiptId</code>; every call shows up
-          under <strong>Activity</strong>.
-        </p>
-        <p>
-          If <code>delivery</code> is <code>&quot;held&quot;</code>, the action <strong>already ran</strong>{" "}
-          and only its result is being withheld for review — never execute it again. See{" "}
-          <Link href="/docs/results-and-evaluation">Results</Link>.
+          Each executed call returns a <code>receiptId</code>; every call shows up under{" "}
+          <strong>Activity</strong>. If the result is <code>result_held</code>, the action{" "}
+          <strong>already ran</strong> and only its result is being withheld for review: never run it again.
+          See <Link href="/docs/results-and-evaluation">Results</Link>.
         </p>
       </DocsSection>
 

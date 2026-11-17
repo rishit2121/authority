@@ -18,7 +18,7 @@ test.describe("empty workspace and demo installation", () => {
   test("a new authenticated tenant sees the honest empty state, not mock fixtures", async ({ page }) => {
     await signIn(page, OWNER_B);
 
-    await expect(page.getByRole("heading", { name: "Set up Authority in 3 steps" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Finish setting up Authority" })).toBeVisible();
     await expect(page.getByText(/does not contact github, stripe, gmail, slack/i)).toBeVisible();
     await expect(page.getByText(/stores no external credentials/i)).toBeVisible();
     await expect(page.getByRole("button", { name: "Install demo workspace" })).toBeVisible();

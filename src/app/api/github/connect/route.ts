@@ -3,11 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireIdentity } from "@/lib/auth/identity";
 import { publicBaseUrl } from "@/lib/github/config";
 import { COOKIE_MAX_AGE_SECONDS, PKCE_COOKIE, startInstall, STATE_COOKIE } from "@/lib/github/installation";
+import { RETURN_TO_COOKIE, safeReturnTo, sameOriginUrl, withQueryParam } from "@/lib/setup/return-to";
 
 /**
  * Starts the GitHub App installation. A plain form POST (not a server action) because the
  * response must redirect the browser to another origin while setting the single-use state and
  * PKCE cookies. Same-origin only: a cross-site form cannot start an installation for a user.
+ *
+ * An optional `returnTo` form field (only a same-origin `/app/setup...` path; see safeReturnTo) is kept in an
+ * httpOnly cookie beside the state cookie, so the setup and OAuth callbacks return the browser to Setup.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,14 +20,25 @@ const PAGE = "/app/integrations/github";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const base = publicBaseUrl() ?? request.nextUrl.origin;
+  let returnTo: string | null = null;
   const fail = (code: string) =>
-    NextResponse.redirect(new URL(`${PAGE}?error=${encodeURIComponent(code)}`, base), 303);
+    NextResponse.redirect(
+      sameOriginUrl(
+        returnTo
+          ? withQueryParam(returnTo, "connect_error", code)
+          : `${PAGE}?error=${encodeURIComponent(code)}`,
+        base,
+        PAGE,
+      ),
+      303,
+    );
 
   const sent = request.headers.get("origin");
   if (sent && sent !== base) return fail("forbidden");
 
   const identity = await requireIdentity(PAGE);
   const form = await request.formData().catch(() => null);
+  returnTo = safeReturnTo(form?.get("returnTo"));
   const existing = form?.get("mode") === "existing";
   const result = await startInstall({
     tenantId: identity.tenant.tenantId,
@@ -42,5 +57,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   };
   response.cookies.set(STATE_COOKIE, result.started.nonce, options);
   response.cookies.set(PKCE_COOKIE, result.started.verifier, options);
+  // Always overwrite: a stale value from an abandoned Setup visit must never redirect a later install.
+  if (returnTo) response.cookies.set(RETURN_TO_COOKIE, returnTo, options);
+  else response.cookies.delete({ name: RETURN_TO_COOKIE, path: "/api/github" });
   return response;
 }
