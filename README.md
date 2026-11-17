@@ -32,18 +32,22 @@ The goal is simple: let agents do useful work without giving every task the full
 
 ## Get started
 
-### Run locally
+### See it work: the Proof Run
 
-You’ll need Node.js 22, Docker and `psql`. The local setup uses a disposable Supabase database.
+One task, “Post one update in #engineering. Don’t email anyone.”, and four attempts, decided by a real local Authority against a mock Slack. You’ll need Node.js 22 and Docker:
 
 ```bash
 git clone https://github.com/rishit2121/authority.git
-cd authority
-npm ci
+cd authority && npm ci
 npx supabase start
+npm run authority -- demo
 ```
 
-Give the local gateway role its development login:
+The post to #engineering runs once and returns a receipt. Three attempts are blocked before anything reaches the provider: posting to #general (pinned destination), posting a second time (spent budget) and sending an email (not in the task). The command fails if any of that changes. The recipe and what it does and doesn’t prove are in [examples/proof-run](examples/proof-run).
+
+### Run the dashboard locally
+
+The local setup uses the same disposable Supabase database. `npm run authority -- demo` already gave the local gateway role its development login. If you skipped the demo, run this instead (needs `psql`):
 
 ```bash
 psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
@@ -74,11 +78,11 @@ Start the application:
 npm run dev
 ```
 
-Open [localhost:3000](http://localhost:3000).
+Open [localhost:3000](http://localhost:3000), sign in, and go to **Setup** (`/app/setup`): connect one service, make one protected read call, and copy the code that does the same from your backend. `npm run authority -- doctor` checks this machine without printing secrets.
 
 The deterministic authorization system works without model credentials. Optional AI features require their own configuration.
 
-Follow the [complete quickstart](docs/QUICKSTART.md) to create an application, register an agent, connect a service and run your first task.
+Follow the [complete quickstart](docs/QUICKSTART.md) for the full path from a new account to your own agent.
 
 ### Try the hosted pilot
 
@@ -166,7 +170,7 @@ Once prepared and activated, the contract permits that message to that channel o
 
 If the agent needs to write the message itself, for example a summary after reading data, a supported free-text field can instead be marked as agent-written by listing it in `agentGenerated`. The destination remains pinned.
 
-Open text is not deterministically checked for correctness or sensitive information. See the [agent-written message example](docs/QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data) for the supported flow.
+Open text is not deterministically checked for correctness or sensitive information. See the [agent-written message example](docs/QUICKSTART.md#4-let-the-agent-write-a-message-after-it-reads-data) for the supported flow.
 
 ## Integrate with your agent
 
@@ -183,6 +187,43 @@ The usual lifecycle is:
 5. Create a task session.
 6. Fetch the permitted tools and execute calls.
 7. Inspect decisions and execution receipts.
+
+From a Node backend, the SDK does the lifecycle for one task and hands back a handle bound to it:
+
+```ts
+import { Authority } from "@authority/sdk";
+
+const authority = new Authority({
+  baseUrl: process.env.AUTHORITY_URL!,
+  backendKey: process.env.AUTHORITY_BACKEND_API_KEY!,
+  agentId: process.env.AUTHORITY_AGENT_ID!,
+  runtimeKey: process.env.AUTHORITY_AGENT_RUNTIME_KEY!,
+});
+
+const run = await authority.prepareTask({
+  userId: user.id,
+  request: "Post one engineering update",
+  connections: { slack: process.env.SLACK_CONNECTION_ID! },
+  actions: [
+    {
+      tool: "slack.post_message",
+      arguments: { channel: "C0ENGINEERING" },
+      agentGenerated: ["text"],
+      maxInvocations: 1,
+    },
+  ],
+});
+
+if (run.status === "ready") {
+  const result = await run.task.call(
+    "slack.post_message",
+    { text: "The deployment is complete." },
+    { idempotencyKey: event.id },
+  );
+}
+```
+
+Every other outcome (approval, alignment review, clarification, a partially accepted plan, a denial, an unknown provider result) comes back as its own `status`. Nothing is retried or widened for you. A starter project with this code: `npm run authority -- init --dir ../my-agent` (previews first; writes only with `--yes`).
 
 Start with:
 
@@ -251,6 +292,7 @@ Authority’s boundaries are important to understand:
 - **Only routed calls are governed.** Other credentials, shell commands, browser submissions and page-issued requests need controls at their execution boundary.
 - **Open text remains open.** Deterministic checks do not establish that a message is accurate or contains no sensitive information.
 - **Security-relevant derived values must be resolved first.** Recipients, channels, IDs and amounts need concrete values in the plan. Receipt-backed provenance is not implemented.
+- **Budgets count calls, not money.** A budget is the number of times one action may run in one task (`maxInvocations`). There is no dollar amount, spending cap or limit across tasks.
 - **Budgets carry over only for the same action.** An action’s budget spans re-preparations of the task, but a step with a different pinned value is a new action with its own budget, and the total across all actions is still per contract version.
 - **Model reviews are probabilistic.** Shadow evidence is best effort, and reviewer limits are per process.
 - **Simulation is not execution.** Consuming a simulated capability does not call a provider.
