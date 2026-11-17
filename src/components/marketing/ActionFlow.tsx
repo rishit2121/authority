@@ -86,8 +86,8 @@ export function ActionFlow() {
             <Node title="Slack" detail="receives one post" />
           </div>
           <figcaption className="mt-4 border-t border-line pt-3 text-[13.5px] leading-[1.5] text-ink-soft">
-            Authority sits between your agent and the tool. A call that fits the task goes through; one that
-            does not never reaches Slack.
+            Authority sits between your agent and the tool. A call that fits the task goes through. A call
+            outside it is stopped before it reaches Slack.
           </figcaption>
         </figure>
       </MarketingContainer>
