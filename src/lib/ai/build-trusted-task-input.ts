@@ -1,5 +1,6 @@
 import "server-only";
 
+import { offeredToAiPlanner } from "@/lib/connectors/rest/ai-tools";
 import type { Policy } from "@/lib/domain";
 import type { LoadedRegistry } from "@/lib/registry";
 
@@ -29,6 +30,7 @@ export function buildTrustedTaskInput(input: {
   resourceReferences: readonly string[];
 }): TrustedTaskInput {
   const availableTools: TrustedToolDescriptor[] = [...input.registry.operations.values()]
+    .filter((op) => offeredToAiPlanner(op.provider, input.taskIntent))
     .map((op) => ({
       id: op.id,
       provider: op.provider,

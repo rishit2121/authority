@@ -29,8 +29,8 @@ export interface GatewayFixture {
  */
 export function currentVersions(): { registryVersion: string; compilerVersion: string } {
   const root = process.cwd();
-  const registry = /registryVersion:\s*"([^"]+)"/.exec(
-    readFileSync(path.join(root, "src/lib/registry/fixtures/github-demo.ts"), "utf8"),
+  const registry = /BASE_REGISTRY_VERSION\s*=\s*"([^"]+)"/.exec(
+    readFileSync(path.join(root, "src/lib/registry/fixtures/base.ts"), "utf8"),
   );
   const compiler = /COMPILER_VERSION\s*=\s*"([^"]+)"/.exec(
     readFileSync(path.join(root, "src/lib/authorization/contract-compiler.ts"), "utf8"),

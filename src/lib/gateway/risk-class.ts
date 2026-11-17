@@ -1,10 +1,11 @@
 import "server-only";
 
-import { githubDemoRegistry, loadRegistry, type LoadedRegistry } from "@/lib/registry";
+import { loadRegistry, type LoadedRegistry } from "@/lib/registry";
+import { baseRegistry } from "@/lib/registry/fixtures/base";
 
 export type RiskClass = "low" | "medium" | "high";
 
-const registry = loadRegistry(githubDemoRegistry);
+const registry = loadRegistry(baseRegistry);
 
 /**
  * The risk class of a tool call, from trusted registry metadata only (never
