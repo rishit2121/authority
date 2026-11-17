@@ -1,0 +1,75 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://docs.discord.com/developers/reference -- bot tokens are sent as `Authorization: Bot <token>` (API v10). */
+export const discord: RestConnectorSpec = {
+  id: "discord",
+  name: "Discord",
+  description:
+    "List a server's channels, read a channel and its recent messages, and post one message as your bot.",
+  category: "Communication",
+  docsUrl: "https://docs.discord.com/developers/reference",
+  iconSlug: "discord",
+  host: "discord.com",
+  basePath: "/api/v10",
+  credential: {
+    label: "Bot token",
+    help: "Discord Developer Portal → your application → Bot → Reset Token. Invite the bot to the server with View Channels, Read Message History and Send Messages.",
+  },
+  auth: { headers: { Authorization: "Bot {key}" } },
+  headers: { "User-Agent": "DiscordBot (https://github.com/rishit2121/authority, 1.0)" },
+  verify: { method: "GET", path: "/users/@me" },
+  operations: [
+    {
+      slug: "list_guild_channels",
+      summary: "Lists the channels in one server (guild).",
+      method: "GET",
+      path: "/guilds/{guild_id}/channels",
+      sideEffect: "read",
+      resourceType: "guild",
+      resource: "guild_id",
+      args: [{ key: "guild_id", in: "path", required: true, description: "The server (guild) id." }],
+    },
+    {
+      slug: "get_channel",
+      summary: "Returns one channel's name, type and topic.",
+      method: "GET",
+      path: "/channels/{channel_id}",
+      sideEffect: "read",
+      resourceType: "channel",
+      resource: "channel_id",
+      args: [{ key: "channel_id", in: "path", required: true, description: "The channel id." }],
+    },
+    {
+      slug: "list_messages",
+      summary: "Returns up to 50 of the most recent messages in one channel.",
+      method: "GET",
+      path: "/channels/{channel_id}/messages",
+      sideEffect: "read",
+      resourceType: "channel",
+      resource: "channel_id",
+      dataSensitivity: "confidential",
+      fixedQuery: { limit: "50" },
+      args: [{ key: "channel_id", in: "path", required: true, description: "The channel id." }],
+    },
+    {
+      slug: "send_message",
+      summary: "Posts one text message (up to 2000 characters) to one channel as the bot.",
+      method: "POST",
+      path: "/channels/{channel_id}/messages",
+      sideEffect: "write_create",
+      resourceType: "channel",
+      resource: "channel_id",
+      externalCommunication: true,
+      args: [
+        { key: "channel_id", in: "path", required: true, description: "The channel id." },
+        {
+          key: "content",
+          in: "body",
+          required: true,
+          freeText: true,
+          description: "Message text, up to 2000 characters.",
+        },
+      ],
+    },
+  ],
+};

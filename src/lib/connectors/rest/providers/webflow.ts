@@ -1,0 +1,78 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://developers.webflow.com/data/reference/rest-introduction -- site tokens are sent as `Authorization: Bearer <token>`. */
+export const webflow: RestConnectorSpec = {
+  id: "webflow",
+  name: "Webflow",
+  description: "List sites, CMS collections and items, and create one draft CMS item (never published).",
+  category: "Content & design",
+  docsUrl: "https://developers.webflow.com/data/reference/rest-introduction",
+  iconSlug: "webflow",
+  host: "api.webflow.com",
+  basePath: "/v2",
+  credential: {
+    label: "Site API token",
+    help: "Webflow → Site settings → Apps & Integrations → API access → Generate API token with Sites (read) and CMS (read and write).",
+  },
+  auth: { headers: { Authorization: "Bearer {key}" } },
+  verify: { method: "GET", path: "/sites" },
+  operations: [
+    {
+      slug: "list_sites",
+      summary: "Lists the sites the token can access.",
+      method: "GET",
+      path: "/sites",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [],
+    },
+    {
+      slug: "list_collections",
+      summary: "Lists the CMS collections in one site.",
+      method: "GET",
+      path: "/sites/{site_id}/collections",
+      sideEffect: "read",
+      resourceType: "site",
+      resource: "site_id",
+      args: [{ key: "site_id", in: "path", required: true, description: "The site id." }],
+    },
+    {
+      slug: "list_items",
+      summary: "Lists the staged items in one CMS collection.",
+      method: "GET",
+      path: "/collections/{collection_id}/items",
+      sideEffect: "read",
+      resourceType: "collection",
+      resource: "collection_id",
+      args: [{ key: "collection_id", in: "path", required: true, description: "The collection id." }],
+    },
+    {
+      slug: "create_draft_item",
+      summary: "Creates one draft item (name and slug) in one collection; does not publish it.",
+      method: "POST",
+      path: "/collections/{collection_id}/items",
+      sideEffect: "write_create",
+      resourceType: "collection",
+      resource: "collection_id",
+      fixedBody: { isDraft: true, isArchived: false },
+      args: [
+        { key: "collection_id", in: "path", required: true, description: "The collection id." },
+        {
+          key: "name",
+          in: "body",
+          target: "fieldData.name",
+          required: true,
+          freeText: true,
+          description: "The item's name.",
+        },
+        {
+          key: "slug",
+          in: "body",
+          target: "fieldData.slug",
+          required: true,
+          description: "URL slug, lowercase letters, digits and dashes.",
+        },
+      ],
+    },
+  ],
+};

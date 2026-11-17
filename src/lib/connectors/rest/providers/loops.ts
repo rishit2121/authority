@@ -1,0 +1,76 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://loops.so/docs/api-reference/intro -- API keys are sent as `Authorization: Bearer <key>`. */
+export const loops: RestConnectorSpec = {
+  id: "loops",
+  name: "Loops",
+  description: "List mailing lists, find a contact, create a contact, and send one transactional email.",
+  category: "Marketing & email",
+  docsUrl: "https://loops.so/docs/api-reference/intro",
+  iconSlug: "loops",
+  host: "app.loops.so",
+  basePath: "/api",
+  credential: {
+    label: "API key",
+    help: "Loops → Settings → API → Generate key.",
+  },
+  auth: { headers: { Authorization: "Bearer {key}" } },
+  verify: { method: "GET", path: "/v1/api-key" },
+  operations: [
+    {
+      slug: "list_mailing_lists",
+      summary: "Lists the account's mailing lists and their ids.",
+      method: "GET",
+      path: "/v1/lists",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [],
+    },
+    {
+      slug: "find_contact",
+      summary: "Finds the contact with one email address.",
+      method: "GET",
+      path: "/v1/contacts/find",
+      sideEffect: "read",
+      resourceType: "contact",
+      resource: "email",
+      dataSensitivity: "confidential",
+      args: [{ key: "email", in: "query", required: true, description: "The contact's email address." }],
+    },
+    {
+      slug: "create_contact",
+      summary: "Creates one contact by email address.",
+      method: "POST",
+      path: "/v1/contacts/create",
+      sideEffect: "write_create",
+      resourceType: "contact",
+      resource: "email",
+      dataSensitivity: "confidential",
+      args: [
+        { key: "email", in: "body", required: true, description: "The contact's email address." },
+        { key: "first_name", in: "body", target: "firstName", required: false, description: "First name." },
+        { key: "last_name", in: "body", target: "lastName", required: false, description: "Last name." },
+      ],
+    },
+    {
+      slug: "send_transactional_email",
+      summary: "Sends one published transactional email template to one address; nothing else.",
+      method: "POST",
+      path: "/v1/transactional",
+      sideEffect: "write_create",
+      resourceType: "email_recipient",
+      resource: "email",
+      externalCommunication: true,
+      args: [
+        {
+          key: "transactional_id",
+          in: "body",
+          target: "transactionalId",
+          required: true,
+          description: "The transactional email's id.",
+        },
+        { key: "email", in: "body", required: true, description: "Recipient email address." },
+      ],
+    },
+  ],
+};

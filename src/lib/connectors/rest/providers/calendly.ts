@@ -1,0 +1,107 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://developer.calendly.com/api-docs -- personal access tokens are sent as `Authorization: Bearer <token>`. */
+export const calendly: RestConnectorSpec = {
+  id: "calendly",
+  name: "Calendly",
+  description: "List event types, scheduled meetings and invitees, and create a single-use scheduling link.",
+  category: "Productivity",
+  docsUrl: "https://developer.calendly.com/api-docs/overview/api/reference",
+  iconSlug: "calendly",
+  host: "api.calendly.com",
+  credential: {
+    label: "Personal access token",
+    help: "Calendly → Integrations & apps → API & webhooks → Personal access tokens → Generate new token.",
+  },
+  auth: { headers: { Authorization: "Bearer {key}" } },
+  verify: { method: "GET", path: "/users/me" },
+  operations: [
+    {
+      slug: "get_current_user",
+      summary: "Returns the token owner's profile, including the user URI the other calls take.",
+      method: "GET",
+      path: "/users/me",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [],
+    },
+    {
+      slug: "list_event_types",
+      summary: "Lists one user's event types.",
+      method: "GET",
+      path: "/event_types",
+      sideEffect: "read",
+      resourceType: "user",
+      resource: "user",
+      args: [
+        {
+          key: "user",
+          in: "query",
+          required: true,
+          description: "The user's URI (https://api.calendly.com/users/…).",
+        },
+      ],
+    },
+    {
+      slug: "list_scheduled_events",
+      summary: "Lists one user's scheduled meetings, optionally by status and start time.",
+      method: "GET",
+      path: "/scheduled_events",
+      sideEffect: "read",
+      resourceType: "user",
+      resource: "user",
+      dataSensitivity: "confidential",
+      args: [
+        {
+          key: "user",
+          in: "query",
+          required: true,
+          description: "The user's URI (https://api.calendly.com/users/…).",
+        },
+        { key: "status", in: "query", required: false, description: "active or canceled." },
+        {
+          key: "min_start_time",
+          in: "query",
+          required: false,
+          description: "Only events starting after this UTC time.",
+        },
+        {
+          key: "max_start_time",
+          in: "query",
+          required: false,
+          description: "Only events starting before this UTC time.",
+        },
+      ],
+    },
+    {
+      slug: "list_event_invitees",
+      summary: "Lists the invitees (names, emails, answers) of one scheduled meeting.",
+      method: "GET",
+      path: "/scheduled_events/{event_uuid}/invitees",
+      sideEffect: "read",
+      resourceType: "scheduled_event",
+      resource: "event_uuid",
+      dataSensitivity: "confidential",
+      args: [{ key: "event_uuid", in: "path", required: true, description: "The scheduled event's uuid." }],
+    },
+    {
+      slug: "create_scheduling_link",
+      summary: "Creates one single-use booking link for an event type; sends nothing itself.",
+      method: "POST",
+      path: "/scheduling_links",
+      sideEffect: "write_create",
+      resourceType: "event_type",
+      resource: "event_type",
+      args: [
+        {
+          key: "event_type",
+          in: "body",
+          target: "owner",
+          required: true,
+          description: "The event type's URI (https://api.calendly.com/event_types/…).",
+        },
+      ],
+      fixedBody: { max_event_count: 1, owner_type: "EventType" },
+    },
+  ],
+};

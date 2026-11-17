@@ -1,0 +1,100 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://developers.kit.com/api-reference/overview -- v4 API keys are sent as `X-Kit-Api-Key: <key>`. */
+export const kit: RestConnectorSpec = {
+  id: "kit",
+  name: "Kit",
+  description: "List tags and subscribers, read one subscriber, add a subscriber, and tag a subscriber.",
+  category: "Marketing & email",
+  docsUrl: "https://developers.kit.com/api-reference/overview",
+  iconSlug: "kit",
+  host: "api.kit.com",
+  basePath: "/v4",
+  credential: {
+    label: "API key (v4)",
+    help: "Kit → Settings → Developer → API keys → Add a new key (a v4 key).",
+    placeholder: "kit_…",
+  },
+  auth: { headers: { "X-Kit-Api-Key": "{key}" } },
+  verify: { method: "GET", path: "/account" },
+  operations: [
+    {
+      slug: "list_tags",
+      summary: "Lists the account's tags.",
+      method: "GET",
+      path: "/tags",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [],
+    },
+    {
+      slug: "list_subscribers",
+      summary: "Lists active subscribers, optionally only one email address.",
+      method: "GET",
+      path: "/subscribers",
+      sideEffect: "read",
+      resourceType: "account",
+      dataSensitivity: "confidential",
+      args: [
+        {
+          key: "email_address",
+          in: "query",
+          required: false,
+          description: "Only the subscriber with this email.",
+        },
+      ],
+    },
+    {
+      slug: "get_subscriber",
+      summary: "Returns one subscriber's email, name, state and fields.",
+      method: "GET",
+      path: "/subscribers/{subscriber_id}",
+      sideEffect: "read",
+      resourceType: "subscriber",
+      resource: "subscriber_id",
+      dataSensitivity: "confidential",
+      args: [
+        {
+          key: "subscriber_id",
+          in: "path",
+          type: "number",
+          required: true,
+          description: "The subscriber id.",
+        },
+      ],
+    },
+    {
+      slug: "create_subscriber",
+      summary: "Creates one subscriber (or updates the first name of an existing one with that email).",
+      method: "POST",
+      path: "/subscribers",
+      sideEffect: "write_create",
+      resourceType: "subscriber",
+      resource: "email_address",
+      dataSensitivity: "confidential",
+      args: [
+        { key: "email_address", in: "body", required: true, description: "The subscriber's email address." },
+        { key: "first_name", in: "body", required: false, description: "The subscriber's first name." },
+      ],
+    },
+    {
+      slug: "tag_subscriber",
+      summary: "Adds one tag to one existing subscriber by email address.",
+      method: "POST",
+      path: "/tags/{tag_id}/subscribers",
+      sideEffect: "write_update",
+      resourceType: "tag",
+      resource: "tag_id",
+      dataSensitivity: "confidential",
+      args: [
+        { key: "tag_id", in: "path", type: "number", required: true, description: "The tag id." },
+        {
+          key: "email_address",
+          in: "body",
+          required: true,
+          description: "The existing subscriber's email address.",
+        },
+      ],
+    },
+  ],
+};

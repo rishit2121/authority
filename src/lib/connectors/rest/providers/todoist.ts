@@ -1,0 +1,83 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://developer.todoist.com/api/v1/ -- API tokens are sent as `Authorization: Bearer <token>`. */
+export const todoist: RestConnectorSpec = {
+  id: "todoist",
+  name: "Todoist",
+  description: "List projects and active tasks, read a task, create a task, and complete one.",
+  category: "Productivity",
+  docsUrl: "https://developer.todoist.com/api/v1/",
+  iconSlug: "todoist",
+  host: "api.todoist.com",
+  basePath: "/api/v1",
+  credential: {
+    label: "API token",
+    help: "Todoist → Settings → Integrations → Developer → copy the API token.",
+  },
+  auth: { headers: { Authorization: "Bearer {key}" } },
+  verify: { method: "GET", path: "/user" },
+  operations: [
+    {
+      slug: "list_projects",
+      summary: "Lists the user's projects.",
+      method: "GET",
+      path: "/projects",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [],
+    },
+    {
+      slug: "list_tasks",
+      summary: "Lists active tasks, optionally only those in one project.",
+      method: "GET",
+      path: "/tasks",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [{ key: "project_id", in: "query", required: false, description: "Only tasks in this project." }],
+    },
+    {
+      slug: "get_task",
+      summary: "Returns one task's content, description, due date and project.",
+      method: "GET",
+      path: "/tasks/{task_id}",
+      sideEffect: "read",
+      resourceType: "task",
+      resource: "task_id",
+      args: [{ key: "task_id", in: "path", required: true, description: "The task's id." }],
+    },
+    {
+      slug: "create_task",
+      summary: "Creates one task, in the inbox or a given project.",
+      method: "POST",
+      path: "/tasks",
+      sideEffect: "write_create",
+      resourceType: "account",
+      args: [
+        { key: "content", in: "body", required: true, freeText: true, description: "Task title." },
+        { key: "description", in: "body", required: false, freeText: true, description: "Task description." },
+        {
+          key: "project_id",
+          in: "body",
+          required: false,
+          description: "Project to add it to (default: inbox).",
+        },
+        {
+          key: "due_string",
+          in: "body",
+          required: false,
+          description: "Natural-language due date, e.g. 'tomorrow 5pm'.",
+        },
+      ],
+    },
+    {
+      slug: "close_task",
+      summary: "Marks one task complete; changes nothing else.",
+      method: "POST",
+      path: "/tasks/{task_id}/close",
+      sideEffect: "write_update",
+      resourceType: "task",
+      resource: "task_id",
+      args: [{ key: "task_id", in: "path", required: true, description: "The task's id." }],
+    },
+  ],
+};

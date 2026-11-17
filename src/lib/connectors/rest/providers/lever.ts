@@ -1,0 +1,103 @@
+import type { RestConnectorSpec } from "../spec";
+
+/** https://hire.lever.co/developer/documentation -- HTTP basic auth with the API key as the username, blank password. */
+export const lever: RestConnectorSpec = {
+  id: "lever",
+  name: "Lever",
+  description: "List postings and opportunities, read a candidate's opportunity and notes, and add a note.",
+  category: "HR & recruiting",
+  docsUrl: "https://hire.lever.co/developer/documentation",
+  host: "api.lever.co",
+  basePath: "/v1",
+  credential: {
+    label: "API key",
+    help: "Lever → Settings → Integrations and API → API Credentials → Generate new key, with read access to opportunities and postings and write access to notes.",
+  },
+  auth: { basic: { username: "{key}", password: "" } },
+  verify: { method: "GET", path: "/postings?limit=1" },
+  operations: [
+    {
+      slug: "list_postings",
+      summary: "Lists job postings, optionally by state.",
+      method: "GET",
+      path: "/postings",
+      sideEffect: "read",
+      resourceType: "account",
+      args: [
+        {
+          key: "state",
+          in: "query",
+          required: false,
+          description: "published, internal, closed, draft, pending or rejected.",
+        },
+      ],
+    },
+    {
+      slug: "list_opportunities",
+      summary: "Lists candidate opportunities, optionally for one posting or stage.",
+      method: "GET",
+      path: "/opportunities",
+      sideEffect: "read",
+      resourceType: "account",
+      dataSensitivity: "confidential",
+      args: [
+        {
+          key: "posting_id",
+          in: "query",
+          required: false,
+          description: "Only opportunities applied to this posting.",
+        },
+        { key: "stage_id", in: "query", required: false, description: "Only opportunities in this stage." },
+        { key: "limit", in: "query", type: "number", required: false, description: "Page size (1-100)." },
+        {
+          key: "offset",
+          in: "query",
+          required: false,
+          description: "The next token from a previous response.",
+        },
+      ],
+    },
+    {
+      slug: "get_opportunity",
+      summary: "Returns one opportunity: the candidate, stage, postings and sources.",
+      method: "GET",
+      path: "/opportunities/{opportunity_id}",
+      sideEffect: "read",
+      resourceType: "opportunity",
+      resource: "opportunity_id",
+      dataSensitivity: "confidential",
+      args: [{ key: "opportunity_id", in: "path", required: true, description: "The opportunity id." }],
+    },
+    {
+      slug: "list_notes",
+      summary: "Lists the notes on one opportunity.",
+      method: "GET",
+      path: "/opportunities/{opportunity_id}/notes",
+      sideEffect: "read",
+      resourceType: "opportunity",
+      resource: "opportunity_id",
+      dataSensitivity: "confidential",
+      args: [{ key: "opportunity_id", in: "path", required: true, description: "The opportunity id." }],
+    },
+    {
+      slug: "add_note",
+      summary: "Adds one note to an opportunity; changes nothing else.",
+      method: "POST",
+      path: "/opportunities/{opportunity_id}/notes",
+      sideEffect: "write_create",
+      resourceType: "opportunity",
+      resource: "opportunity_id",
+      dataSensitivity: "confidential",
+      args: [
+        { key: "opportunity_id", in: "path", required: true, description: "The opportunity id." },
+        { key: "value", in: "body", required: true, freeText: true, description: "The note text." },
+        {
+          key: "perform_as",
+          in: "query",
+          required: false,
+          description: "Lever user id to author the note as.",
+        },
+      ],
+    },
+  ],
+};
