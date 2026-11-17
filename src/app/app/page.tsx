@@ -20,48 +20,39 @@ import type { Database } from "@/lib/supabase/database.types";
 
 type Db = SupabaseClient<Database>;
 
-interface SetupProgress {
-  connection: boolean;
-  agent: boolean;
-  firstCall: boolean;
+/**
+ * Setup is done once this workspace has made at least one ALLOWED protected call -- through the Setup page's own
+ * call or the developer's code, whichever came first. Read under RLS from authorization_decisions (the record every
+ * authorize writes), ignoring seeded demo rows. A setup task that was blocked, never authorized, or only created
+ * does not count, and a team that integrated without the Setup page is not nagged.
+ */
+async function hasAllowedProtectedCall(db: Db): Promise<boolean> {
+  const { data } = await db
+    .from("authorization_decisions")
+    .select("id")
+    .in("outcome", ["allow", "allow_constrained"])
+    .is("demo_key", null)
+    .limit(1);
+  return (data ?? []).length > 0;
 }
 
-async function loadSetupProgress(db: Db): Promise<SetupProgress> {
-  const head = { count: "exact", head: true } as const;
-  const [connections, github, agents, decisions] = await Promise.all([
-    db.from("connector_connections").select("id", head).neq("status", "disconnected"),
-    db.from("github_installations").select("id", head).neq("status", "disconnected"),
-    db.from("agents").select("id", head),
-    db.from("authorization_decisions").select("id", head),
-  ]);
-  return {
-    connection: (connections.count ?? 0) + (github.count ?? 0) > 0,
-    agent: (agents.count ?? 0) > 0,
-    firstCall: (decisions.count ?? 0) > 0,
-  };
-}
-
-function SetupCard({ progress }: { progress: SetupProgress }) {
-  const done = [progress.connection, progress.agent, progress.firstCall].filter(Boolean).length;
-  const fresh = done === 0;
+function SetupCard() {
   return (
     <section
       className="flex flex-col gap-4 rounded-[14px] border border-line-strong bg-paper-raised p-6 sm:flex-row sm:items-center sm:justify-between"
       data-testid="setup-card"
     >
       <div className="flex flex-col gap-1">
-        <h2 className="text-[17px] font-semibold text-ink">
-          {fresh ? "Set up Authority in 3 steps" : `Finish setup — ${done} of 3 done`}
-        </h2>
+        <h2 className="text-[17px] font-semibold text-ink">Finish setting up Authority</h2>
         <p className="text-[14px] text-ink-soft">
-          Connect a service, create your agent, and make your first protected call.
+          Connect a service, make one real protected call, then copy the code into your app.
         </p>
       </div>
       <Link
         href="/app/setup"
         className="inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-primary px-5 text-[14px] font-medium text-on-primary transition-colors hover:bg-primary-fixed"
       >
-        {fresh ? "Start setup" : "Continue setup"}
+        Continue setup
         <Icon name="arrow_forward" size={16} />
       </Link>
     </section>
@@ -78,8 +69,8 @@ export default async function OverviewPage() {
   const { identity, repositories, context } = await createRepositoriesForCurrentTenant("/app");
   const db = context.supabase;
 
-  const [setup, overview] = await Promise.all([
-    loadSetupProgress(db),
+  const [setupComplete, overview] = await Promise.all([
+    hasAllowedProtectedCall(db),
     loadDashboardOverview(repositories, identity.tenant.tenantId),
   ]);
   const { metrics, traces, hasAnyProductData } = overview;
@@ -90,7 +81,6 @@ export default async function OverviewPage() {
   ]);
 
   const metricById = (id: string) => metrics.find((m) => m.id === id)?.value ?? 0;
-  const setupComplete = setup.connection && setup.agent && setup.firstCall;
 
   return (
     <div className="flex flex-col gap-space-xl">
@@ -100,7 +90,7 @@ export default async function OverviewPage() {
         description="What your agents did recently, and anything that needs you."
       />
 
-      {setupComplete ? null : <SetupCard progress={setup} />}
+      {setupComplete ? null : <SetupCard />}
 
       {!hasAnyProductData ? (
         demoDataEnabled() ? (
