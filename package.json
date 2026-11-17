@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/*",
     "examples/model-driven-agent",
-    "examples/connector-quickstart"
+    "examples/connector-quickstart",
+    "examples/sdk-quickstart"
   ],
   "scripts": {
     "sdk:build": "npm run build -w @authority/sdk",
@@ -41,7 +42,8 @@
     "test:jev-live": "vitest run --config vitest.live.config.mts src/tests/live/jev-live.smoke.test.ts",
     "validate": "node --conditions=react-server --import tsx scripts/validate.ts",
     "check:production": "node --conditions=react-server --import tsx scripts/check-production.ts",
-    "docs:scenarios": "node --conditions=react-server --import tsx scripts/gen-scenario-docs.ts"
+    "docs:scenarios": "node --conditions=react-server --import tsx scripts/gen-scenario-docs.ts",
+    "authority": "node --import tsx scripts/authority-cli.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",

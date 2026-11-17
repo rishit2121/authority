@@ -1,8 +1,7 @@
 /**
- * Pure helpers behind the dashboard's one-page Setup flow
- * (src/app/app/setup). Kept free of database and server-only imports so the
- * client component can render the same snippet the server computed, and so
- * every rule here is unit-testable on its own.
+ * Small pure helpers shared by the Setup page (src/app/app/setup), its hand-off text (./handoff.ts) and the
+ * Quickstart docs. Kept free of database and server-only imports so client components can render the same text
+ * the server computed.
  */
 
 export interface SetupEnv {
@@ -22,89 +21,6 @@ export function envFileText(env: SetupEnv): string {
   ].join("\n");
 }
 
-/** A first task per connector that needs no ids the developer doesn't have yet. */
-const EXAMPLE_INTENTS: Record<string, string> = {
-  slack: "List the channels in our Slack workspace",
-  gmail: "List the labels in my Gmail inbox",
-  linear: "List the open issues on our Linear team",
-  notion: "Read the pages in our Notion database",
-  stripe: "Look up a Stripe customer",
-  github: "Read issue #1 in our repository",
-};
-
-export function exampleIntentFor(connectorIds: readonly string[]): string {
-  for (const id of connectorIds) {
-    const intent = EXAMPLE_INTENTS[id];
-    if (intent) return intent;
-  }
-  return "Describe what this task should do, in plain English";
-}
-
 export function installCommand(baseUrl: string): string {
   return `npm install ${baseUrl}/sdk/authority-sdk.tgz`;
-}
-
-export const RUN_COMMAND = "node --env-file=.env quickstart.mjs";
-
-export function quickstartSnippet(intent: string): string {
-  return `import { AuthorityBackendClient, AuthorityAgentClient } from "@authority/sdk";
-
-const url = process.env.AUTHORITY_URL;
-const backend = new AuthorityBackendClient({ baseUrl: url, apiKey: process.env.AUTHORITY_BACKEND_API_KEY });
-const agent = new AuthorityAgentClient({ baseUrl: url, token: process.env.AUTHORITY_AGENT_RUNTIME_KEY });
-
-// 1. Who the task is for -- any stable id from your own app.
-const { customerId } = await backend.customers.ensure({ externalId: "user-123" });
-
-// 2. Describe the task. Authority drafts the plan and grants only what it needs.
-const { connections } = await backend.connections.list(customerId);
-const { taskId } = await backend.tasks.create({
-  customerId,
-  agentId: process.env.AUTHORITY_AGENT_ID,
-  intent: ${JSON.stringify(intent)},
-  connections: connections.map(({ connectorId, connectionId }) => ({ connectorId, connectionId })),
-});
-const prepared = await backend.tasks.prepare(taskId, { generate: true });
-
-// 3. Handle the outcome. "ready" is the default; the others only happen if you set them up.
-if (prepared.status === "awaiting_approval") {
-  // One of your approval rules matched: wait for a person on the Approvals page.
-  console.log("Waiting for approval on the Approvals page...");
-  for (;;) {
-    const c = await backend.contracts.getStatus(prepared.contractId);
-    if (c.status === "active") break;
-    if (c.status === "rejected") process.exit(1);
-    await new Promise((r) => setTimeout(r, 5000));
-  }
-} else if (prepared.status === "alignment_review") {
-  // Task alignment (if enabled) found the plan does not match the request: revise it, or ask an admin.
-  console.log(prepared.decision, prepared.alignment.feedback ?? prepared.alignment.findings);
-  process.exit(1);
-} else if (prepared.status !== "ready") {
-  console.log(prepared.status, prepared.reason ?? "");
-  process.exit(1);
-}
-
-// 4. Hand your agent a session for this one task: it can't reach any other task,
-//    including other users' -- and sees, and can call, only the tools it was granted.
-await agent.sessions.create({ taskId });
-const { tools } = await agent.tools.list(taskId);
-console.log("granted:", tools.map((t) => t.tool));
-
-// 5. Call them. The arguments Authority pinned for this task come with each tool.
-for (const t of tools) {
-  const args = {};
-  for (const { key, equals } of t.resourceConstraints) {
-    const type = t.inputSchema.properties?.[key]?.type;
-    args[key] = type === "number" ? Number(equals) : type === "boolean" ? equals === "true" : equals;
-  }
-  const result = await agent.tools.execute({ taskId, tool: t.tool, arguments: args, idempotencyKey: \`\${taskId}-\${t.tool}\` });
-  if (result.status === "executed") {
-    // 6. The receipt proves what ran. If delivery is "held", it RAN -- never run it again.
-    console.log(t.tool, "receipt:", result.receiptId, result.delivery === "held" ? "(result held for review)" : JSON.stringify(result.data ?? "").slice(0, 300));
-  } else {
-    console.log(t.tool, "->", result.status, result.summary ?? "");
-  }
-}
-`;
 }

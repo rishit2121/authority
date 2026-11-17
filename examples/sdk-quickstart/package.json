@@ -1,0 +1,13 @@
+{
+  "name": "sdk-quickstart-example",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "start": "tsx --env-file=.env index.ts",
+    "openai": "tsx --env-file=.env openai-agent.ts"
+  },
+  "dependencies": {
+    "@authority/sdk": "*"
+  }
+}

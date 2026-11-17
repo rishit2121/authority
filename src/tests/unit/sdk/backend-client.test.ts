@@ -71,4 +71,36 @@ describe("AuthorityBackendClient.tasks.prepare", () => {
     expect(body.generate).toBe(true);
     expect(body.plan).toBeUndefined();
   });
+
+  it("sends raiseBudgets only when the caller set it, and sends agentGenerated per node", async () => {
+    const fetchMock = vi.fn((_url: string, _init: RequestInit) =>
+      jsonResponse(200, { taskId: "t1", status: "awaiting_approval" }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new AuthorityBackendClient({ baseUrl: "https://a.example", apiKey: "authority_dk_x" });
+    const plan = {
+      schemaVersion: 1 as const,
+      nodes: [
+        {
+          id: "n1",
+          sequence: 0,
+          tool: "slack.post_message",
+          arguments: { channel: "C1" },
+          agentGenerated: ["text"],
+          expectedSideEffect: "write_create" as const,
+        },
+      ],
+    };
+
+    await client.tasks.prepare("t1", { plan }, "k1");
+    await client.tasks.prepare("t1", { plan, raiseBudgets: true }, "k2");
+    await client.tasks.prepare("t1", { generate: true, raiseBudgets: false });
+
+    const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body as string));
+    expect(bodies[0]).toEqual({ plan: { ...plan, taskId: "t1" }, idempotencyKey: "k1" });
+    expect("raiseBudgets" in bodies[0]).toBe(false);
+    expect(bodies[0].plan.nodes[0].agentGenerated).toEqual(["text"]);
+    expect(bodies[1]).toEqual({ plan: { ...plan, taskId: "t1" }, idempotencyKey: "k2", raiseBudgets: true });
+    expect(bodies[2]).toEqual({ generate: true, raiseBudgets: false });
+  });
 });

@@ -43,7 +43,11 @@ export async function middleware(request: NextRequest) {
   // Refresh first, unconditionally. Doing this before any redirect decision
   // means a request arriving with an expired-but-refreshable token is treated
   // as signed in rather than bounced to the login page.
-  const { response, claims } = await refreshSession(request);
+  // On /login and /signup a signed-in visitor is redirected away, so there the session must be one the pages will
+  // also accept; a token whose session is gone would otherwise loop between /login and /app.
+  const { response, claims } = await refreshSession(request, {
+    confirmWithAuthServer: isAuthEntry(pathname),
+  });
 
   const isSignedIn = claims !== null;
 

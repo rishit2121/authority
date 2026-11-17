@@ -1,70 +1,108 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { Walkthrough } from "@/components/demo/Walkthrough";
-import { Icon } from "@/components/ui/Icon";
+import { CommandPanel } from "@/components/marketing/proof-run/CommandPanel";
+import { ProofRunPlayback } from "@/components/marketing/proof-run/ProofRunPlayback";
+import { ProofRunActions, transcriptMatchesRecipe } from "@/components/marketing/proof-run/ProofRunSection";
+import { DEMO_COMMANDS, REGRESSION_COMMAND } from "@/lib/proof-run/commands";
 
 export const metadata: Metadata = {
-  title: "How it works",
+  title: "Example run",
   description:
-    "A step-by-step walkthrough of one runtime authorization pass: trusted task, Task Authority Contract, agent plan, decisions, temporary capability and revocation.",
+    "One task, four attempts: an agent may post one update in #engineering and nothing else. See what Authority allows, what it blocks before dispatch, and run the same recipe yourself.",
 };
 
+const PROVES = [
+  "Real Authority, not a simulation: the runner prepares the task, opens a session, and sends each attempt through authorize and execute.",
+  "Slack is a mock transport, so no workspace or account is needed and every request that would reach Slack is counted.",
+  "Exactly one dispatch: the post to #engineering reaches the mock Slack once and returns a receipt.",
+  "The expected denials: #general is outside the pinned destination, a second post exceeds the limit of one, and email is not in the contract. None of them reaches the provider.",
+];
+
+const PREREQUISITES = [
+  "Node 22",
+  "Docker, for the local Supabase that npx supabase start runs",
+  "psql is not needed for the demo",
+];
+
+function SectionHeading({ id, children }: { id: string; children: string }) {
+  return (
+    <h2
+      id={id}
+      className="font-headline-lg text-[1.5rem] font-semibold leading-[1.2] tracking-[-0.02em] text-ink md:text-[1.75rem]"
+    >
+      {children}
+    </h2>
+  );
+}
+
+/** /demo: the same Proof Run as the home page, full width, then how to run it locally. */
 export default function DemoPage() {
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-margin py-space-2xl md:px-margin-lg md:py-[88px]">
-      <header className="mb-space-2xl max-w-3xl">
-        <span className="font-label-caps text-label-caps uppercase tracking-widest text-primary">
-          Guided walkthrough
-        </span>
-        <h1 className="mt-space-sm font-headline-lg text-[2rem] font-semibold leading-[1.18] tracking-tight text-on-surface md:text-[2.75rem]">
-          One task, nine decisions, zero standing access.
+    <div className="mx-auto w-full max-w-[1120px] px-6 py-10 md:px-10 md:py-16">
+      <header className="max-w-3xl">
+        <p className="font-mono-code text-[12px] uppercase tracking-[0.1em] text-ink-soft">Example run</p>
+        <h1 className="mt-3 font-display-serif text-[clamp(2.25rem,4.6vw,3.5rem)] font-normal leading-[1.02] tracking-[-0.03em] text-ink">
+          Post one update in #engineering. Don&apos;t email anyone.
         </h1>
-        <p className="mt-space-md font-body-lg text-body-lg text-on-surface-variant">
-          Follow a real coding task from a human instruction through to revocation. Every screen below uses
-          mocked data — no repository is contacted and no credential exists.
-        </p>
-        <p className="mt-space-md font-mono-code text-[11px] text-outline">
-          Use the arrow keys to move between steps.
+        <p className="mt-4 text-[16px] leading-[1.6] text-ink-soft">
+          One task, four things the agent tries. The task allows one Slack post to one channel; Authority
+          decides each attempt before anything reaches Slack. This page plays back a recorded run and connects
+          to nothing.
         </p>
       </header>
 
-      <Walkthrough />
+      <section id="proof-run" aria-label="Example run playback" className="mt-8 scroll-mt-[80px]">
+        <ProofRunPlayback recipeHashMatches={transcriptMatchesRecipe()} layout="full" />
+        <ProofRunActions />
+      </section>
 
-      <section className="mt-space-2xl grid grid-cols-1 gap-space-md md:grid-cols-2">
-        <Link
-          href="/app"
-          className="group rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg transition-colors hover:border-outline-variant/60"
-        >
-          <h2 className="flex items-center gap-2 font-headline-sm text-headline-sm font-semibold text-on-surface">
-            Open the control plane
-            <Icon
-              name="arrow_forward"
-              size={16}
-              className="transition-transform group-hover:translate-x-0.5"
-            />
-          </h2>
-          <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
-            Agents, tasks, capabilities and approvals across a mocked tenant.
-          </p>
-        </Link>
+      <section aria-labelledby="run-it-heading" className="mt-14 border-t border-line pt-10">
+        <SectionHeading id="run-it-heading">Run it yourself</SectionHeading>
+        <p className="mt-3 max-w-[40rem] text-[15px] leading-[1.6] text-ink-soft">
+          Clone the repository and run the same recipe against a local Authority and a mock Slack.
+        </p>
 
-        <Link
-          href="/app/tasks/demo-task"
-          className="group rounded-xl border border-outline-variant/30 bg-surface-container p-space-lg transition-colors hover:border-outline-variant/60"
-        >
-          <h2 className="flex items-center gap-2 font-headline-sm text-headline-sm font-semibold text-on-surface">
-            Inspect task #1842
-            <Icon
-              name="arrow_forward"
-              size={16}
-              className="transition-transform group-hover:translate-x-0.5"
+        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+          <div className="flex min-w-0 flex-col gap-4">
+            <CommandPanel
+              title="Run the example"
+              commands={DEMO_COMMANDS}
+              copyLabel="Copy demo commands"
+              testId="demo-commands"
             />
-          </h2>
-          <p className="mt-1 font-body-md text-body-md text-on-surface-variant">
-            The full contract, plan, decision evidence and execution trace.
-          </p>
-        </Link>
+            <div>
+              <p className="mb-2 text-[14px] font-medium text-ink">Keep it as a regression test</p>
+              <CommandPanel
+                title="Same recipe, as a test"
+                commands={[REGRESSION_COMMAND]}
+                copyLabel="Copy regression test command"
+                testId="demo-regression"
+              />
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <h3 className="text-[15px] font-semibold text-ink">Prerequisites</h3>
+            <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-[14px] leading-[1.55] text-ink">
+              {PREREQUISITES.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <h3 className="mt-10 text-[17px] font-semibold text-ink">What the runner proves</h3>
+        <ul className="mt-3 flex max-w-[48rem] flex-col gap-2 text-[15px] leading-[1.6] text-ink">
+          {PROVES.map((item) => (
+            <li key={item} className="flex gap-2">
+              <span
+                aria-hidden="true"
+                className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-[999px] bg-signal"
+              />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );

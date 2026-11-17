@@ -1,9 +1,11 @@
 import { contentApi, type ContentApi } from "./content.js";
-import { request, type ClientConfig, type RequestOptions } from "./http.js";
+import { classifyDecision, executePathFor, operationOf } from "./decision.js";
+import { request, type ClientConfig, type FetchLike, type RequestOptions } from "./http.js";
 import type {
   AgentAuthorizeResponse,
   ApprovalStatus,
   ResultInspection,
+  TaskSessionResponse,
   ToolCallResult,
   ToolManifest,
 } from "./types.js";
@@ -13,15 +15,12 @@ export interface AuthorityAgentClientOptions {
   /** An agent runtime key (`authority_rk_...`) or an existing task-session token. `sessions.create` upgrades this client to the session token it returns. */
   token: string;
   defaultTimeoutMs?: number;
+  /** Defaults to the global `fetch`. */
+  fetch?: FetchLike;
 }
 
 function randomSuffix(): string {
   return Math.random().toString(36).slice(2, 10);
-}
-
-/** "slack.list_channels" -> "list_channels": the operation is the tool name's action part unless given. */
-function operationOf(tool: string, operation?: string): string {
-  return operation ?? tool.slice(tool.indexOf(".") + 1);
 }
 
 /**
@@ -34,6 +33,14 @@ function operationOf(tool: string, operation?: string): string {
  * every call against the real, current contract regardless of what a
  * (possibly stale) manifest showed. This client never retries an
  * indeterminate write automatically -- see `tools.execute`'s own comment.
+ *
+ * Stateful by design (kept for compatibility): `sessions.create` replaces
+ * this instance's credential with the session token it returns, one-way.
+ * The server refuses to create a session from a session token, so one
+ * instance can only ever hold ONE task session; create a new instance per
+ * task. The `Authority` facade (`authority.ts`) never mutates a shared
+ * credential -- each `AuthorityTask` holds its own token -- and is the
+ * recommended entry point.
  */
 export class AuthorityAgentClient {
   private readonly config: ClientConfig;
@@ -49,6 +56,7 @@ export class AuthorityAgentClient {
       baseUrl: options.baseUrl,
       token: options.token,
       defaultTimeoutMs: options.defaultTimeoutMs,
+      fetch: options.fetch,
     };
   }
 
@@ -60,13 +68,12 @@ export class AuthorityAgentClient {
      * runtime key itself is never sent again after this succeeds.
      */
     create: async (input: { taskId: string; ttlSeconds?: number }, options?: RequestOptions) => {
-      const result = await request<{
-        sessionId: string;
-        token: string;
-        taskId: string;
-        contract: { id: string; version: number };
-        expiresAt: string;
-      }>(this.config, "/api/v1/sessions", { method: "POST", body: input }, options);
+      const result = await request<TaskSessionResponse>(
+        this.config,
+        "/api/v1/sessions",
+        { method: "POST", body: input },
+        options,
+      );
       this.config.token = result.token;
       return result;
     },
@@ -129,45 +136,34 @@ export class AuthorityAgentClient {
         options,
       );
 
-      if (decision.alignment) {
-        return decision.alignment.outcome === "misaligned"
-          ? {
-              status: "requires_replan",
-              reasonCodes: decision.reasonCodes,
-              summary: decision.summary,
-              alignment: decision.alignment,
-            }
-          : {
-              status: "held_for_review",
-              reasonCodes: decision.reasonCodes,
-              summary: decision.summary,
-              alignment: decision.alignment,
-            };
-      }
-      if (decision.requiresApproval && decision.approval) {
-        return {
-          status: "requires_approval",
-          approvalId: decision.approval.id,
-          statusUrl: decision.approval.statusUrl,
-        };
-      }
-      if (decision.requiresClarification) {
-        return {
-          status: "requires_clarification",
-          reasonCodes: decision.reasonCodes,
-          summary: decision.summary,
-        };
-      }
-      if (decision.requiresReplan) {
-        return { status: "requires_replan", reasonCodes: decision.reasonCodes, summary: decision.summary };
-      }
-      if (!decision.capability?.token) {
-        return { status: "denied", reasonCodes: decision.reasonCodes, summary: decision.summary };
+      const { reasonCodes, summary } = decision;
+      const outcome = classifyDecision(decision);
+      switch (outcome.kind) {
+        case "requires_replan":
+          return outcome.alignment
+            ? { status: "requires_replan", reasonCodes, summary, alignment: outcome.alignment }
+            : { status: "requires_replan", reasonCodes, summary };
+        case "held_for_review":
+          return { status: "held_for_review", reasonCodes, summary, alignment: outcome.alignment };
+        case "requires_approval":
+          return {
+            status: "requires_approval",
+            approvalId: outcome.approvalId,
+            statusUrl: outcome.statusUrl,
+          };
+        case "requires_clarification":
+          return { status: "requires_clarification", reasonCodes, summary };
+        // This client has always reported a capability it cannot spend (including one already issued) as denied.
+        case "already_authorized":
+        case "denied":
+          return { status: "denied", reasonCodes, summary };
+        case "allowed":
+          break;
       }
 
       const executed = await this.executeCapability(
         {
-          capability: decision.capability.token,
+          capability: outcome.capabilityToken,
           tool: input.tool,
           operation,
           resource: input.resource,
@@ -239,7 +235,11 @@ export class AuthorityAgentClient {
     },
     options?: RequestOptions,
   ) {
-    const path = input.tool.startsWith("github.") ? "/api/v1/github/execute" : "/api/v1/execute";
-    return request<Record<string, unknown>>(this.config, path, { method: "POST", body: input }, options);
+    return request<Record<string, unknown>>(
+      this.config,
+      executePathFor(input.tool),
+      { method: "POST", body: input },
+      options,
+    );
   }
 }

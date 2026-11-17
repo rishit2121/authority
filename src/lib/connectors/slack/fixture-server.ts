@@ -26,6 +26,8 @@ function initialChannels(): FixtureChannel[] {
   return [
     { id: "C1DEMO", name: "general" },
     { id: "C2DEMO", name: "incidents" },
+    // The synthetic #engineering channel the Proof Run recipe and the SDK quickstart pin.
+    { id: "C0ENGINEERING", name: "engineering" },
   ];
 }
 

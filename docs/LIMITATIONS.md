@@ -17,7 +17,7 @@ These four points most often lead to wrong assumptions. Each is described in mor
    runtime. Prepare excludes the step (`excludedSteps`, status `replan`). Resolve the value in your trusted
    backend, then prepare with it pinned. Only free text (a body, subject, title or description) may come from an
    earlier step, and Authority does not check where that text came from. The agent can still write a message after
-   reading data. See [QUICKSTART.md, section 3](QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data).
+   reading data. See [QUICKSTART.md, section 4](QUICKSTART.md#4-let-the-agent-write-a-message-after-it-reads-data).
 3. **Backend prepare skips Jev checks.** `POST /api/v1/tasks/{taskId}/prepare` never runs Jev necessity or
    completeness, whatever the tenant's `jev_settings` say. Only plans proposed in the dashboard go through Jev.
    Backend prepare always runs the deterministic validator, solver, compiler and verifier, plus admin approval rules.
@@ -72,7 +72,7 @@ These four points most often lead to wrong assumptions. Each is described in mor
   leaves out is open for the agent to write. A required one (Slack's `text`, an email `subject`, an issue `title`) is
   open when the plan lists it in `agentGenerated` (or binds it to an earlier step with `dataFlowRefs`). Otherwise the
   step is excluded (`excludedSteps`, status `clarify`). See
-  [QUICKSTART.md, section 3](QUICKSTART.md#3-let-the-agent-write-a-message-after-it-reads-data). Only free-text fields
+  [QUICKSTART.md, section 4](QUICKSTART.md#4-let-the-agent-write-a-message-after-it-reads-data). Only free-text fields
   can be agent-written; a recipient, channel, id, path, branch or amount must be pinned.
 - **Contracts compiled before closed-world arguments** (compiler versions before `authority-compiler-2026-10-23-9`)
   accept extra argument keys until re-prepared. A deploy of the current compiler retires them.

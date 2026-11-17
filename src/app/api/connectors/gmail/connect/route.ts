@@ -9,6 +9,7 @@ import {
 } from "@/lib/connectors/gmail/oauth";
 import { publicBaseUrl } from "@/lib/connectors/shared/public-base-url";
 import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-tenant";
+import { RETURN_TO_COOKIE, safeReturnTo, sameOriginUrl, withQueryParam } from "@/lib/setup/return-to";
 
 /**
  * Starts the Gmail OAuth flow for one already-created `connector_connections`
@@ -16,6 +17,10 @@ import { createRepositoriesForCurrentTenant } from "@/lib/persistence/current-te
  * src/app/api/github/connect/route.ts exactly, for the same reason: the
  * response must redirect the browser to another origin while setting the
  * single-use state and PKCE cookies.
+ *
+ * An optional `returnTo` form field (only a same-origin `/app/setup...` path; see safeReturnTo) is kept in an
+ * httpOnly cookie beside the state cookie, so the callback can send the browser back to the Setup step it came
+ * from. Without it, both routes keep returning to the Gmail page.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,14 +29,25 @@ const PAGE = "/app/integrations/gmail";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const base = publicBaseUrl() ?? request.nextUrl.origin;
+  let returnTo: string | null = null;
   const fail = (code: string) =>
-    NextResponse.redirect(new URL(`${PAGE}?error=${encodeURIComponent(code)}`, base), 303);
+    NextResponse.redirect(
+      sameOriginUrl(
+        returnTo
+          ? withQueryParam(returnTo, "connect_error", code)
+          : `${PAGE}?error=${encodeURIComponent(code)}`,
+        base,
+        PAGE,
+      ),
+      303,
+    );
 
   const sent = request.headers.get("origin");
   if (sent && sent !== base) return fail("forbidden");
 
   const { context } = await createRepositoriesForCurrentTenant(PAGE);
   const form = await request.formData().catch(() => null);
+  returnTo = safeReturnTo(form?.get("returnTo"));
   const connectionId = form?.get("connectionId");
   if (typeof connectionId !== "string" || connectionId.length === 0) return fail("invalid_connection");
 
@@ -59,5 +75,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   };
   response.cookies.set(STATE_COOKIE, result.started.nonce, options);
   response.cookies.set(PKCE_COOKIE, result.started.verifier, options);
+  // Always overwrite: a stale value from an abandoned Setup visit must never redirect a later connect.
+  if (returnTo) response.cookies.set(RETURN_TO_COOKIE, returnTo, options);
+  else response.cookies.delete({ name: RETURN_TO_COOKIE, path: "/api/connectors/gmail" });
   return response;
 }

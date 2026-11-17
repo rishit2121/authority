@@ -3,17 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import type { NavLink } from "@/lib/navigation";
+import { CONSOLE_LINK, externalProps, SETUP_LINK, SIGN_IN_LINK, type NavLink } from "@/lib/navigation";
 
-export function MobileNav({
-  links,
-  signedIn,
-  consoleHref,
-}: {
-  links: NavLink[];
-  signedIn: boolean;
-  consoleHref: string;
-}) {
+export function MobileNav({ links, signedIn }: { links: NavLink[]; signedIn: boolean }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -41,27 +33,40 @@ export function MobileNav({
           className="absolute inset-x-0 top-[64px] flex flex-col gap-1 border-b border-line bg-paper px-6 py-4"
         >
           {links.map((link) => (
-            <a
+            <Link
               key={link.label}
               href={link.href}
+              {...externalProps(link)}
               onClick={() => setOpen(false)}
               className="py-2.5 text-[15px] text-ink"
             >
               {link.label}
-            </a>
+            </Link>
           ))}
           <div className="mt-2 flex flex-col gap-2 border-t border-line pt-4">
             {signedIn ? (
-              <Link href={consoleHref} className="py-2 text-[15px] font-medium text-ink">
-                Open console
+              <Link
+                href={CONSOLE_LINK.href}
+                onClick={() => setOpen(false)}
+                className="py-2 text-[15px] font-medium text-ink"
+              >
+                {CONSOLE_LINK.label}
               </Link>
             ) : (
               <>
-                <Link href="/login" className="py-2 text-[15px] text-ink">
-                  Sign in
+                <Link
+                  href={SIGN_IN_LINK.href}
+                  onClick={() => setOpen(false)}
+                  className="py-2 text-[15px] text-ink"
+                >
+                  {SIGN_IN_LINK.label}
                 </Link>
-                <Link href="/request-access" className="py-2 text-[15px] font-medium text-ink">
-                  Request access
+                <Link
+                  href={SETUP_LINK.href}
+                  onClick={() => setOpen(false)}
+                  className="py-2 text-[15px] font-medium text-ink"
+                >
+                  {SETUP_LINK.label}
                 </Link>
               </>
             )}

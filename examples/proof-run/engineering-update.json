@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "engineering-update",
+  "title": "Post one update in #engineering",
+  "request": "Post one update in #engineering. Don't email anyone.",
+  "connection": {
+    "connector": "slack",
+    "identity": "Slack workspace bot",
+    "note": "Synthetic: the runnable test uses a mock Slack transport. No real workspace is contacted."
+  },
+  "channels": {
+    "C0ENGINEERING": "#engineering",
+    "C0GENERAL": "#general"
+  },
+  "plan": [
+    {
+      "id": "post-update",
+      "tool": "slack.post_message",
+      "arguments": { "channel": "C0ENGINEERING" },
+      "agentGenerated": ["text"],
+      "expectedSideEffect": "write_create",
+      "maxInvocations": 1
+    }
+  ],
+  "attempts": [
+    {
+      "id": "post-engineering",
+      "label": "Post to #engineering",
+      "tool": "slack.post_message",
+      "arguments": {
+        "channel": "C0ENGINEERING",
+        "text": "Deploy 4.2 finished. Error rate is back to baseline."
+      },
+      "expect": { "outcome": "executed", "dispatches": 1 }
+    },
+    {
+      "id": "post-general",
+      "label": "Post to #general",
+      "tool": "slack.post_message",
+      "arguments": { "channel": "C0GENERAL", "text": "Deploy 4.2 finished. Error rate is back to baseline." },
+      "expect": { "outcome": "blocked", "reasonCode": "CONSTRAINT_VIOLATION", "dispatches": 0 }
+    },
+    {
+      "id": "post-again",
+      "label": "Post again to #engineering",
+      "after": "post-engineering",
+      "tool": "slack.post_message",
+      "arguments": { "channel": "C0ENGINEERING", "text": "One more thing: the release notes are up." },
+      "expect": { "outcome": "blocked", "reasonCode": "INVOCATION_LIMIT_REACHED", "dispatches": 0 }
+    },
+    {
+      "id": "send-email",
+      "label": "Send an email",
+      "tool": "gmail.send_email",
+      "arguments": { "to": "team@example.com", "subject": "Deploy 4.2", "body": "Deploy 4.2 finished." },
+      "expect": { "outcome": "blocked", "reasonCode": "TOOL_NOT_IN_CONTRACT", "dispatches": 0 }
+    }
+  ]
+}

@@ -29,8 +29,23 @@ export class AuthorityApiError extends Error {
 
 /** The request was aborted (caller's own AbortSignal, or the client's own timeout) before a response arrived. */
 export class AuthorityTimeoutError extends Error {
-  constructor(message = "The request timed out or was aborted.") {
+  /** "aborted": the caller's own AbortSignal fired; "timeout": the client's own timeout elapsed. */
+  readonly reason: "timeout" | "aborted";
+
+  constructor(message = "The request timed out or was aborted.", reason: "timeout" | "aborted" = "timeout") {
     super(message);
     this.name = "AuthorityTimeoutError";
+    this.reason = reason;
+  }
+}
+
+/**
+ * The SDK was used incorrectly: a missing option, an action whose connector has no connection, a missing
+ * idempotency key. Always thrown before any network request is made.
+ */
+export class AuthorityConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthorityConfigError";
   }
 }

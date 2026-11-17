@@ -9,6 +9,7 @@ import {
   refreshInstallation,
   STATE_COOKIE,
 } from "@/lib/github/installation";
+import { RETURN_TO_COOKIE, safeReturnTo, sameOriginUrl, withQueryParam } from "@/lib/setup/return-to";
 
 /**
  * GitHub App "Setup URL". The `installation_id` query parameter is attacker-
@@ -53,9 +54,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     installationId: params.get("installation_id"),
   });
   if (outcome.kind === "error") {
-    return NextResponse.redirect(
-      new URL(`${PAGE}?error=${encodeURIComponent(outcome.code)}`, origin(request)),
-    );
+    // Back to Setup when the install started there (cookie set by the connect route, re-validated here).
+    const returnTo = safeReturnTo(request.cookies.get(RETURN_TO_COOKIE)?.value);
+    const target = returnTo
+      ? withQueryParam(returnTo, "connect_error", outcome.code)
+      : `${PAGE}?error=${encodeURIComponent(outcome.code)}`;
+    const response = NextResponse.redirect(sameOriginUrl(target, origin(request), PAGE));
+    response.cookies.delete({ name: RETURN_TO_COOKIE, path: "/api/github" });
+    return response;
   }
   return NextResponse.redirect(outcome.url);
 }

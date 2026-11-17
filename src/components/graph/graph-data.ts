@@ -2,8 +2,7 @@
  * Shared color tokens for the dark-theme app graph visuals. The radial
  * authority-graph geometry that used to live alongside this (AGENT,
  * CAPABILITY_PATHS, etc.) was removed with the old marketing homepage graph
- * (design/frontend-simplification) — its replacement lives under
- * `src/components/marketing/graph/` with its own, marketing-palette data.
+ * (design/frontend-simplification); the home page no longer has a graph.
  * `GRAPH_COLORS` itself is kept here because the Validation Lab's
  * AttackGraph still renders against the authenticated app's dark theme.
  */
